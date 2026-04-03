@@ -12,6 +12,7 @@ from .exceptions import (
     InsufficientFundsError,
     InvokeError,
     QuoteError,
+    TimeoutError,
 )
 from .models import (
     DiscoveryResponse,
@@ -148,6 +149,44 @@ class SynapseClient:
             request_id=request_id,
         )
 
+    def discover(
+        self,
+        *,
+        limit: int = 10,
+        offset: int = 0,
+        tags: Optional[list[str]] = None,
+        request_id: Optional[str] = None,
+    ) -> list:
+        page_size = max(1, limit)
+        page = max(1, (offset // page_size) + 1)
+        response = self.search_services(
+            tags=tags,
+            page=page,
+            page_size=page_size,
+            request_id=request_id,
+        )
+        return response.services
+
+    def search(
+        self,
+        query: str,
+        *,
+        limit: int = 10,
+        offset: int = 0,
+        tags: Optional[list[str]] = None,
+        request_id: Optional[str] = None,
+    ) -> list:
+        page_size = max(1, limit)
+        page = max(1, (offset // page_size) + 1)
+        response = self.search_services(
+            query=query,
+            tags=tags,
+            page=page,
+            page_size=page_size,
+            request_id=request_id,
+        )
+        return response.services
+
     def create_quote(
         self,
         service_id: str,
@@ -179,6 +218,21 @@ class SynapseClient:
             raise BudgetExceededError("Credential budget does not allow this invocation")
 
         return quote
+
+    def quote(
+        self,
+        service_id: str,
+        *,
+        input_preview: Optional[Dict[str, Any]] = None,
+        response_mode: str = "sync",
+        request_id: Optional[str] = None,
+    ) -> QuoteResponse:
+        return self.create_quote(
+            service_id=service_id,
+            input_preview=input_preview,
+            response_mode=response_mode,
+            request_id=request_id,
+        )
 
     def create_invocation(
         self,
@@ -223,6 +277,9 @@ class SynapseClient:
         self._raise_for_error(response, InvokeError("invocation receipt lookup failed"))
         return InvocationResponse(**self._response_payload(response))
 
+    def get_invocation(self, invocation_id: str) -> InvocationResponse:
+        return self.get_invocation_receipt(invocation_id)
+
     def wait_for_invocation(
         self,
         invocation_id: str,
@@ -237,7 +294,7 @@ class SynapseClient:
             if receipt.status in TERMINAL_STATUSES:
                 return receipt
             if time.time() - started + max(1, poll_interval_sec) > max_wait_sec:
-                raise InvokeError("Synapse invocation pending timeout.")
+                raise TimeoutError("Synapse invocation pending timeout.")
             time.sleep(max(1, poll_interval_sec))
 
     def invoke_service(
@@ -279,6 +336,28 @@ class SynapseClient:
         if not poll_pending:
             return invocation
         return self.wait_for_invocation(invocation.invocation_id, max_wait_sec=max_wait_sec)
+
+    def invoke(
+        self,
+        service_id: str,
+        payload: Optional[Dict[str, Any]] = None,
+        *,
+        input_preview: Optional[Dict[str, Any]] = None,
+        idempotency_key: Optional[str] = None,
+        response_mode: str = "sync",
+        poll_timeout_sec: int = 90,
+        request_id: Optional[str] = None,
+    ) -> InvocationResponse:
+        return self.invoke_service(
+            service_id=service_id,
+            payload=payload,
+            input_preview=input_preview,
+            idempotency_key=idempotency_key,
+            response_mode=response_mode,
+            poll_pending=True,
+            max_wait_sec=poll_timeout_sec,
+            request_id=request_id,
+        )
 
     def call_service(
         self,

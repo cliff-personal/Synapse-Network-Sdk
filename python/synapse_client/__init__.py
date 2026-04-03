@@ -1,3 +1,4 @@
+from .auth import SynapseAuth
 from .client import SynapseClient
 from .exceptions import (
     AuthenticationError,
@@ -7,10 +8,24 @@ from .exceptions import (
     InvokeError,
     QuoteError,
     SynapseClientError,
+    TimeoutError,
 )
-from .models import DiscoveryResponse, InvocationResponse, QuoteResponse, SynapseResponse
+from .models import (
+    AgentCredential,
+    BalanceSummary,
+    ChallengeResponse,
+    DepositConfirmResult,
+    DepositIntentResult,
+    DiscoveryResponse,
+    InvocationResponse,
+    IssueCredentialResult,
+    QuoteResponse,
+    SynapseResponse,
+    TokenResponse,
+)
 
 __all__ = [
+    "SynapseAuth",
     "SynapseClient",
     "SynapseClientError",
     "BudgetExceededError",
@@ -19,8 +34,16 @@ __all__ = [
     "InvokeError",
     "InsufficientFundsError",
     "AuthenticationError",
+    "TimeoutError",
     "SynapseResponse",
     "DiscoveryResponse",
     "QuoteResponse",
     "InvocationResponse",
+    "ChallengeResponse",
+    "TokenResponse",
+    "AgentCredential",
+    "IssueCredentialResult",
+    "BalanceSummary",
+    "DepositIntentResult",
+    "DepositConfirmResult",
 ]

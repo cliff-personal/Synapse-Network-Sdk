@@ -20,7 +20,9 @@ dependencies = [
 [project.optional-dependencies]
 dev = [
   "pytest>=9.0.0",
-  "build>=1.4.0"
+  "build>=1.4.0",
+  "eth-account>=0.13.0",
+  "web3>=7.0.0"
 ]
 
 [tool.setuptools]
@@ -28,4 +30,9 @@ include-package-data = true
 
 [tool.setuptools.packages.find]
 include = ["synapse_client*"]
-exclude = ["provider_api*", "examples*", "venv*", "__pycache__*"]
+exclude = ["provider_api*", "examples*", "venv*", "__pycache__*", "synapse_client.test*"]
+
+[tool.pytest.ini_options]
+markers = [
+  "e2e: marks live end-to-end gateway + chain integration tests",
+]

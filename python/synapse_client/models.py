@@ -7,7 +7,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 
 class SDKModel(BaseModel):
-    model_config = ConfigDict(populate_by_name=True)
+    model_config = ConfigDict(populate_by_name=True, extra="allow")
 
 
 class SchemaDocument(SDKModel):
@@ -22,6 +22,78 @@ class QuoteInputPreview(SDKModel):
     content_type: str = Field(default="application/json", alias="contentType")
     payload_schema: SchemaDocument = Field(default_factory=SchemaDocument, alias="payloadSchema")
     sample: RuntimePayload = Field(default_factory=RuntimePayload)
+
+
+class ChallengeResponse(SDKModel):
+    success: bool = True
+    challenge: str = ""
+    domain: str = ""
+
+
+class TokenResponse(SDKModel):
+    success: bool = True
+    access_token: str = Field(default="", alias="access_token")
+    token_type: str = "bearer"
+    expires_in: int = Field(default=0, alias="expires_in")
+
+
+class AgentCredential(SDKModel):
+    id: str = ""
+    credential_id: str = Field(default="", alias="credential_id")
+    token: str = ""
+    name: Optional[str] = None
+    max_calls: Optional[int] = Field(default=None, alias="maxCalls")
+    rpm: Optional[int] = None
+    credit_limit: Optional[float] = Field(default=None, alias="creditLimit")
+    reset_interval: Optional[str] = Field(default=None, alias="resetInterval")
+    expires_at: Optional[int] = Field(default=None, alias="expiresAt")
+    status: str = "active"
+    created_at: Optional[int | str] = Field(default=None, alias="createdAt")
+
+    def model_post_init(self, __context: Any) -> None:
+        if not self.credential_id and self.id:
+            object.__setattr__(self, "credential_id", self.id)
+        if not self.id and self.credential_id:
+            object.__setattr__(self, "id", self.credential_id)
+
+
+class IssueCredentialResult(SDKModel):
+    credential: AgentCredential
+    token: str = ""
+
+
+class BalanceSummary(SDKModel):
+    owner_balance: Decimal | float | int | str = Field(default=0, alias="ownerBalance")
+    consumer_available_balance: Decimal | float | int | str = Field(default=0, alias="consumerAvailableBalance")
+    provider_receivable: Decimal | float | int | str = Field(default=0, alias="providerReceivable")
+    platform_fee_accrued: Decimal | float | int | str = Field(default=0, alias="platformFeeAccrued")
+
+
+class DepositIntentRecord(SDKModel):
+    id: Optional[str] = None
+    intent_id: Optional[str] = Field(default=None, alias="intentId")
+    deposit_intent_id: Optional[str] = Field(default=None, alias="depositIntentId")
+    event_key: Optional[str] = Field(default=None, alias="eventKey")
+    tx_hash: Optional[str] = Field(default=None, alias="txHash")
+
+    @property
+    def resolved_id(self) -> str:
+        return str(self.id or self.intent_id or self.deposit_intent_id or "")
+
+    @property
+    def resolved_event_key(self) -> str:
+        return str(self.event_key or self.tx_hash or "")
+
+
+class DepositIntentResult(SDKModel):
+    status: str = "success"
+    tx_hash: str = Field(default="", alias="tx_hash")
+    intent: DepositIntentRecord = Field(default_factory=DepositIntentRecord)
+
+
+class DepositConfirmResult(SDKModel):
+    status: str = "success"
+    intent: DepositIntentRecord = Field(default_factory=DepositIntentRecord)
 
 
 class ServicePricing(SDKModel):

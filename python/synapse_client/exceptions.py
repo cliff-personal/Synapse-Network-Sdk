@@ -5,6 +5,7 @@ class SynapseClientError(Exception):
 class BudgetExceededError(SynapseClientError):
     """Raised when a credential budget, daily cap, or spend guard blocks execution."""
 
+
 class DiscoveryError(SynapseClientError):
     """Raised when service discovery request fails."""
 
@@ -12,11 +13,18 @@ class DiscoveryError(SynapseClientError):
 class QuoteError(SynapseClientError):
     """Raised when quote creation or quote validation fails."""
 
+
 class InvokeError(SynapseClientError):
     """Raised when paid invoke request fails."""
+
 
 class InsufficientFundsError(BudgetExceededError):
     """Raised when there is not enough balance or remaining budget to continue."""
 
+
 class AuthenticationError(SynapseClientError):
     """Raised when API key is invalid."""
+
+
+class TimeoutError(SynapseClientError):
+    """Raised when an async invocation does not reach a terminal state in time."""

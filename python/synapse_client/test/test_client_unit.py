@@ -9,6 +9,7 @@ from synapse_client.exceptions import (
     DiscoveryError,
     InsufficientFundsError,
     InvokeError,
+    TimeoutError,
 )
 
 
@@ -339,5 +340,42 @@ def test_wait_for_invocation_raises_timeout_when_pending_exceeds_budget(monkeypa
 
     client = SynapseClient(api_key="agt_test")
 
-    with pytest.raises(InvokeError, match="pending timeout"):
+    with pytest.raises(TimeoutError, match="pending timeout"):
         client.wait_for_invocation("inv_123", max_wait_sec=3)
+
+
+def test_ts_style_alias_methods_delegate_to_python_runtime_client(monkeypatch):
+    client = SynapseClient(api_key="agt_test")
+
+    monkeypatch.setattr(
+        client,
+        "search_services",
+        lambda **kwargs: type(
+            "Resp",
+            (),
+            {
+                "services": ["svc-1", "svc-2"],
+            },
+        )(),
+    )
+    monkeypatch.setattr(
+        client,
+        "create_quote",
+        lambda *args, **kwargs: "quote-object",
+    )
+    monkeypatch.setattr(
+        client,
+        "invoke_service",
+        lambda *args, **kwargs: "invocation-object",
+    )
+    monkeypatch.setattr(
+        client,
+        "get_invocation_receipt",
+        lambda invocation_id: {"invocationId": invocation_id},
+    )
+
+    assert client.discover(limit=20) == ["svc-1", "svc-2"]
+    assert client.search("quotes", limit=20) == ["svc-1", "svc-2"]
+    assert client.quote("svc_quotes") == "quote-object"
+    assert client.invoke("svc_quotes", {"prompt": "hi"}) == "invocation-object"
+    assert client.get_invocation("inv-123") == {"invocationId": "inv-123"}
