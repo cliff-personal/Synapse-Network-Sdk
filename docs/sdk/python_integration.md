@@ -141,3 +141,15 @@ PYTHONPATH="$PWD" .venv/bin/python -m pytest synapse_client/test/test_consumer_e
 7. receipt 查询
 8. 余额验证
 
+## 7. Provider 侧接入
+
+Provider onboarding 已经拆成独立文档，见：
+
+- `docs/sdk/python_provider_integration.md`
+- `docs/test/python-provider-onboarding-e2e-plan.md`
+
+现在 Python SDK 也支持：
+
+1. provider secret 创建与列举
+2. provider 服务注册
+3. provider 服务状态查询

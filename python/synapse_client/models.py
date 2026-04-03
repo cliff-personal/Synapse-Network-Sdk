@@ -62,6 +62,26 @@ class IssueCredentialResult(SDKModel):
     token: str = ""
 
 
+class ProviderSecret(SDKModel):
+    id: str = ""
+    name: Optional[str] = None
+    owner_address: str = Field(default="", alias="ownerAddress")
+    secret_key: str = Field(default="", alias="secretKey")
+    masked_key: str = Field(default="", alias="maskedKey")
+    status: str = "active"
+    rpm: Optional[int] = None
+    credit_limit: Optional[float] = Field(default=None, alias="creditLimit")
+    reset_interval: Optional[str] = Field(default=None, alias="resetInterval")
+    expiration: Optional[int] = None
+    created_at: Optional[int | str] = Field(default=None, alias="createdAt")
+    updated_at: Optional[int | str] = Field(default=None, alias="updatedAt")
+    revoked_at: Optional[int | str] = Field(default=None, alias="revokedAt")
+
+
+class IssueProviderSecretResult(SDKModel):
+    secret: ProviderSecret
+
+
 class BalanceSummary(SDKModel):
     owner_balance: Decimal | float | int | str = Field(default=0, alias="ownerBalance")
     consumer_available_balance: Decimal | float | int | str = Field(default=0, alias="consumerAvailableBalance")
@@ -106,6 +126,7 @@ class ServiceHealthSummary(SDKModel):
     healthy_targets: int = Field(default=0, alias="healthyTargets")
     total_targets: int = Field(default=0, alias="totalTargets")
     last_checked_at: Optional[int] = Field(default=None, alias="lastCheckedAt")
+    runtime_available: bool = Field(default=False, alias="runtimeAvailable")
 
 
 class ServiceInvokeSpec(SDKModel):
@@ -149,6 +170,67 @@ class DiscoveredService(SDKModel):
     @property
     def serviceName(self) -> str:
         return self.service_name
+
+
+class ProviderProfile(SDKModel):
+    display_name: str = Field(default="", alias="displayName")
+
+
+class ProviderPayoutAccount(SDKModel):
+    payout_address: str = Field(default="", alias="payoutAddress")
+    chain_id: int = Field(default=0, alias="chainId")
+    settlement_currency: str = Field(default="USDC", alias="settlementCurrency")
+    status: str = "active"
+
+
+class ProviderGovernance(SDKModel):
+    terms_accepted: bool = Field(default=False, alias="termsAccepted")
+    risk_acknowledged: bool = Field(default=False, alias="riskAcknowledged")
+    note: Optional[str] = None
+
+
+class ProviderService(SDKModel):
+    id: Optional[str] = None
+    service_id: str = Field(default="", alias="serviceId")
+    owner_address: str = Field(default="", alias="ownerAddress")
+    service_name: str = Field(default="", alias="serviceName")
+    summary: str = ""
+    status: str = "unknown"
+    is_active: bool = Field(default=True, alias="isActive")
+    pricing: ServicePricing = Field(default_factory=ServicePricing)
+    tags: List[str] = Field(default_factory=list)
+    role: Optional[str] = None
+    address: Optional[str] = None
+    auth: Dict[str, Any] = Field(default_factory=dict)
+    provider_profile: Optional[ProviderProfile] = Field(default=None, alias="providerProfile")
+    payout_account: Optional[ProviderPayoutAccount] = Field(default=None, alias="payoutAccount")
+    governance: Optional[ProviderGovernance] = None
+    health: ServiceHealthSummary = Field(default_factory=ServiceHealthSummary)
+    runtime_available: bool = Field(default=False, alias="runtimeAvailable")
+    invoke: ServiceInvokeSpec = Field(default_factory=ServiceInvokeSpec)
+    created_at: Optional[int | str] = Field(default=None, alias="createdAt")
+    updated_at: Optional[int | str] = Field(default=None, alias="updatedAt")
+
+    @property
+    def serviceId(self) -> str:
+        return self.service_id
+
+    @property
+    def serviceName(self) -> str:
+        return self.service_name
+
+
+class ProviderServiceRegistrationResult(SDKModel):
+    status: str = "success"
+    service_id: str = Field(default="", alias="serviceId")
+    service: ProviderService = Field(default_factory=ProviderService)
+
+
+class ProviderServiceStatus(SDKModel):
+    service_id: str = Field(default="", alias="serviceId")
+    lifecycle_status: str = Field(default="unknown", alias="lifecycleStatus")
+    runtime_available: bool = Field(default=False, alias="runtimeAvailable")
+    health: ServiceHealthSummary = Field(default_factory=ServiceHealthSummary)
 
 
 class DiscoveryResponse(SDKModel):

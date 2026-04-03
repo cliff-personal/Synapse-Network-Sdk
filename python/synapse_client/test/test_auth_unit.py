@@ -199,3 +199,135 @@ def test_auth_error_raises_authentication_error(monkeypatch):
 
     with pytest.raises(AuthenticationError, match="bad signature"):
         auth.get_token()
+
+
+def test_issue_provider_secret_and_list_provider_secrets(monkeypatch):
+    calls = []
+
+    def fake_request(method, url, headers, json, timeout):
+        calls.append({
+            "method": method,
+            "url": url,
+            "headers": headers,
+            "json": json,
+            "timeout": timeout,
+        })
+        if url.endswith("/api/v1/auth/challenge?address=0xabc"):
+            return DummyResponse(json_data={"success": True, "challenge": "sign-me", "domain": "a2a-pay-network"})
+        if url.endswith("/api/v1/auth/verify"):
+            return DummyResponse(json_data={"success": True, "access_token": "jwt-token", "token_type": "bearer", "expires_in": 3600})
+        if url.endswith("/api/v1/secrets/provider/issue"):
+            return DummyResponse(json_data={
+                "status": "success",
+                "secret": {
+                    "id": "psk_123",
+                    "name": "provider-key",
+                    "ownerAddress": "0xabc",
+                    "secretKey": "agt_provider_123",
+                    "maskedKey": "agt_provider...",
+                    "status": "active",
+                    "rpm": 180,
+                    "creditLimit": 25.0,
+                    "resetInterval": "monthly",
+                    "createdAt": "2026-04-03T10:00:00Z",
+                },
+            })
+        return DummyResponse(json_data={
+            "status": "success",
+            "secrets": [
+                {
+                    "id": "psk_123",
+                    "name": "provider-key",
+                    "ownerAddress": "0xabc",
+                    "maskedKey": "agt_provider...",
+                    "status": "active",
+                    "rpm": 180,
+                    "creditLimit": 25.0,
+                    "resetInterval": "monthly",
+                    "createdAt": "2026-04-03T10:00:00Z",
+                }
+            ],
+        })
+
+    monkeypatch.setattr("synapse_client.auth.requests.request", fake_request)
+
+    auth = SynapseAuth(wallet_address="0xabc", signer=lambda _: "0xsigned")
+    issued = auth.issue_provider_secret(name="provider-key", rpm=180, creditLimit=25.0)
+    listed = auth.list_provider_secrets()
+
+    assert issued.secret.id == "psk_123"
+    assert issued.secret.secret_key == "agt_provider_123"
+    assert listed[0].id == "psk_123"
+    assert calls[2]["headers"]["Authorization"] == "Bearer jwt-token"
+    assert calls[3]["headers"]["Authorization"] == "Bearer jwt-token"
+
+
+def test_register_provider_service_derives_defaults_and_reads_status(monkeypatch):
+    calls = []
+
+    def fake_request(method, url, headers, json, timeout):
+        calls.append({
+            "method": method,
+            "url": url,
+            "headers": headers,
+            "json": json,
+            "timeout": timeout,
+        })
+        if url.endswith("/api/v1/auth/challenge?address=0xabc"):
+            return DummyResponse(json_data={"success": True, "challenge": "sign-me", "domain": "a2a-pay-network"})
+        if url.endswith("/api/v1/auth/verify"):
+            return DummyResponse(json_data={"success": True, "access_token": "jwt-token", "token_type": "bearer", "expires_in": 3600})
+        if url.endswith("/api/v1/services") and method == "POST":
+            return DummyResponse(json_data={
+                "status": "success",
+                "serviceId": "sea_invoice_ocr",
+                "service": {
+                    "serviceId": "sea_invoice_ocr",
+                    "ownerAddress": "0xabc",
+                    "serviceName": "SEA Invoice OCR",
+                    "summary": "Extract invoice fields.",
+                    "status": "active",
+                    "isActive": True,
+                    "pricing": {"amount": "0.008", "currency": "USDC"},
+                    "health": {"overallStatus": "healthy", "healthyTargets": 1, "totalTargets": 1, "runtimeAvailable": True},
+                    "runtimeAvailable": True,
+                    "invoke": {"method": "POST", "targets": [{"url": "https://provider.example.com/invoke"}], "request": {}, "response": {}},
+                },
+            })
+        return DummyResponse(json_data={
+            "status": "success",
+            "services": [
+                {
+                    "serviceId": "sea_invoice_ocr",
+                    "ownerAddress": "0xabc",
+                    "serviceName": "SEA Invoice OCR",
+                    "summary": "Extract invoice fields.",
+                    "status": "active",
+                    "isActive": True,
+                    "pricing": {"amount": "0.008", "currency": "USDC"},
+                    "health": {"overallStatus": "healthy", "healthyTargets": 1, "totalTargets": 1, "runtimeAvailable": True},
+                    "runtimeAvailable": True,
+                    "invoke": {"method": "POST", "targets": [{"url": "https://provider.example.com/invoke"}], "request": {}, "response": {}},
+                }
+            ],
+        })
+
+    monkeypatch.setattr("synapse_client.auth.requests.request", fake_request)
+
+    auth = SynapseAuth(wallet_address="0xabc", signer=lambda _: "0xsigned")
+    registered = auth.register_provider_service(
+        service_name="SEA Invoice OCR",
+        endpoint_url="https://provider.example.com/invoke",
+        base_price_usdc="0.008",
+        description_for_model="Extract invoice fields.",
+    )
+    status = auth.get_provider_service_status("sea_invoice_ocr")
+
+    assert registered.service_id == "sea_invoice_ocr"
+    assert registered.service.service_id == "sea_invoice_ocr"
+    assert status.service_id == "sea_invoice_ocr"
+    assert status.lifecycle_status == "active"
+    assert status.runtime_available is True
+    assert calls[2]["json"]["agentToolName"] == "sea_invoice_ocr"
+    assert calls[2]["json"]["payoutAccount"]["payoutAddress"] == "0xabc"
+    assert calls[2]["json"]["healthCheck"]["path"] == "/health"

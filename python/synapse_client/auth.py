@@ -14,6 +14,11 @@ from .models import (
     DepositConfirmResult,
     DepositIntentResult,
     IssueCredentialResult,
+    IssueProviderSecretResult,
+    ProviderSecret,
+    ProviderService,
+    ProviderServiceRegistrationResult,
+    ProviderServiceStatus,
     TokenResponse,
 )
 
@@ -80,6 +85,29 @@ class SynapseAuth:
             "Content-Type": "application/json",
             "Authorization": f"Bearer {token}",
         }
+
+    @staticmethod
+    def _default_service_id(service_name: str) -> str:
+        normalized = (
+            str(service_name or "")
+            .strip()
+            .lower()
+            .replace(" ", "_")
+        )
+        chars = []
+        previous_is_sep = False
+        for char in normalized:
+            if char.isalnum():
+                chars.append(char)
+                previous_is_sep = False
+                continue
+            if char in {"-", "_"} and not previous_is_sep:
+                chars.append("_")
+                previous_is_sep = True
+        result = "".join(chars).strip("_")
+        while "__" in result:
+            result = result.replace("__", "_")
+        return result or f"service_{uuid4().hex[:8]}"
 
     def _request(
         self,
@@ -209,6 +237,37 @@ class SynapseAuth:
         credential = AgentCredential.model_validate(credential_payload)
         return IssueCredentialResult(credential=credential, token=credential.token or credential_token)
 
+    def issue_provider_secret(self, **options: Any) -> IssueProviderSecretResult:
+        body: Dict[str, Any] = {}
+        for key in ("name", "maxCalls", "creditLimit", "resetInterval", "rpm", "expiresInSec", "expiration"):
+            value = options.get(key)
+            if value is not None:
+                body[key] = value
+
+        payload = self._request(
+            "POST",
+            "/api/v1/secrets/provider/issue",
+            headers=self._authorized_headers(),
+            json_body=body,
+        )
+        secret_payload = payload.get("secret")
+        if not isinstance(secret_payload, dict):
+            secret_payload = {}
+        if not secret_payload:
+            raise AuthenticationError(f"Provider secret payload missing: {payload}")
+        return IssueProviderSecretResult(secret=ProviderSecret.model_validate(secret_payload))
+
+    def list_provider_secrets(self) -> list[ProviderSecret]:
+        payload = self._request(
+            "GET",
+            "/api/v1/secrets/provider/list",
+            headers=self._authorized_headers(),
+        )
+        secrets = payload.get("secrets")
+        if not isinstance(secrets, list):
+            return []
+        return [ProviderSecret.model_validate(item) for item in secrets if isinstance(item, dict)]
+
     def list_credentials(self) -> list[AgentCredential]:
         payload = self._request(
             "GET",
@@ -275,4 +334,130 @@ class SynapseAuth:
             "/api/v1/balance/spending-limit",
             headers=self._authorized_headers(),
             json_body=body,
+        )
+
+    def register_provider_service(
+        self,
+        *,
+        service_name: str,
+        endpoint_url: str,
+        base_price_usdc: float | str,
+        description_for_model: str,
+        service_id: Optional[str] = None,
+        provider_display_name: Optional[str] = None,
+        payout_address: Optional[str] = None,
+        chain_id: int = 31337,
+        settlement_currency: str = "USDC",
+        tags: Optional[list[str]] = None,
+        status: str = "active",
+        is_active: bool = True,
+        input_schema: Optional[Dict[str, Any]] = None,
+        output_schema: Optional[Dict[str, Any]] = None,
+        endpoint_method: str = "POST",
+        health_path: str = "/health",
+        health_method: str = "GET",
+        health_timeout_ms: int = 3000,
+        request_timeout_ms: int = 15000,
+        governance_note: Optional[str] = None,
+    ) -> ProviderServiceRegistrationResult:
+        resolved_service_name = str(service_name or "").strip()
+        resolved_endpoint = str(endpoint_url or "").strip()
+        resolved_summary = str(description_for_model or "").strip()
+        if not resolved_service_name:
+            raise ValueError("service_name is required")
+        if not resolved_endpoint:
+            raise ValueError("endpoint_url is required")
+        if not resolved_summary:
+            raise ValueError("description_for_model is required")
+
+        resolved_service_id = str(service_id or "").strip() or self._default_service_id(
+            resolved_service_name
+        )
+        body = {
+            "serviceId": resolved_service_id,
+            "agentToolName": resolved_service_id,
+            "serviceName": resolved_service_name,
+            "role": "Provider",
+            "status": status,
+            "isActive": is_active,
+            "pricing": {
+                "amount": str(base_price_usdc),
+                "currency": "USDC",
+            },
+            "summary": resolved_summary,
+            "tags": tags or [],
+            "auth": {"type": "gateway_signed"},
+            "invoke": {
+                "method": endpoint_method,
+                "targets": [{"url": resolved_endpoint}],
+                "timeoutMs": request_timeout_ms,
+                "request": {
+                    "body": input_schema
+                    or {"type": "object", "properties": {}, "required": []}
+                },
+                "response": {
+                    "body": output_schema
+                    or {"type": "object", "properties": {}}
+                },
+            },
+            "healthCheck": {
+                "path": health_path,
+                "method": health_method,
+                "timeoutMs": health_timeout_ms,
+                "successCodes": [200],
+                "healthyThreshold": 1,
+                "unhealthyThreshold": 3,
+            },
+            "providerProfile": {
+                "displayName": str(provider_display_name or resolved_service_name).strip()
+                or resolved_service_name,
+            },
+            "payoutAccount": {
+                "payoutAddress": str(payout_address or self.wallet_address).strip()
+                or self.wallet_address,
+                "chainId": chain_id,
+                "settlementCurrency": settlement_currency,
+            },
+            "governance": {
+                "termsAccepted": True,
+                "riskAcknowledged": True,
+                "note": governance_note,
+            },
+        }
+        payload = self._request(
+            "POST",
+            "/api/v1/services",
+            headers=self._authorized_headers(),
+            json_body=body,
+        )
+        return ProviderServiceRegistrationResult.model_validate(payload)
+
+    def list_provider_services(self) -> list[ProviderService]:
+        payload = self._request(
+            "GET",
+            "/api/v1/services",
+            headers=self._authorized_headers(),
+        )
+        services = payload.get("services")
+        if not isinstance(services, list):
+            return []
+        return [ProviderService.model_validate(item) for item in services if isinstance(item, dict)]
+
+    def get_provider_service(self, service_id: str) -> ProviderService:
+        resolved_service_id = str(service_id or "").strip()
+        if not resolved_service_id:
+            raise ValueError("service_id is required")
+        services = self.list_provider_services()
+        for service in services:
+            if service.service_id == resolved_service_id:
+                return service
+        raise AuthenticationError(f"Provider service not found: {resolved_service_id}")
+
+    def get_provider_service_status(self, service_id: str) -> ProviderServiceStatus:
+        service = self.get_provider_service(service_id)
+        return ProviderServiceStatus(
+            serviceId=service.service_id,
+            lifecycleStatus=service.status,
+            runtimeAvailable=service.runtime_available,
+            health=service.health.model_dump(by_alias=True),
         )

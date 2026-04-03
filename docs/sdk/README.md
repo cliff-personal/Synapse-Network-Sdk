@@ -6,11 +6,13 @@
 
 1. [TypeScript Integration Guide](./typescript_integration.md)
 2. [Python Integration Guide](./python_integration.md)
-3. [Python Local Development](../ops/SDK_Python_Local_Development.md)
-4. [TypeScript Consumer E2E Plan](../test/consumer-e2e-plan.md)
-5. [Python Consumer Cold-Start E2E Plan](../test/python-consumer-cold-start-e2e-plan.md)
-6. [TypeScript Bug Log](../bugfix/typeScript/bugs.md)
-7. [Python Bug Log](../bugfix/python/bugs.md)
+3. [Python Provider Integration Guide](./python_provider_integration.md)
+4. [Python Local Development](../ops/SDK_Python_Local_Development.md)
+5. [TypeScript Consumer E2E Plan](../test/consumer-e2e-plan.md)
+6. [Python Consumer Cold-Start E2E Plan](../test/python-consumer-cold-start-e2e-plan.md)
+7. [Python Provider Onboarding E2E Plan](../test/python-provider-onboarding-e2e-plan.md)
+8. [TypeScript Bug Log](../bugfix/typeScript/bugs.md)
+9. [Python Bug Log](../bugfix/python/bugs.md)
 
 ## 2. 当前结论
 
@@ -30,6 +32,9 @@
 5. 服务调用
 6. receipt 查询
 7. 余额验证
+8. Provider secret 创建
+9. Provider 服务注册
+10. Provider 服务状态查询
 
 ## 3. 当前验证结果
 

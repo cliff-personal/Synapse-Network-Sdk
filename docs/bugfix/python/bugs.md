@@ -96,3 +96,46 @@ Python SDK 把 `createdAt` 假定成 int，但网关真实返回的是 datetime 
 
 把 `AgentCredential.created_at` 调整为 `Optional[int | str]`，对齐真实网关 contract。
 
+---
+
+## BUG-PY-005 — Python SDK 缺少 Provider onboarding 能力
+
+**Status:** FIXED  
+**Severity:** blocking provider integration  
+**Files:** `python/synapse_client/auth.py`, `python/synapse_client/models.py`, `python/synapse_client/test/test_provider_e2e.py`
+
+### Symptom
+
+Python SDK 只能做 consumer onboarding 和 agent runtime 调用，不能：
+
+1. 创建 provider secret
+2. 通过 SDK 注册 provider service
+3. 查询刚注册服务的状态
+
+这意味着用户虽然能“消费服务”，却不能“把自己的服务挂进平台”。
+
+### Root Cause
+
+SDK 把 owner wallet auth 只当成 consumer control plane 用，没有继续封装 provider control plane：
+
+1. `/api/v1/secrets/provider/issue`
+2. `/api/v1/secrets/provider/list`
+3. `/api/v1/services`
+4. `/api/v1/services` owner list
+
+### Fix
+
+在 `SynapseAuth` 上新增：
+
+1. `issue_provider_secret()`
+2. `list_provider_secrets()`
+3. `register_provider_service()`
+4. `list_provider_services()`
+5. `get_provider_service()`
+6. `get_provider_service_status()`
+
+并补充：
+
+1. typed provider models
+2. provider integration docs
+3. provider onboarding e2e
