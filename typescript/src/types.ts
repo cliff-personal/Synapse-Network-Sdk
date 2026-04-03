@@ -51,6 +51,28 @@ export interface IssueCredentialResult {
   token: string;
 }
 
+export interface ProviderSecret {
+  id: string;
+  name?: string;
+  ownerAddress?: string;
+  secretKey?: string;
+  maskedKey?: string;
+  status?: string;
+  rpm?: number;
+  creditLimit?: number;
+  resetInterval?: string;
+  expiration?: number;
+  createdAt?: string | number;
+  updatedAt?: string | number;
+  revokedAt?: string | number | null;
+  [key: string]: unknown;
+}
+
+export interface IssueProviderSecretResult {
+  status?: string;
+  secret: ProviderSecret;
+}
+
 // ── Balance ──────────────────────────────────────────────────────────────────
 
 export interface BalanceSummary {
@@ -89,6 +111,82 @@ export interface ServiceRecord {
   summary?: string;
   tags?: string[];
   [key: string]: unknown;
+}
+
+export interface ProviderProfileRecord {
+  displayName: string;
+}
+
+export interface ProviderPayoutAccountRecord {
+  payoutAddress: string;
+  chainId: number;
+  settlementCurrency: string;
+  status?: string;
+}
+
+export interface ProviderGovernanceRecord {
+  termsAccepted: boolean;
+  riskAcknowledged: boolean;
+  note?: string | null;
+}
+
+export interface ServiceHealthRecord {
+  overallStatus?: string;
+  healthyTargets?: number;
+  totalTargets?: number;
+  lastCheckedAt?: number;
+  runtimeAvailable?: boolean;
+  [key: string]: unknown;
+}
+
+export interface ProviderServiceRecord extends ServiceRecord {
+  ownerAddress?: string;
+  isActive?: boolean;
+  auth?: Record<string, unknown>;
+  providerProfile?: ProviderProfileRecord;
+  payoutAccount?: ProviderPayoutAccountRecord;
+  governance?: ProviderGovernanceRecord;
+  health?: ServiceHealthRecord;
+  runtimeAvailable?: boolean;
+  invoke?: Record<string, unknown>;
+  createdAt?: string | number;
+  updatedAt?: string | number;
+}
+
+export interface RegisterProviderServiceOptions {
+  serviceName: string;
+  endpointUrl: string;
+  basePriceUsdc: string | number;
+  descriptionForModel: string;
+  serviceId?: string;
+  providerDisplayName?: string;
+  payoutAddress?: string;
+  chainId?: number;
+  settlementCurrency?: string;
+  tags?: string[];
+  status?: string;
+  isActive?: boolean;
+  inputSchema?: Record<string, unknown>;
+  outputSchema?: Record<string, unknown>;
+  endpointMethod?: "POST" | "GET" | "PUT" | "PATCH" | "DELETE";
+  healthPath?: string;
+  healthMethod?: "GET" | "POST" | "HEAD";
+  healthTimeoutMs?: number;
+  requestTimeoutMs?: number;
+  governanceNote?: string;
+}
+
+export interface RegisterProviderServiceResult {
+  status?: string;
+  serviceId: string;
+  service: ProviderServiceRecord;
+}
+
+export interface ProviderServiceStatus {
+  serviceId: string;
+  lifecycleStatus: string;
+  runtimeAvailable: boolean;
+  health: ServiceHealthRecord;
 }
 
 export interface DiscoverOptions {

@@ -5,20 +5,27 @@
 ## 1. 文档入口
 
 1. [TypeScript Integration Guide](./typescript_integration.md)
-2. [Python Integration Guide](./python_integration.md)
-3. [Python Provider Integration Guide](./python_provider_integration.md)
-4. [Python Local Development](../ops/SDK_Python_Local_Development.md)
-5. [TypeScript Consumer E2E Plan](../test/consumer-e2e-plan.md)
-6. [Python Consumer Cold-Start E2E Plan](../test/python-consumer-cold-start-e2e-plan.md)
-7. [Python Provider Onboarding E2E Plan](../test/python-provider-onboarding-e2e-plan.md)
-8. [TypeScript Bug Log](../bugfix/typeScript/bugs.md)
-9. [Python Bug Log](../bugfix/python/bugs.md)
+2. [TypeScript Provider Integration Guide](./typescript_provider_integration.md)
+3. [Python Integration Guide](./python_integration.md)
+4. [Python Provider Integration Guide](./python_provider_integration.md)
+5. [Python Local Development](../ops/SDK_Python_Local_Development.md)
+6. [TypeScript Consumer E2E Plan](../test/consumer-e2e-plan.md)
+7. [TypeScript Provider Onboarding E2E Plan](../test/typescript-provider-onboarding-e2e-plan.md)
+8. [Python Consumer Cold-Start E2E Plan](../test/python-consumer-cold-start-e2e-plan.md)
+9. [Python Provider Onboarding E2E Plan](../test/python-provider-onboarding-e2e-plan.md)
+10. [TypeScript Bug Log](../bugfix/typeScript/bugs.md)
+11. [Python Bug Log](../bugfix/python/bugs.md)
 
 ## 2. 当前结论
 
 ### TypeScript SDK
 
-已经满足完整自动化接入，包含新用户冷启动 E2E。
+已经满足完整自动化接入，包含：
+
+1. consumer 冷启动 E2E
+2. provider secret 创建
+3. provider 服务注册
+4. provider 服务状态查询
 
 ### Python SDK
 

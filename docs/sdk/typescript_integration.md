@@ -129,3 +129,15 @@ npm run test:new-consumer
 | 新钱包冷启动 E2E | yes | yes |
 | API 风格一致性 | 基准实现 | 已补齐 TS 风格别名 |
 
+## 6. Provider 侧接入
+
+TypeScript Provider onboarding 已拆成独立文档，见：
+
+- `docs/sdk/typescript_provider_integration.md`
+- `docs/test/typescript-provider-onboarding-e2e-plan.md`
+
+现在 TypeScript SDK 也支持：
+
+1. provider secret 创建与列举
+2. provider 服务注册
+3. provider 服务状态查询

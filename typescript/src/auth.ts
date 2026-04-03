@@ -13,6 +13,12 @@ import {
   AgentCredential,
   BalanceSummary,
   DepositIntentResult,
+  ProviderSecret,
+  IssueProviderSecretResult,
+  RegisterProviderServiceOptions,
+  RegisterProviderServiceResult,
+  ProviderServiceRecord,
+  ProviderServiceStatus,
 } from "./types";
 import { AuthenticationError } from "./errors";
 
@@ -38,6 +44,18 @@ export class SynapseAuth {
     this.timeoutMs = opts.timeoutMs ?? 30_000;
     this.signer = opts.signer;
     this.walletAddress = opts.walletAddress.toLowerCase();
+  }
+
+  private defaultServiceId(serviceName: string): string {
+    const normalized = serviceName
+      .trim()
+      .toLowerCase()
+      .replace(/\s+/g, "_");
+    const sanitized = normalized
+      .replace(/[^a-z0-9_-]+/g, "_")
+      .replace(/_+/g, "_")
+      .replace(/^_+|_+$/g, "");
+    return sanitized || `service_${Date.now().toString(36)}`;
   }
 
   /**
@@ -137,6 +155,42 @@ export class SynapseAuth {
     return { credential, token: credToken };
   }
 
+  /** Issue a provider control-plane secret for the current owner wallet. */
+  async issueProviderSecret(opts: IssueCredentialOptions = {}): Promise<IssueProviderSecretResult> {
+    const token = await this.getToken();
+    const body: Record<string, unknown> = {};
+    if (opts.name) body["name"] = opts.name;
+    if (opts.maxCalls != null) body["maxCalls"] = opts.maxCalls;
+    if (opts.creditLimit != null) body["creditLimit"] = opts.creditLimit;
+    if (opts.resetInterval != null) body["resetInterval"] = opts.resetInterval;
+    if (opts.rpm != null) body["rpm"] = opts.rpm;
+    if (opts.expiresInSec != null) body["expiresInSec"] = opts.expiresInSec;
+
+    const resp = await this._fetch<Record<string, unknown>>(
+      `${this.gatewayUrl}/api/v1/secrets/provider/issue`,
+      {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}` },
+        body: JSON.stringify(body),
+      }
+    );
+    const secret = (resp["secret"] as ProviderSecret | undefined) ?? undefined;
+    if (!secret?.id) {
+      throw new AuthenticationError(`Provider secret payload missing: ${JSON.stringify(resp)}`);
+    }
+    return { status: resp["status"] as string | undefined, secret };
+  }
+
+  /** List provider control-plane secrets for the current wallet. */
+  async listProviderSecrets(): Promise<ProviderSecret[]> {
+    const token = await this.getToken();
+    const resp = await this._fetch<{ secrets?: ProviderSecret[] }>(
+      `${this.gatewayUrl}/api/v1/secrets/provider/list`,
+      { headers: { Authorization: `Bearer ${token}` } }
+    );
+    return resp.secrets ?? [];
+  }
+
   /** List all agent credentials for this wallet. */
   async listCredentials(): Promise<AgentCredential[]> {
     const token = await this.getToken();
@@ -210,6 +264,124 @@ export class SynapseAuth {
           : { spendingLimitUsdc: usdc, allowUnlimited: false }
       ),
     });
+  }
+
+  /** Register a provider service using the minimum-contract onboarding shape. */
+  async registerProviderService(
+    opts: RegisterProviderServiceOptions
+  ): Promise<RegisterProviderServiceResult> {
+    const token = await this.getToken();
+    const serviceName = opts.serviceName?.trim();
+    const endpointUrl = opts.endpointUrl?.trim();
+    const description = opts.descriptionForModel?.trim();
+    if (!serviceName) throw new Error("serviceName is required");
+    if (!endpointUrl) throw new Error("endpointUrl is required");
+    if (!description) throw new Error("descriptionForModel is required");
+
+    const serviceId = opts.serviceId?.trim() || this.defaultServiceId(serviceName);
+    const body = {
+      serviceId,
+      agentToolName: serviceId,
+      serviceName,
+      role: "Provider",
+      status: opts.status ?? "active",
+      isActive: opts.isActive ?? true,
+      pricing: {
+        amount: String(opts.basePriceUsdc),
+        currency: "USDC",
+      },
+      summary: description,
+      tags: opts.tags ?? [],
+      auth: { type: "gateway_signed" },
+      invoke: {
+        method: opts.endpointMethod ?? "POST",
+        targets: [{ url: endpointUrl }],
+        timeoutMs: opts.requestTimeoutMs ?? 15_000,
+        request: {
+          body: opts.inputSchema ?? { type: "object", properties: {}, required: [] },
+        },
+        response: {
+          body: opts.outputSchema ?? { type: "object", properties: {} },
+        },
+      },
+      healthCheck: {
+        path: opts.healthPath ?? "/health",
+        method: opts.healthMethod ?? "GET",
+        timeoutMs: opts.healthTimeoutMs ?? 3_000,
+        successCodes: [200],
+        healthyThreshold: 1,
+        unhealthyThreshold: 3,
+      },
+      providerProfile: {
+        displayName: opts.providerDisplayName?.trim() || serviceName,
+      },
+      payoutAccount: {
+        payoutAddress: opts.payoutAddress?.trim() || this.walletAddress,
+        chainId: opts.chainId ?? 31337,
+        settlementCurrency: opts.settlementCurrency ?? "USDC",
+      },
+      governance: {
+        termsAccepted: true,
+        riskAcknowledged: true,
+        note: opts.governanceNote ?? null,
+      },
+    };
+
+    const resp = await this._fetch<Record<string, unknown>>(
+      `${this.gatewayUrl}/api/v1/services`,
+      {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}` },
+        body: JSON.stringify(body),
+      }
+    );
+
+    const service =
+      (resp["service"] as ProviderServiceRecord | undefined) ??
+      ({ serviceId } as ProviderServiceRecord);
+    const responseServiceId =
+      (resp["serviceId"] as string | undefined) ??
+      service.serviceId ??
+      service.id ??
+      serviceId;
+    return {
+      status: resp["status"] as string | undefined,
+      serviceId: responseServiceId,
+      service,
+    };
+  }
+
+  /** List provider-owned services from the control plane. */
+  async listProviderServices(): Promise<ProviderServiceRecord[]> {
+    const token = await this.getToken();
+    const resp = await this._fetch<{ services?: ProviderServiceRecord[] }>(
+      `${this.gatewayUrl}/api/v1/services`,
+      { headers: { Authorization: `Bearer ${token}` } }
+    );
+    return resp.services ?? [];
+  }
+
+  /** Return one provider-owned service by serviceId. */
+  async getProviderService(serviceId: string): Promise<ProviderServiceRecord> {
+    const resolvedServiceId = serviceId?.trim();
+    if (!resolvedServiceId) throw new Error("serviceId is required");
+    const services = await this.listProviderServices();
+    const found = services.find((service) => service.serviceId === resolvedServiceId);
+    if (!found) {
+      throw new AuthenticationError(`Provider service not found: ${resolvedServiceId}`);
+    }
+    return found;
+  }
+
+  /** Read lifecycle + runtime status for a provider-owned service. */
+  async getProviderServiceStatus(serviceId: string): Promise<ProviderServiceStatus> {
+    const service = await this.getProviderService(serviceId);
+    return {
+      serviceId: service.serviceId ?? service.id ?? serviceId,
+      lifecycleStatus: service.status ?? "unknown",
+      runtimeAvailable: Boolean(service.runtimeAvailable),
+      health: (service.health ?? {}) as ProviderServiceStatus["health"],
+    };
   }
 
   // ── Internal helpers ───────────────────────────────────────────────────────
