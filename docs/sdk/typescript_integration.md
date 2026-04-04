@@ -89,16 +89,15 @@ const client = new SynapseClient({
 });
 ```
 
-### 3.5 服务发现、报价、调用
+### 3.5 服务发现与调用
 
 Consumer 的 canonical runtime 流程是：
 
 1. `discover()`
 2. 选定 `serviceId`
-3. `quote(serviceId)`
-4. `invoke(serviceId, payload, opts)`
+3. `invoke(serviceId, payload, opts)` — SDK 在内部自动处理 quote → invoke → 轮询
 
-如果运行时已经持有稳定 `serviceId`，也可以直接跳到第 3 步。
+如果运行时已经持有稳定 `serviceId`，可以直接跳到第 3 步。
 
 ```ts
 const services = await client.discover({ limit: 20 });
@@ -110,7 +109,7 @@ if (!service) {
 
 const serviceId = service.serviceId ?? service.id!;
 
-const quote = await client.quote(serviceId);
+// 一行搞定 — invoke() 内部自动完成 quote → invoke → settle
 const result = await client.invoke(
   serviceId,
   { prompt: "hello" },
@@ -120,7 +119,6 @@ const result = await client.invoke(
   }
 );
 
-console.log(quote.quoteId);
 console.log(result.invocationId, result.status, result.chargedUsdc);
 ```
 
@@ -129,7 +127,7 @@ console.log(result.invocationId, result.status, result.chargedUsdc);
 ```ts
 const knownServiceId = process.env.SYNAPSE_SERVICE_ID!;
 
-const quote = await client.quote(knownServiceId);
+// invoke() 自动处理 quote → invoke → settle，无需额外步骤
 const result = await client.invoke(
   knownServiceId,
   { prompt: "hello" },
@@ -138,7 +136,7 @@ const result = await client.invoke(
   }
 );
 
-console.log(quote.quoteId, result.status);
+console.log(result.invocationId, result.status, result.chargedUsdc);
 ```
 
 ### 3.7 平台免费 starter services
@@ -160,6 +158,7 @@ console.log(quote.quoteId, result.status);
 ```bash
 cd /home/alex/Documents/cliff/Synapse-Network-Sdk/typescript
 npm run lint
+npm test          # unit tests (no gateway needed)
 npm run test:e2e
 npm run test:new-consumer
 ```
@@ -168,7 +167,7 @@ npm run test:new-consumer
 
 1. `discover()` 能返回目标服务
 2. 通过 discovery 选中的 `serviceId` 可以完成调用
-3. 已知 `serviceId` 也可以直接完成 quote + invoke
+3. 已知 `serviceId` 也可以直接完成 invoke（无需手工 quote）
 4. 调用后余额会下降，receipt 可读取
 
 ## 5. 与 Python SDK 的当前对比

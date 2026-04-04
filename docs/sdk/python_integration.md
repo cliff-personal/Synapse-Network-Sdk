@@ -90,16 +90,15 @@ client = SynapseClient(
 services = client.discover(limit=20)
 service_id = services[0].service_id
 
-quote = client.quote(service_id)
-invocation = client.invoke(
+# 一行搞定 — invoke() 内部自动完成 quote → invoke → settle
+result = client.invoke(
     service_id,
     {"prompt": "hello"},
     idempotency_key="job-001",
     poll_timeout_sec=60,
 )
 
-receipt = client.get_invocation(invocation.invocation_id)
-print(quote.quote_id, invocation.status, receipt.status)
+print(result.invocation_id, result.status, result.charged_usdc)
 ```
 
 ## 4. TypeScript 对齐点

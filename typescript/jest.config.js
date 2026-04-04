@@ -2,7 +2,7 @@
 module.exports = {
   preset: "ts-jest",
   testEnvironment: "node",
-  testMatch: ["**/tests/e2e/**/*.test.ts"],
+  testMatch: ["**/tests/e2e/**/*.test.ts", "**/tests/unit/**/*.test.ts"],
   transform: {
     "^.+\\.tsx?$": [
       "ts-jest",

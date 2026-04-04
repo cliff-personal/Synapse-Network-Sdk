@@ -99,6 +99,7 @@ export class SynapseClient {
         { method: "POST", body: JSON.stringify(body) }
       );
     } catch (err) {
+      if (err instanceof AuthenticationError || err instanceof InsufficientFundsError) throw err;
       throw new QuoteError(String(err instanceof Error ? err.message : err));
     }
 
@@ -162,6 +163,7 @@ export class SynapseClient {
         }
       );
     } catch (err) {
+      if (err instanceof AuthenticationError || err instanceof InsufficientFundsError) throw err;
       throw new InvokeError(String(err instanceof Error ? err.message : err));
     }
 
