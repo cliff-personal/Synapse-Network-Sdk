@@ -91,9 +91,24 @@ const client = new SynapseClient({
 
 ### 3.5 服务发现、报价、调用
 
+Consumer 的 canonical runtime 流程是：
+
+1. `discover()`
+2. 选定 `serviceId`
+3. `quote(serviceId)`
+4. `invoke(serviceId, payload, opts)`
+
+如果运行时已经持有稳定 `serviceId`，也可以直接跳到第 3 步。
+
 ```ts
 const services = await client.discover({ limit: 20 });
-const serviceId = services[0]?.serviceId!;
+const service = services.find((item) => item.serviceId || item.id);
+
+if (!service) {
+  throw new Error("No discoverable services are available yet.");
+}
+
+const serviceId = service.serviceId ?? service.id!;
 
 const quote = await client.quote(serviceId);
 const result = await client.invoke(
@@ -109,6 +124,37 @@ console.log(quote.quoteId);
 console.log(result.invocationId, result.status, result.chargedUsdc);
 ```
 
+### 3.6 已知 serviceId 时直接调用
+
+```ts
+const knownServiceId = process.env.SYNAPSE_SERVICE_ID!;
+
+const quote = await client.quote(knownServiceId);
+const result = await client.invoke(
+  knownServiceId,
+  { prompt: "hello" },
+  {
+    idempotencyKey: "job-known-service-001",
+  }
+);
+
+console.log(quote.quoteId, result.status);
+```
+
+### 3.7 平台免费 starter services
+
+`Synapse-Network-Sdk` 仓库中的参考接口会被平台逐步发布为官方免费 starter services，供：
+
+1. SDK smoke test
+2. demo 调用
+3. 新 consumer 的第一笔调用联调
+
+建议：
+
+1. 首次接入先用 `discover()` 找当前环境可用 starter service
+2. 发现到目标后，把 `serviceId` 作为运行时主键缓存下来
+3. 不要在代码里硬编码 provider endpoint URL，runtime 只认 `serviceId`
+
 ## 4. 自动化验收
 
 ```bash
@@ -117,6 +163,13 @@ npm run lint
 npm run test:e2e
 npm run test:new-consumer
 ```
+
+现在 `consumer.test.ts` 与 `new-consumer.test.ts` 会显式验证：
+
+1. `discover()` 能返回目标服务
+2. 通过 discovery 选中的 `serviceId` 可以完成调用
+3. 已知 `serviceId` 也可以直接完成 quote + invoke
+4. 调用后余额会下降，receipt 可读取
 
 ## 5. 与 Python SDK 的当前对比
 

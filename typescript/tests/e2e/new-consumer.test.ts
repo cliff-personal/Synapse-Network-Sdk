@@ -61,6 +61,7 @@ let providerAuth: SynapseAuth;
 let client:      SynapseClient;
 let agentToken:  string;
 let serviceId:   string;
+let discoveredServiceId: string;
 let mockServer:  http.Server;
 let balanceBeforeInvocations: number;
 
@@ -366,6 +367,13 @@ describe("Synapse TS SDK — New Consumer Cold-Start E2E", () => {
       );
       console.log(`  Discovered IDs (first 5): ${ids.slice(0, 5).join(", ")}`);
       expect(ids).toContain(serviceId);
+      discoveredServiceId =
+        services.find((s) => [s.serviceId, s.id, s.agentToolName].includes(serviceId))
+          ?.serviceId ??
+        services.find((s) => [s.serviceId, s.id, s.agentToolName].includes(serviceId))
+          ?.id ??
+        serviceId;
+      expect(discoveredServiceId).toBe(serviceId);
     });
   });
 
@@ -395,7 +403,7 @@ describe("Synapse TS SDK — New Consumer Cold-Start E2E", () => {
 
     it("should invoke service and reach SUCCEEDED/SETTLED status", async () => {
       invResult = await client.invoke(
-        serviceId,
+        discoveredServiceId,
         { prompt: "new-consumer e2e automated test" },
         {
           idempotencyKey: `nc-e2e-${SESSION_ID}`,
@@ -444,9 +452,30 @@ describe("Synapse TS SDK — New Consumer Cold-Start E2E", () => {
     });
   });
 
-  // ── Test 8: Post-settlement Balance ──────────────────────────────────────
+  // ── Test 8: Direct known serviceId path ─────────────────────────────────
 
-  describe("8. Post-Settlement Balance", () => {
+  describe("8. Direct known serviceId path", () => {
+    it("should invoke the service directly when serviceId is already known", async () => {
+      const quote = await client.quote(serviceId);
+      expect(quote.quoteId).toBeTruthy();
+
+      const result = await client.invoke(
+        serviceId,
+        { prompt: "direct path from known service id" },
+        {
+          idempotencyKey: `nc-direct-${SESSION_ID}`,
+          pollTimeoutMs: 60_000,
+        }
+      );
+
+      expect(["SUCCEEDED", "SETTLED"]).toContain(result.status);
+      expect(result.chargedUsdc).toBeGreaterThan(0);
+    }, 90_000);
+  });
+
+  // ── Test 9: Post-settlement Balance ──────────────────────────────────────
+
+  describe("9. Post-Settlement Balance", () => {
     it("should show reduced consumer balance after invocations", async () => {
       const balance   = await freshAuth.getBalance();
       const available = Number(

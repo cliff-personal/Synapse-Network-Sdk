@@ -50,6 +50,7 @@ let providerAuth: SynapseAuth;
 let client: SynapseClient;
 let agentToken: string;
 let serviceId: string;
+let discoveredServiceId: string;
 let mockServer: http.Server;
 let balanceBeforeInvocations: number;
 
@@ -296,6 +297,12 @@ describe("Synapse TypeScript SDK — Consumer E2E Pipeline", () => {
       const services = await client.discover({ limit: 50 });
       const ids = services.map((s) => s.serviceId ?? s.id ?? s.agentToolName ?? "");
       expect(ids).toContain(serviceId);
+      discoveredServiceId = services.find((s) =>
+        [s.serviceId, s.id, s.agentToolName].includes(serviceId)
+      )?.serviceId
+        ?? services.find((s) => [s.serviceId, s.id, s.agentToolName].includes(serviceId))?.id
+        ?? serviceId;
+      expect(discoveredServiceId).toBe(serviceId);
     });
   });
 
@@ -322,7 +329,7 @@ describe("Synapse TypeScript SDK — Consumer E2E Pipeline", () => {
 
     it("should invoke service and return settled result", async () => {
       invocationResult = await client.invoke(
-        serviceId,
+        discoveredServiceId,
         { prompt: "ts-sdk e2e automated test" },
         {
           idempotencyKey: `ts-sdk-e2e-${SESSION_ID}`,
@@ -366,9 +373,28 @@ describe("Synapse TypeScript SDK — Consumer E2E Pipeline", () => {
     });
   });
 
-  // ── Test 8: Balance after invoke ──────────────────────────────────────────
+  describe("8. Direct known serviceId call", () => {
+    it("should quote and invoke directly with a known serviceId", async () => {
+      const quote = await client.quote(serviceId);
+      expect(quote.quoteId).toBeTruthy();
 
-  describe("8. Balance After Settlement", () => {
+      const result = await client.invoke(
+        serviceId,
+        { prompt: "direct known service id path" },
+        {
+          idempotencyKey: `ts-sdk-direct-${SESSION_ID}`,
+          pollTimeoutMs: 60_000,
+        }
+      );
+
+      expect(["SUCCEEDED", "SETTLED"]).toContain(result.status);
+      expect(result.chargedUsdc).toBeGreaterThan(0);
+    }, 90_000);
+  });
+
+  // ── Test 9: Balance after invoke ──────────────────────────────────────────
+
+  describe("9. Balance After Settlement", () => {
     it("should show reduced consumer balance after invocations", async () => {
       const balance = await ownerAuth.getBalance();
       const available = Number(balance.consumerAvailableBalance ?? balance.ownerBalance ?? 0);
