@@ -195,21 +195,6 @@ export interface DiscoverOptions {
   tags?: string[];
 }
 
-// ── Quote ────────────────────────────────────────────────────────────────────
-
-export interface QuoteOptions {
-  responseMode?: "sync" | "async" | "stream";
-  inputPreview?: Record<string, unknown>;
-}
-
-export interface QuoteResult {
-  quoteId: string;
-  serviceId?: string;
-  estimatedCostUsdc?: string | number;
-  overallStatus?: string;
-  [key: string]: unknown;
-}
-
 // ── Invocation ───────────────────────────────────────────────────────────────
 
 export type InvocationStatus =
@@ -235,12 +220,10 @@ export interface InvokeOptions {
   pollIntervalMs?: number;
   /**
    * The service price the agent saw during discovery (from ServiceRecord.pricing).
-   * When provided, invoke() calls POST /agent/invoke in a single HTTP round-trip.
-   * Gateway returns 422 PRICE_MISMATCH if the live price has changed — the agent
-   * must re-discover and retry.
-   * When omitted, falls back to the classic quote → invoke two-step flow.
+   * Pass this value from discover() results to enable price-assertion invoke.
+   * Gateway returns 422 PRICE_MISMATCH if the live price has changed.
    */
-  costUsdc?: number;
+  costUsdc: number;
 }
 
 export interface InvocationResult {

@@ -9,8 +9,6 @@ import {
   SynapseClientOptions,
   ServiceRecord,
   DiscoverOptions,
-  QuoteOptions,
-  QuoteResult,
   InvokeOptions,
   InvocationResult,
   InvocationStatus,
@@ -19,7 +17,6 @@ import {
 import {
   AuthenticationError,
   InsufficientFundsError,
-  QuoteError,
   InvokeError,
   DiscoveryError,
   TimeoutError,
@@ -81,70 +78,18 @@ export class SynapseClient {
     }
   }
 
-  // ── Quote ──────────────────────────────────────────────────────────────────
-
-  /** Create a quote for a service (first step of invocation). */
-  async quote(serviceId: string, opts: QuoteOptions = {}): Promise<QuoteResult> {
-    const body: Record<string, unknown> = {
-      serviceId,
-      responseMode: opts.responseMode ?? "sync",
-    };
-    if (opts.inputPreview) {
-      body["inputPreview"] = opts.inputPreview;
-    }
-
-    let resp: Record<string, unknown>;
-    try {
-      resp = await this._fetch<Record<string, unknown>>(
-        `${this.gatewayUrl}/api/v1/agent/quotes`,
-        { method: "POST", body: JSON.stringify(body) }
-      );
-    } catch (err) {
-      if (err instanceof AuthenticationError || err instanceof InsufficientFundsError) throw err;
-      throw new QuoteError(String(err instanceof Error ? err.message : err));
-    }
-
-    const quoteId =
-      (resp["quoteId"] as string) ||
-      (resp["id"] as string) ||
-      (resp["quote_id"] as string);
-    if (!quoteId) throw new QuoteError(`quoteId missing from quote response: ${JSON.stringify(resp)}`);
-
-    return { quoteId, ...resp } as QuoteResult;
-  }
-
   // ── Invocation ─────────────────────────────────────────────────────────────
 
   /**
    * Invoke a service by ID.
    *
-   * When `opts.costUsdc` is provided (the price the agent observed during discovery),
-   * a single HTTP call is made to `POST /agent/invoke`. Gateway returns 422 PRICE_MISMATCH
-   * if the live price has changed — the caller should re-discover and retry.
-   *
-   * When `opts.costUsdc` is omitted, falls back to the classic quote → invoke two-step flow.
+   * Pass `opts.costUsdc` — the price the agent observed during discovery.
+   * Gateway returns 422 PRICE_MISMATCH if the live price has changed;
+   * the caller should re-discover and retry.
    */
   async invoke(
     serviceId: string,
     payload: Record<string, unknown> = {},
-    opts: InvokeOptions = {}
-  ): Promise<InvocationResult> {
-    if (opts.costUsdc != null) {
-      return this._invokeWithCost(serviceId, payload, opts);
-    }
-    // Classic path: quote → invoke
-    const quoteResult = await this.quote(serviceId, { responseMode: opts.responseMode });
-    const idempotencyKey = opts.idempotencyKey ?? uuidv4();
-    return this.invokeByQuote(quoteResult.quoteId, payload, { ...opts, idempotencyKey });
-  }
-
-  /**
-   * Single-call invoke — sends `costUsdc` (discovered price) for price-assertion check.
-   * Use via `invoke(serviceId, payload, { costUsdc: service.priceUsdc })`.
-   */
-  private async _invokeWithCost(
-    serviceId: string,
-    payload: Record<string, unknown>,
     opts: InvokeOptions
   ): Promise<InvocationResult> {
     const idempotencyKey = opts.idempotencyKey ?? uuidv4();
@@ -179,47 +124,6 @@ export class SynapseClient {
     const result = this._parseInvocationResponse(resp);
     if (TERMINAL_STATUSES.has(result.status)) return result;
     if (opts.pollTimeoutMs === 0) return result;
-    return this.waitForInvocation(result.invocationId, opts);
-  }
-
-  /**
-   * Create an invocation from an existing quoteId.
-   * Use `invoke()` instead unless you need manual quote control.
-   */
-  async invokeByQuote(
-    quoteId: string,
-    payload: Record<string, unknown> = {},
-    opts: InvokeOptions = {}
-  ): Promise<InvocationResult> {
-    const idempotencyKey = opts.idempotencyKey ?? uuidv4();
-    const requestHeaders: Record<string, string> = {};
-    if (opts.requestId) requestHeaders["X-Request-Id"] = opts.requestId;
-
-    let resp: Record<string, unknown>;
-    try {
-      resp = await this._fetch<Record<string, unknown>>(
-        `${this.gatewayUrl}/api/v1/agent/invocations`,
-        {
-          method: "POST",
-          extraHeaders: requestHeaders,
-          body: JSON.stringify({
-            quoteId,
-            idempotencyKey,
-            payload,
-            responseMode: opts.responseMode ?? "sync",
-          }),
-        }
-      );
-    } catch (err) {
-      if (err instanceof AuthenticationError || err instanceof InsufficientFundsError) throw err;
-      throw new InvokeError(String(err instanceof Error ? err.message : err));
-    }
-
-    const result = this._parseInvocationResponse(resp);
-
-    if (TERMINAL_STATUSES.has(result.status)) return result;
-    if (opts.pollTimeoutMs === 0) return result;
-
     return this.waitForInvocation(result.invocationId, opts);
   }
 

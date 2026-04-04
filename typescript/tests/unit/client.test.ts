@@ -9,7 +9,6 @@ import { SynapseClient } from "../../src/client";
 import {
   AuthenticationError,
   InsufficientFundsError,
-  QuoteError,
   InvokeError,
   PriceMismatchError,
 } from "../../src/errors";
@@ -44,32 +43,17 @@ test("constructor throws when credential is empty", () => {
 
 test("constructor accepts default gatewayUrl", () => {
   const client = new SynapseClient({ credential: "agt_test" });
-  // Just ensure no exception is thrown — no public gatewayUrl accessor needed
   expect(client).toBeInstanceOf(SynapseClient);
 });
 
-// ── invoke() — one-step flow ──────────────────────────────────────────────────
+// ── invoke() — single-call path ───────────────────────────────────────────────
 
-test("invoke() calls quotes then invocations and returns InvocationResult", async () => {
+test("invoke() calls /agent/invoke and returns InvocationResult", async () => {
   const urls: string[] = [];
 
   (globalThis as unknown as Record<string, unknown>).fetch = jest.fn(
-    async (url: string, init?: RequestInit) => {
+    async (url: string) => {
       urls.push(url as string);
-      if ((url as string).endsWith("/api/v1/agent/quotes")) {
-        return {
-          ok: true,
-          status: 200,
-          text: async () =>
-            JSON.stringify({
-              quoteId: "quote_001",
-              serviceId: "svc_test",
-              priceUsdc: 0.05,
-              expiresAt: "2099-01-01T00:00:00Z",
-            }),
-        } as Response;
-      }
-      // invocations endpoint
       return {
         ok: true,
         status: 200,
@@ -89,10 +73,10 @@ test("invoke() calls quotes then invocations and returns InvocationResult", asyn
     gatewayUrl: "http://127.0.0.1:8000",
   });
 
-  const result = await client.invoke("svc_test", { prompt: "hi" }, { idempotencyKey: "key-1" });
+  const result = await client.invoke("svc_test", { prompt: "hi" }, { costUsdc: 0.05, idempotencyKey: "key-1" });
 
-  expect(urls[0]).toContain("/api/v1/agent/quotes");
-  expect(urls[1]).toContain("/api/v1/agent/invocations");
+  expect(urls).toHaveLength(1);
+  expect(urls[0]).toContain("/api/v1/agent/invoke");
   expect(result.invocationId).toBe("inv_001");
   expect(result.status).toBe("SUCCEEDED");
   expect(result.chargedUsdc).toBeCloseTo(0.05);
@@ -100,16 +84,8 @@ test("invoke() calls quotes then invocations and returns InvocationResult", asyn
 
 test("invoke() skips polling when invocation already terminal", async () => {
   let callCount = 0;
-  (globalThis as unknown as Record<string, unknown>).fetch = jest.fn(async (url: string) => {
+  (globalThis as unknown as Record<string, unknown>).fetch = jest.fn(async () => {
     callCount += 1;
-    if ((url as string).endsWith("/api/v1/agent/quotes")) {
-      return {
-        ok: true,
-        status: 200,
-        text: async () =>
-          JSON.stringify({ quoteId: "q2", serviceId: "svc_t", priceUsdc: 0.01, expiresAt: "2099-01-01T00:00:00Z" }),
-      } as Response;
-    }
     return {
       ok: true,
       status: 200,
@@ -119,70 +95,36 @@ test("invoke() skips polling when invocation already terminal", async () => {
   });
 
   const client = new SynapseClient({ credential: "agt_test" });
-  await client.invoke("svc_t", {});
+  await client.invoke("svc_t", {}, { costUsdc: 0.01 });
 
-  // Should have made exactly 2 calls: quote + invoke — no extra poll
-  expect(callCount).toBe(2);
+  // Should have made exactly 1 call — no extra poll
+  expect(callCount).toBe(1);
 });
 
-// ── quote() ───────────────────────────────────────────────────────────────────
-
-test("quote() returns quoteId from response", async () => {
-  (globalThis as unknown as Record<string, unknown>).fetch = jest.fn(
-    async (_url: string) => ({
-      ok: true,
-      status: 200,
-      text: async () =>
-        JSON.stringify({ quoteId: "quote_abc", serviceId: "svc_1", priceUsdc: 0.1, expiresAt: "2099-01-01T00:00:00Z" }),
-    } as Response)
-  );
-
-  const client = new SynapseClient({ credential: "agt_test" });
-  const result = await client.quote("svc_1");
-
-  expect(result.quoteId).toBe("quote_abc");
-});
-
-test("quote() throws QuoteError when quoteId is missing", async () => {
-  (globalThis as unknown as Record<string, unknown>).fetch = jest.fn(
-    async () => ({
-      ok: true,
-      status: 200,
-      text: async () => JSON.stringify({ serviceId: "svc_1" }), // no quoteId
-    } as Response)
-  );
-
-  const client = new SynapseClient({ credential: "agt_test" });
-  await expect(client.quote("svc_1")).rejects.toThrow(QuoteError);
-});
-
-// ── invokeByQuote() ────────────────────────────────────────────────────────────
-
-test("invokeByQuote() sends correct body and returns result", async () => {
+test("invoke() sends correct body to /agent/invoke", async () => {
   let capturedBody: unknown;
-  (globalThis as unknown as Record<string, unknown>).fetch = jest.fn(
-    async (_url: string, init?: RequestInit) => {
-      capturedBody = JSON.parse((init?.body as string) ?? "{}");
-      return {
-        ok: true,
-        status: 200,
-        text: async () =>
-          JSON.stringify({ invocationId: "inv_003", status: "SUCCEEDED", chargedUsdc: 0.02 }),
-      } as Response;
-    }
-  );
+  (globalThis as unknown as Record<string, unknown>).fetch = jest.fn(async (_url: string, init?: RequestInit) => {
+    capturedBody = JSON.parse((init?.body as string) ?? "{}");
+    return {
+      ok: true,
+      status: 200,
+      text: async () => JSON.stringify({ invocationId: "inv_b", status: "SUCCEEDED", chargedUsdc: 0.10 }),
+    } as Response;
+  });
 
   const client = new SynapseClient({ credential: "agt_test" });
-  const result = await client.invokeByQuote("q_xyz", { data: "test" }, { idempotencyKey: "ik-1" });
+  await client.invoke("svc_2", { text: "test" }, { costUsdc: 0.10, idempotencyKey: "ik-2" });
 
-  expect((capturedBody as Record<string, unknown>)["quoteId"]).toBe("q_xyz");
-  expect((capturedBody as Record<string, unknown>)["idempotencyKey"]).toBe("ik-1");
-  expect(result.invocationId).toBe("inv_003");
+  const body = capturedBody as Record<string, unknown>;
+  expect(body["serviceId"]).toBe("svc_2");
+  expect(body["costUsdc"]).toBe(0.10);
+  expect(body["idempotencyKey"]).toBe("ik-2");
+  expect((body["payload"] as Record<string, unknown>)["body"]).toEqual({ text: "test" });
 });
 
 // ── Error mapping ─────────────────────────────────────────────────────────────
 
-test("401 response from quotes throws AuthenticationError", async () => {
+test("401 response from invoke throws AuthenticationError", async () => {
   (globalThis as unknown as Record<string, unknown>).fetch = jest.fn(async () => ({
     ok: false,
     status: 401,
@@ -190,33 +132,21 @@ test("401 response from quotes throws AuthenticationError", async () => {
   } as Response));
 
   const client = new SynapseClient({ credential: "agt_bad" });
-  await expect(client.quote("svc_1")).rejects.toThrow(AuthenticationError);
+  await expect(client.invoke("svc_1", {}, { costUsdc: 0.01 })).rejects.toThrow(AuthenticationError);
 });
 
-test("402 response from invocations throws InsufficientFundsError", async () => {
-  let callCount = 0;
-  (globalThis as unknown as Record<string, unknown>).fetch = jest.fn(async (url: string) => {
-    callCount += 1;
-    if ((url as string).endsWith("/api/v1/agent/quotes")) {
-      return {
-        ok: true,
-        status: 200,
-        text: async () =>
-          JSON.stringify({ quoteId: "q3", serviceId: "svc_1", priceUsdc: 0.05, expiresAt: "2099-01-01T00:00:00Z" }),
-      } as Response;
-    }
-    return {
-      ok: false,
-      status: 402,
-      text: async () => JSON.stringify({ detail: "Insufficient funds" }),
-    } as Response;
-  });
+test("402 response from invoke throws InsufficientFundsError", async () => {
+  (globalThis as unknown as Record<string, unknown>).fetch = jest.fn(async () => ({
+    ok: false,
+    status: 402,
+    text: async () => JSON.stringify({ detail: "Insufficient funds" }),
+  } as Response));
 
   const client = new SynapseClient({ credential: "agt_test" });
-  await expect(client.invoke("svc_1", {})).rejects.toThrow(InsufficientFundsError);
+  await expect(client.invoke("svc_1", {}, { costUsdc: 0.05 })).rejects.toThrow(InsufficientFundsError);
 });
 
-test("500 from invokeByQuote throws InvokeError", async () => {
+test("500 from invoke throws InvokeError", async () => {
   (globalThis as unknown as Record<string, unknown>).fetch = jest.fn(async () => ({
     ok: false,
     status: 500,
@@ -224,7 +154,7 @@ test("500 from invokeByQuote throws InvokeError", async () => {
   } as Response));
 
   const client = new SynapseClient({ credential: "agt_test" });
-  await expect(client.invokeByQuote("q_bad", {})).rejects.toThrow(InvokeError);
+  await expect(client.invoke("svc_bad", {}, { costUsdc: 0.01 })).rejects.toThrow(InvokeError);
 });
 
 // ── discover() ────────────────────────────────────────────────────────────────
@@ -247,76 +177,9 @@ test("discover() returns service array from response.services", async () => {
   expect(svcs[0].serviceId).toBe("svc_a");
 });
 
-// ── invoke() with costUsdc — single-call path ─────────────────────────────────
+// ── PRICE_MISMATCH ────────────────────────────────────────────────────────────
 
-test("invoke() with costUsdc calls /agent/invoke directly (1 HTTP call)", async () => {
-  const urls: string[] = [];
-  (globalThis as unknown as Record<string, unknown>).fetch = jest.fn(async (url: string) => {
-    urls.push(url as string);
-    return {
-      ok: true,
-      status: 200,
-      text: async () =>
-        JSON.stringify({ invocationId: "inv_cost", status: "SUCCEEDED", chargedUsdc: 0.05 }),
-    } as Response;
-  });
-
-  const client = new SynapseClient({ credential: "agt_test", gatewayUrl: "http://127.0.0.1:8000" });
-  const result = await client.invoke("svc_1", { prompt: "hi" }, { costUsdc: 0.05, idempotencyKey: "k1" });
-
-  expect(urls).toHaveLength(1);
-  expect(urls[0]).toContain("/api/v1/agent/invoke");
-  expect(result.invocationId).toBe("inv_cost");
-  expect(result.chargedUsdc).toBeCloseTo(0.05);
-});
-
-test("invoke() with costUsdc sends correct body to /agent/invoke", async () => {
-  let capturedBody: unknown;
-  (globalThis as unknown as Record<string, unknown>).fetch = jest.fn(async (_url: string, init?: RequestInit) => {
-    capturedBody = JSON.parse((init?.body as string) ?? "{}");
-    return {
-      ok: true,
-      status: 200,
-      text: async () => JSON.stringify({ invocationId: "inv_b", status: "SUCCEEDED", chargedUsdc: 0.10 }),
-    } as Response;
-  });
-
-  const client = new SynapseClient({ credential: "agt_test" });
-  await client.invoke("svc_2", { text: "test" }, { costUsdc: 0.10, idempotencyKey: "ik-2" });
-
-  const body = capturedBody as Record<string, unknown>;
-  expect(body["serviceId"]).toBe("svc_2");
-  expect(body["costUsdc"]).toBe(0.10);
-  expect(body["idempotencyKey"]).toBe("ik-2");
-  expect((body["payload"] as Record<string, unknown>)["body"]).toEqual({ text: "test" });
-});
-
-test("invoke() without costUsdc falls back to quote + invoke (2 HTTP calls)", async () => {
-  const urls: string[] = [];
-  (globalThis as unknown as Record<string, unknown>).fetch = jest.fn(async (url: string) => {
-    urls.push(url as string);
-    if ((url as string).endsWith("/api/v1/agent/quotes")) {
-      return {
-        ok: true,
-        status: 200,
-        text: async () => JSON.stringify({ quoteId: "q_fb", serviceId: "svc_3", priceUsdc: 0.02, expiresAt: "2099-01-01T00:00:00Z" }),
-      } as Response;
-    }
-    return {
-      ok: true,
-      status: 200,
-      text: async () => JSON.stringify({ invocationId: "inv_fb", status: "SUCCEEDED", chargedUsdc: 0.02 }),
-    } as Response;
-  });
-
-  const client = new SynapseClient({ credential: "agt_test" });
-  await client.invoke("svc_3", {});
-  expect(urls[0]).toContain("/api/v1/agent/quotes");
-  expect(urls[1]).toContain("/api/v1/agent/invocations");
-  expect(urls).toHaveLength(2);
-});
-
-test("invoke() with costUsdc throws PriceMismatchError on 422 PRICE_MISMATCH", async () => {
+test("invoke() throws PriceMismatchError on 422 PRICE_MISMATCH", async () => {
   (globalThis as unknown as Record<string, unknown>).fetch = jest.fn(async () => ({
     ok: false,
     status: 422,

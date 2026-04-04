@@ -19,13 +19,6 @@ export class InsufficientFundsError extends SynapseError {
   }
 }
 
-export class QuoteError extends SynapseError {
-  constructor(message: string) {
-    super(message);
-    this.name = "QuoteError";
-  }
-}
-
 export class InvokeError extends SynapseError {
   constructor(message: string) {
     super(message);

@@ -5,7 +5,6 @@ import pytest
 from synapse_client import SynapseClient
 from synapse_client.exceptions import (
     AuthenticationError,
-    BudgetExceededError,
     DiscoveryError,
     InsufficientFundsError,
     InvokeError,
@@ -113,218 +112,8 @@ def test_discover_services_raises_discovery_error_on_failure(monkeypatch):
         client.discover_services(intent="quotes")
 
 
-def test_create_quote_posts_payload_and_returns_quote(monkeypatch):
-    calls = []
-
-    def fake_post(url, headers, json, timeout):
-        calls.append({"url": url, "headers": headers, "json": json, "timeout": timeout})
-        return DummyResponse(
-            json_data={
-                "requestId": "req_quote_1",
-                "quoteId": "quote_123",
-                "serviceId": "svc_quotes_famous_top3",
-                "priceUsdc": 0.05,
-                "priceModel": "fixed",
-                "budgetCheck": {
-                    "allowed": True,
-                    "remainingBudgetUsdc": 10.0,
-                    "remainingDailyLimitUsdc": 2.0,
-                },
-                "expiresAt": "2026-03-19T12:00:00Z",
-                "idempotencyScope": "quoteId",
-                "invokeConstraints": {"body": {}, "timeoutMs": 3000, "maxPayloadBytes": 4096},
-            }
-        )
-
-    monkeypatch.setattr("synapse_client.client.requests.post", fake_post)
-
-    client = SynapseClient(api_key="agt_test", timeout_sec=9)
-    result = client.create_quote(
-        service_id="svc_quotes_famous_top3",
-        input_preview={
-            "sample": {"body": {"text": "关于坚持"}},
-            "payloadSchema": {"body": {"type": "object"}},
-        },
-        request_id="trace-123",
-    )
-
-    assert result.quote_id == "quote_123"
-    assert result.price_usdc == pytest.approx(0.05)
-    assert result.budget_check.allowed is True
-    assert calls == [
-        {
-            "url": "http://127.0.0.1:8000/api/v1/agent/quotes",
-            "headers": {
-                "Content-Type": "application/json",
-                "X-Credential": "agt_test",
-                "X-Request-Id": "trace-123",
-            },
-            "json": {
-                "serviceId": "svc_quotes_famous_top3",
-                "inputPreview": {
-                    "contentType": "application/json",
-                    "payloadSchema": {"body": {"type": "object"}},
-                    "sample": {"body": {"text": "关于坚持"}},
-                },
-                "responseMode": "sync",
-            },
-            "timeout": 9,
-        }
-    ]
-
-
-def test_create_quote_raises_budget_exceeded_when_budget_check_denies(monkeypatch):
-    monkeypatch.setattr(
-        "synapse_client.client.requests.post",
-        lambda url, headers, json, timeout: DummyResponse(
-            json_data={
-                "requestId": "req_quote_2",
-                "quoteId": "quote_denied",
-                "serviceId": "svc_quotes_famous_top3",
-                "priceUsdc": 0.05,
-                "priceModel": "fixed",
-                "budgetCheck": {
-                    "allowed": False,
-                    "remainingBudgetUsdc": 0.01,
-                    "remainingDailyLimitUsdc": 0.01,
-                },
-                "expiresAt": "2026-03-19T12:00:00Z",
-                "idempotencyScope": "quoteId",
-                "invokeConstraints": {"body": {}, "timeoutMs": 3000, "maxPayloadBytes": 4096},
-            }
-        ),
-    )
-
-    client = SynapseClient(api_key="agt_test")
-
-    with pytest.raises(BudgetExceededError, match="Credential budget"):
-        client.create_quote(service_id="svc_quotes_famous_top3")
-
-
-@pytest.mark.parametrize(
-    ("status_code", "json_data", "error_type", "message"),
-    [
-        (401, {"detail": {"code": "CREDENTIAL_INVALID", "message": "bad key"}}, AuthenticationError, "bad key"),
-        (402, {"detail": {"code": "BUDGET_EXHAUSTED", "message": "budget empty"}}, InsufficientFundsError, "budget empty"),
-        (500, {}, InvokeError, "upstream exploded"),
-    ],
-)
-def test_create_invocation_maps_error_status_codes(monkeypatch, status_code, json_data, error_type, message):
-    monkeypatch.setattr(
-        "synapse_client.client.requests.post",
-        lambda url, headers, json, timeout: DummyResponse(status_code=status_code, json_data=json_data, text="upstream exploded", ok=False),
-    )
-
-    client = SynapseClient(api_key="agt_test")
-
-    with pytest.raises(error_type, match=message):
-        client.create_invocation(quote_id="quote_123", payload={"text": "hi"})
-
-
-def test_call_service_runs_quote_invoke_and_receipt_poll(monkeypatch):
-    post_calls = []
-    get_calls = []
-
-    def fake_post(url, headers, json, timeout):
-        post_calls.append({"url": url, "headers": headers, "json": json, "timeout": timeout})
-        if url.endswith("/api/v1/agent/quotes"):
-            return DummyResponse(
-                json_data={
-                    "requestId": "req_quote_3",
-                    "quoteId": "quote_abc",
-                    "serviceId": "svc_quotes_famous_top3",
-                    "priceUsdc": 0.05,
-                    "priceModel": "fixed",
-                    "budgetCheck": {"allowed": True, "remainingBudgetUsdc": 10.0, "remainingDailyLimitUsdc": 3.0},
-                    "expiresAt": "2026-03-19T12:00:00Z",
-                    "idempotencyScope": "quoteId",
-                    "invokeConstraints": {"body": {}, "timeoutMs": 3000, "maxPayloadBytes": 4096},
-                }
-            )
-        return DummyResponse(
-            json_data={
-                "invocationId": "inv_abc",
-                "status": "PENDING",
-                "chargedUsdc": 0.0,
-            }
-        )
-
-    def fake_get(url, headers, timeout):
-        get_calls.append({"url": url, "headers": headers, "timeout": timeout})
-        return DummyResponse(
-            json_data={
-                "invocationId": "inv_abc",
-                "status": "SUCCEEDED",
-                "chargedUsdc": 0.05,
-                "result": {"answer": "stay hungry"},
-                "receipt": {"quoteId": "quote_abc", "invocationId": "inv_abc"},
-            }
-        )
-
-    monkeypatch.setattr("synapse_client.client.requests.post", fake_post)
-    monkeypatch.setattr("synapse_client.client.requests.get", fake_get)
-    monkeypatch.setattr("synapse_client.client.time.sleep", lambda seconds: None)
-
-    timeline = iter([0, 0, 1])
-    monkeypatch.setattr("synapse_client.client.time.time", lambda: next(timeline))
-
-    client = SynapseClient(api_key="agt_test", timeout_sec=9)
-    result = client.call_service(
-        service_id="svc_quotes_famous_top3",
-        payload={"text": "关于坚持"},
-        request_id="trace-123",
-        idempotency_key="job-1-step-1",
-    )
-
-    assert result.content == {"answer": "stay hungry"}
-    assert result.invocation_id == "inv_abc"
-    assert result.quote_id == "quote_abc"
-    assert result.fee_deducted == pytest.approx(0.05)
-    assert post_calls == [
-        {
-            "url": "http://127.0.0.1:8000/api/v1/agent/quotes",
-            "headers": {
-                "Content-Type": "application/json",
-                "X-Credential": "agt_test",
-                "X-Request-Id": "trace-123",
-            },
-            "json": {
-                "serviceId": "svc_quotes_famous_top3",
-                "inputPreview": {
-                    "contentType": "application/json",
-                    "payloadSchema": {"body": {}},
-                    "sample": {"body": {"text": "关于坚持"}},
-                },
-                "responseMode": "sync",
-            },
-            "timeout": 9,
-        },
-        {
-            "url": "http://127.0.0.1:8000/api/v1/agent/invocations",
-            "headers": {
-                "Content-Type": "application/json",
-                "X-Credential": "agt_test",
-                "X-Request-Id": "trace-123",
-            },
-            "json": {
-                "quoteId": "quote_abc",
-                "idempotencyKey": "job-1-step-1",
-                "payload": {"body": {"text": "关于坚持"}},
-                "responseMode": "sync",
-            },
-            "timeout": 9,
-        },
-    ]
-    assert get_calls == [
-        {
-            "url": "http://127.0.0.1:8000/api/v1/agent/invocations/inv_abc",
-            "headers": {
-                "Content-Type": "application/json",
-                "X-Credential": "agt_test",
-            },
-            "timeout": 9,
-        }
-    ]
+def test_create_quote_posts_payload_and_returns_quote_REMOVED():
+    pass  # removed — quote path deleted
 
 
 def test_wait_for_invocation_raises_timeout_when_pending_exceeds_budget(monkeypatch):
@@ -345,7 +134,7 @@ def test_wait_for_invocation_raises_timeout_when_pending_exceeds_budget(monkeypa
         client.wait_for_invocation("inv_123", max_wait_sec=3)
 
 
-def test_ts_style_alias_methods_delegate_to_python_runtime_client(monkeypatch):
+def test_alias_methods_delegate_to_runtime_client(monkeypatch):
     client = SynapseClient(api_key="agt_test")
 
     monkeypatch.setattr(
@@ -361,25 +150,31 @@ def test_ts_style_alias_methods_delegate_to_python_runtime_client(monkeypatch):
     )
     monkeypatch.setattr(
         client,
-        "create_quote",
-        lambda *args, **kwargs: "quote-object",
-    )
-    monkeypatch.setattr(
-        client,
-        "invoke_service",
-        lambda *args, **kwargs: "invocation-object",
-    )
-    monkeypatch.setattr(
-        client,
         "get_invocation_receipt",
         lambda invocation_id: {"invocationId": invocation_id},
     )
 
     assert client.discover(limit=20) == ["svc-1", "svc-2"]
     assert client.search("quotes", limit=20) == ["svc-1", "svc-2"]
-    assert client.quote("svc_quotes") == "quote-object"
-    assert client.invoke("svc_quotes", {"prompt": "hi"}) == "invocation-object"
     assert client.get_invocation("inv-123") == {"invocationId": "inv-123"}
+
+
+@pytest.mark.parametrize(
+    ("status_code", "json_data", "error_type", "match"),
+    [
+        (401, {"detail": {"code": "CREDENTIAL_INVALID", "message": "bad key"}}, AuthenticationError, "bad key"),
+        (402, {"detail": {"code": "BUDGET_EXHAUSTED", "message": "budget empty"}}, InsufficientFundsError, "budget empty"),
+        (500, {}, InvokeError, "upstream exploded"),
+    ],
+)
+def test_invoke_maps_error_status_codes(monkeypatch, status_code, json_data, error_type, match):
+    monkeypatch.setattr(
+        "synapse_client.client.requests.post",
+        lambda url, headers, json, timeout: DummyResponse(status_code=status_code, json_data=json_data, text="upstream exploded", ok=False),
+    )
+    client = SynapseClient(api_key="agt_test")
+    with pytest.raises(error_type, match=match):
+        client.invoke(service_id="svc_1", payload={"text": "hi"}, cost_usdc=0.05)
 
 
 # ---------------------------------------------------------------------------
@@ -422,35 +217,6 @@ def test_invoke_with_cost_usdc_sends_payload_body(monkeypatch):
 
     assert captured[0]["payload"]["body"] == {"prompt": "test"}
     assert captured[0]["costUsdc"] == pytest.approx(0.10)
-
-
-def test_invoke_without_cost_usdc_falls_back_to_quote_then_invoke(monkeypatch):
-    urls = []
-
-    def fake_post(url, headers, json, timeout):
-        urls.append(url)
-        if url.endswith("/api/v1/agent/quotes"):
-            return DummyResponse(
-                json_data={
-                    "quoteId": "q_fb",
-                    "serviceId": "svc_3",
-                    "priceUsdc": 0.02,
-                    "budgetCheck": {"allowed": True},
-                    "expiresAt": "2099-01-01T00:00:00Z",
-                    "invokeConstraints": {"body": {}, "timeoutMs": 3000, "maxPayloadBytes": 4096},
-                    "priceModel": "fixed",
-                }
-            )
-        return DummyResponse(
-            json_data={"invocationId": "inv_fb", "status": "SUCCEEDED", "chargedUsdc": 0.02}
-        )
-
-    monkeypatch.setattr("synapse_client.client.requests.post", fake_post)
-    client = SynapseClient(api_key="agt_test")
-    client.invoke("svc_3", {})
-
-    assert any("/api/v1/agent/quotes" in u for u in urls)
-    assert any("/api/v1/agent/invocations" in u for u in urls)
 
 
 def test_invoke_with_cost_usdc_raises_price_mismatch_error(monkeypatch):

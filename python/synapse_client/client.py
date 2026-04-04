@@ -12,16 +12,12 @@ from .exceptions import (
     InsufficientFundsError,
     InvokeError,
     PriceMismatchError,
-    QuoteError,
     TimeoutError,
 )
 from .models import (
     DiscoveryResponse,
     InvocationResponse,
-    QuoteInputPreview,
-    QuoteResponse,
     RuntimePayload,
-    SynapseResponse,
 )
 
 
@@ -108,8 +104,6 @@ class SynapseClient:
 
         if isinstance(default_error, DiscoveryError):
             raise DiscoveryError(message)
-        if isinstance(default_error, QuoteError):
-            raise QuoteError(message)
         raise InvokeError(message)
 
     def search_services(
@@ -199,83 +193,6 @@ class SynapseClient:
         )
         return response.services
 
-    def create_quote(
-        self,
-        service_id: str,
-        *,
-        input_preview: Optional[Dict[str, Any]] = None,
-        response_mode: str = "sync",
-        request_id: Optional[str] = None,
-    ) -> QuoteResponse:
-        """Create a short-lived quote for a service invocation."""
-        if not service_id or not service_id.strip():
-            raise ValueError("service_id is required")
-
-        preview = QuoteInputPreview(**(input_preview or {}))
-        payload = {
-            "serviceId": service_id.strip(),
-            "inputPreview": preview.model_dump(by_alias=True, exclude_none=True),
-            "responseMode": response_mode,
-        }
-        response = requests.post(
-            f"{self.gateway_url}/api/v1/agent/quotes",
-            headers=self._headers(request_id=request_id),
-            json=payload,
-            timeout=self.timeout_sec,
-        )
-        self._raise_for_error(response, QuoteError("quote creation failed"))
-        quote = QuoteResponse(**self._response_payload(response))
-
-        if not quote.budget_check.allowed:
-            raise BudgetExceededError("Credential budget does not allow this invocation")
-
-        return quote
-
-    def quote(
-        self,
-        service_id: str,
-        *,
-        input_preview: Optional[Dict[str, Any]] = None,
-        response_mode: str = "sync",
-        request_id: Optional[str] = None,
-    ) -> QuoteResponse:
-        return self.create_quote(
-            service_id=service_id,
-            input_preview=input_preview,
-            response_mode=response_mode,
-            request_id=request_id,
-        )
-
-    def create_invocation(
-        self,
-        quote_id: str,
-        *,
-        payload: Optional[Dict[str, Any]] = None,
-        idempotency_key: Optional[str] = None,
-        response_mode: str = "sync",
-        request_id: Optional[str] = None,
-    ) -> InvocationResponse:
-        """Invoke a quoted service call using an idempotency key."""
-        if not quote_id or not quote_id.strip():
-            raise ValueError("quote_id is required")
-
-        invocation_key = (idempotency_key or f"invoke-{uuid4().hex}").strip()
-        runtime_payload = RuntimePayload(body=payload or {})
-        body = {
-            "quoteId": quote_id.strip(),
-            "idempotencyKey": invocation_key,
-            "payload": runtime_payload.model_dump(by_alias=True),
-            "responseMode": response_mode,
-        }
-        response = requests.post(
-            f"{self.gateway_url}/api/v1/agent/invocations",
-            headers=self._headers(request_id=request_id),
-            json=body,
-            timeout=self.timeout_sec,
-        )
-        self._raise_for_error(response, InvokeError("service invocation failed"))
-        return InvocationResponse(**self._response_payload(response))
-
     def get_invocation_receipt(self, invocation_id: str) -> InvocationResponse:
         """Fetch the latest state for an invocation."""
         if not invocation_id or not invocation_id.strip():
@@ -309,100 +226,23 @@ class SynapseClient:
                 raise TimeoutError("Synapse invocation pending timeout.")
             time.sleep(max(1, poll_interval_sec))
 
-    def invoke_service(
-        self,
-        service_id: str,
-        *,
-        payload: Optional[Dict[str, Any]] = None,
-        input_preview: Optional[Dict[str, Any]] = None,
-        idempotency_key: Optional[str] = None,
-        response_mode: str = "sync",
-        poll_pending: bool = True,
-        max_wait_sec: int = 90,
-        request_id: Optional[str] = None,
-    ) -> InvocationResponse:
-        """Run the full discovery-contract execution path: quote then invoke then optional receipt polling."""
-        preview_payload = input_preview
-        if preview_payload is None:
-            preview_payload = {
-                "sample": {"body": payload or {}},
-                "payloadSchema": {"body": {}},
-            }
-
-        quote = self.create_quote(
-            service_id,
-            input_preview=preview_payload,
-            response_mode=response_mode,
-            request_id=request_id,
-        )
-        invocation = self.create_invocation(
-            quote.quote_id,
-            payload=payload,
-            idempotency_key=idempotency_key,
-            response_mode=response_mode,
-            request_id=request_id,
-        )
-
-        if invocation.status in TERMINAL_STATUSES:
-            return invocation
-        if not poll_pending:
-            return invocation
-        return self.wait_for_invocation(invocation.invocation_id, max_wait_sec=max_wait_sec)
-
     def invoke(
         self,
         service_id: str,
         payload: Optional[Dict[str, Any]] = None,
         *,
-        cost_usdc: Optional[float] = None,
-        input_preview: Optional[Dict[str, Any]] = None,
-        idempotency_key: Optional[str] = None,
-        response_mode: str = "sync",
-        poll_timeout_sec: int = 90,
-        request_id: Optional[str] = None,
-    ) -> InvocationResponse:
-        """Invoke a service.
-
-        When ``cost_usdc`` is provided (the price the agent observed in discovery),
-        a single HTTP call is made to ``POST /agent/invoke``. Gateway returns 422
-        ``PRICE_MISMATCH`` (raises ``PriceMismatchError``) if the live price has
-        changed — re-discover and retry.
-
-        When ``cost_usdc`` is omitted, falls back to the classic quote → invoke flow.
-        """
-        if cost_usdc is not None:
-            return self._invoke_with_cost(
-                service_id=service_id,
-                payload=payload,
-                cost_usdc=cost_usdc,
-                idempotency_key=idempotency_key,
-                response_mode=response_mode,
-                poll_timeout_sec=poll_timeout_sec,
-                request_id=request_id,
-            )
-        return self.invoke_service(
-            service_id=service_id,
-            payload=payload,
-            input_preview=input_preview,
-            idempotency_key=idempotency_key,
-            response_mode=response_mode,
-            poll_pending=True,
-            max_wait_sec=poll_timeout_sec,
-            request_id=request_id,
-        )
-
-    def _invoke_with_cost(
-        self,
-        service_id: str,
-        payload: Optional[Dict[str, Any]],
         cost_usdc: float,
-        *,
         idempotency_key: Optional[str] = None,
         response_mode: str = "sync",
         poll_timeout_sec: int = 90,
         request_id: Optional[str] = None,
     ) -> InvocationResponse:
-        """Single-call invoke: sends costUsdc for gateway price-assertion check."""
+        """Invoke a service with price assertion.
+
+        Pass ``cost_usdc`` — the price the agent observed in discovery.
+        Gateway returns 422 ``PRICE_MISMATCH`` (raises ``PriceMismatchError``) if
+        the live price has changed — re-discover and retry.
+        """
         if not service_id or not service_id.strip():
             raise ValueError("service_id is required")
 
@@ -427,60 +267,3 @@ class SynapseClient:
         if invocation.status in TERMINAL_STATUSES:
             return invocation
         return self.wait_for_invocation(invocation.invocation_id, max_wait_sec=poll_timeout_sec)
-
-    def call_service(
-        self,
-        service_id: str,
-        payload: Optional[Dict[str, Any]] = None,
-        prompt: Optional[str] = None,
-        poll_pending: bool = True,
-        max_wait_sec: int = 90,
-        **kwargs: Any
-    ) -> SynapseResponse:
-        """Compatibility helper that internally performs quote then invoke."""
-        if not service_id or not service_id.strip():
-            raise ValueError("service_id is required")
-
-        final_payload: Dict[str, Any] = {}
-        if payload is not None:
-            final_payload.update(payload)
-        elif prompt is not None:
-            final_payload["prompt"] = prompt
-
-        reserved_keys = {"request_id", "idempotency_key", "response_mode"}
-        final_payload.update(
-            {
-                key: value
-                for key, value in kwargs.items()
-                if key not in reserved_keys and value is not None
-            }
-        )
-
-        request_id = None
-        if "request_id" in kwargs and kwargs["request_id"] is not None:
-            request_id = str(kwargs["request_id"])
-
-        invocation = self.invoke_service(
-            service_id=service_id,
-            payload=final_payload,
-            idempotency_key=str(kwargs.get("idempotency_key") or "") or None,
-            response_mode=str(kwargs.get("response_mode") or "sync"),
-            poll_pending=poll_pending,
-            max_wait_sec=max_wait_sec,
-            request_id=request_id,
-        )
-
-        if not invocation.succeeded:
-            if invocation.error is not None:
-                raise InvokeError(invocation.error.message)
-            raise InvokeError("Synapse network invoke failed.")
-
-        return SynapseResponse(
-            content=invocation.result,
-            invocationId=invocation.invocation_id,
-            status=invocation.status,
-            feeDeducted=float(invocation.charged_usdc),
-            receipt=invocation.receipt.model_dump(by_alias=True) if invocation.receipt is not None else {},
-            rawResponse=invocation.model_dump(by_alias=True, exclude_none=True),
-            quoteId=invocation.receipt.quote_id if invocation.receipt is not None else None,
-        )

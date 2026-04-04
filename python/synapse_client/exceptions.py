@@ -10,10 +10,6 @@ class DiscoveryError(SynapseClientError):
     """Raised when service discovery request fails."""
 
 
-class QuoteError(SynapseClientError):
-    """Raised when quote creation or quote validation fails."""
-
-
 class InvokeError(SynapseClientError):
     """Raised when paid invoke request fails."""
 
