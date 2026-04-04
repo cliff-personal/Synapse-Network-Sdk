@@ -20,6 +20,8 @@ from .models import (
     ProviderServiceRegistrationResult,
     ProviderServiceStatus,
     TokenResponse,
+    CredentialStatusResult,
+    UpdateCredentialResult,
 )
 
 SignerFn = Callable[[str], str]
@@ -278,6 +280,108 @@ class SynapseAuth:
         if not isinstance(credentials, list):
             return []
         return [AgentCredential.model_validate(item) for item in credentials if isinstance(item, dict)]
+
+    def list_active_credentials(self) -> list[AgentCredential]:
+        """Return only active, non-expired credentials (active_only=true filter)."""
+        # active_only is a query param — use requests directly since _request doesn't support params
+        response = requests.get(
+            f"{self.gateway_url}/api/v1/credentials/agent/list",
+            headers=self._authorized_headers(),
+            params={"active_only": "true"},
+            timeout=self.timeout_sec,
+        )
+        try:
+            payload = response.json() if isinstance(response.json(), dict) else {}
+        except ValueError:
+            payload = {}
+        if not response.ok:
+            detail = payload.get("detail")
+            message = (
+                str(detail.get("message") or detail.get("code")) if isinstance(detail, dict)
+                else (str(detail).strip() if isinstance(detail, str) else response.text)
+            )
+            raise AuthenticationError(message)
+        credentials = payload.get("credentials")
+        if not isinstance(credentials, list):
+            return []
+        return [AgentCredential.model_validate(item) for item in credentials if isinstance(item, dict)]
+
+    def get_credential_status(self, credential_id: str) -> CredentialStatusResult:
+        """Check whether a credential is valid and usable."""
+        if not credential_id or not credential_id.strip():
+            raise ValueError("credential_id is required")
+        payload = self._request(
+            "GET",
+            f"/api/v1/credentials/agent/{credential_id.strip()}/status",
+            headers=self._authorized_headers(),
+        )
+        return CredentialStatusResult.model_validate(payload)
+
+    def update_credential(self, credential_id: str, **options: Any) -> UpdateCredentialResult:
+        """Update name and/or quota fields of a credential (PATCH)."""
+        if not credential_id or not credential_id.strip():
+            raise ValueError("credential_id is required")
+        body: Dict[str, Any] = {}
+        for key in ("name", "maxCalls", "rpm", "expiresAt", "creditLimit", "resetInterval", "expiration"):
+            value = options.get(key)
+            if value is not None:
+                body[key] = value
+        payload = self._request(
+            "PATCH",
+            f"/api/v1/credentials/agent/{credential_id.strip()}",
+            headers=self._authorized_headers(),
+            json_body=body,
+        )
+        credential_payload = payload.get("credential")
+        if not isinstance(credential_payload, dict):
+            credential_payload = {}
+        return UpdateCredentialResult(
+            status=str(payload.get("status", "success")),
+            credential=AgentCredential.model_validate(credential_payload) if credential_payload else AgentCredential(),
+        )
+
+    def ensure_credential(
+        self,
+        name: str,
+        **options: Any,
+    ) -> str:
+        """Idempotent init: return token of an existing active credential by name, or create one.
+
+        Usage::
+
+            token = auth.ensure_credential("my-agent", creditLimit=10.0, maxCalls=1000)
+
+        The method:
+        1. Calls ``list_active_credentials()``.
+        2. Returns the token of the first credential matching *name* (if any).
+        3. Otherwise issues a new credential and returns its token.
+
+        Note: The token is only returned once at issue time. For existing
+        credentials the token is NOT re-returned by the list API (it is hashed).
+        A credential name match is used as a readiness signal — if you need the
+        raw token again you must persist it externally on first creation.
+        """
+        active = self.list_active_credentials()
+        for cred in active:
+            if str(cred.name or "").strip() == str(name or "").strip():
+                token = str(cred.token or "").strip()
+                if token:
+                    return token
+                # Credential exists but token not in list response (expected) —
+                # rotate to get a fresh token.
+                rotated = self._request(
+                    "POST",
+                    f"/api/v1/credentials/agent/{cred.credential_id}/rotate",
+                    headers=self._authorized_headers(),
+                )
+                return str(
+                    rotated.get("token")
+                    or (rotated.get("credential") or {}).get("token")
+                    or ""
+                )
+        # No matching active credential — create one
+        result = self.issue_credential(name=name, **options)
+        return result.token or str(result.credential.token or "")
 
     def get_balance(self) -> BalanceSummary:
         payload = self._request(

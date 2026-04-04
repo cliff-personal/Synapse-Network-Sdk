@@ -62,6 +62,28 @@ class IssueCredentialResult(SDKModel):
     token: str = ""
 
 
+class CredentialStatusResult(SDKModel):
+    """Result of GET /credentials/agent/{id}/status."""
+
+    status: str = "success"
+    credential_id: str = Field(default="", alias="credentialId")
+    valid: bool = False
+    credential_status: str = Field(default="active", alias="credentialStatus")
+    is_expired: bool = Field(default=False, alias="isExpired")
+    calls_exhausted: bool = Field(default=False, alias="callsExhausted")
+    expires_at: Optional[int] = Field(default=None, alias="expiresAt")
+    calls_used: Optional[int] = Field(default=None, alias="callsUsed")
+    max_calls: Optional[int] = Field(default=None, alias="maxCalls")
+    credit_limit: Optional[float] = Field(default=None, alias="creditLimit")
+
+
+class UpdateCredentialResult(SDKModel):
+    """Result of PATCH /credentials/agent/{id}."""
+
+    status: str = "success"
+    credential: AgentCredential = Field(default_factory=AgentCredential)
+
+
 class ProviderSecret(SDKModel):
     id: str = ""
     name: Optional[str] = None

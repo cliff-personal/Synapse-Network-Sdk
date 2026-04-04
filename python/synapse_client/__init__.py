@@ -14,6 +14,7 @@ from .models import (
     AgentCredential,
     BalanceSummary,
     ChallengeResponse,
+    CredentialStatusResult,
     DepositConfirmResult,
     DepositIntentResult,
     DiscoveryResponse,
@@ -26,6 +27,7 @@ from .models import (
     ProviderServiceStatus,
     SynapseResponse,
     TokenResponse,
+    UpdateCredentialResult,
 )
 
 __all__ = [

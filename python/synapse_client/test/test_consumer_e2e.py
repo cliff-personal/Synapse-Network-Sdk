@@ -321,3 +321,102 @@ def test_python_sdk_consumer_cold_start_e2e(mock_provider_server):
         message="post-invocation balance never decreased",
     )
     assert float(balance_after_invoke.consumer_available_balance or 0) < balance_before_invoke
+
+
+@pytest.mark.e2e
+def test_python_sdk_credential_management_e2e():
+    """Tests for new credential management APIs:
+    - list_active_credentials (active_only=true)
+    - get_credential_status
+    - update_credential (name + quota PATCH)
+    - ensure_credential (idempotent init)
+    """
+    w3 = Web3(Web3.HTTPProvider(RPC_URL))
+    assert w3.is_connected(), "Hardhat RPC is not reachable"
+
+    deployer_account = Account.from_key(DEPLOYER_KEY)
+    fresh_account = Account.create()
+    mgmt_cred_name = f"sdk-mgmt-{SESSION_ID}"
+
+    fresh_auth = SynapseAuth.from_private_key(
+        fresh_account.key.hex(),
+        gateway_url=GATEWAY_URL,
+        timeout_sec=30,
+    )
+
+    # Fund + deposit (tiny amount, just enough to have an owner account)
+    tx_hash = _fund_and_deposit(w3, fresh_account, deployer_account, DEPOSIT_USDC)
+    token = fresh_auth.get_token()
+    assert isinstance(token, str) and len(token) > 20
+
+    intent_resp = fresh_auth.register_deposit_intent(tx_hash, DEPOSIT_USDC)
+    assert intent_resp.status == "success"
+    confirm_resp = fresh_auth.confirm_deposit(
+        intent_resp.intent.resolved_id,
+        intent_resp.intent.resolved_event_key or tx_hash,
+    )
+    assert confirm_resp.status == "success"
+
+    # ── 1. Issue a credential ──────────────────────────────────────────────────
+    issue_result = fresh_auth.issue_credential(
+        name=mgmt_cred_name,
+        maxCalls=300,
+        creditLimit=3.0,
+        rpm=30,
+    )
+    assert issue_result.token, "credential token missing"
+    cred_id = issue_result.credential.credential_id or issue_result.credential.id
+    assert cred_id, "credential_id missing"
+
+    # ── 2. list_active_credentials returns the new credential ─────────────────
+    active_creds = fresh_auth.list_active_credentials()
+    active_names = [c.name for c in active_creds]
+    assert mgmt_cred_name in active_names, (
+        f"'{mgmt_cred_name}' not in active_only list: {active_names}"
+    )
+    for c in active_creds:
+        assert c.status == "active", f"non-active in active_only result: {c}"
+
+    # ── 3. get_credential_status returns valid=True ────────────────────────────
+    status_result = fresh_auth.get_credential_status(cred_id)
+    assert status_result.valid is True, f"expected valid=True: {status_result.model_dump()}"
+    assert status_result.credential_status == "active"
+    assert status_result.is_expired is False
+    assert status_result.calls_exhausted is False
+    assert status_result.credential_id == cred_id
+
+    # ── 4. update_credential renames + changes maxCalls ───────────────────────
+    new_name = f"{mgmt_cred_name}-updated"
+    update_result = fresh_auth.update_credential(cred_id, name=new_name, maxCalls=600)
+    assert update_result.status == "success"
+    assert update_result.credential.name == new_name, (
+        f"name not updated: {update_result.credential.name}"
+    )
+    assert update_result.credential.max_calls == 600, (
+        f"maxCalls not updated: {update_result.credential.max_calls}"
+    )
+
+    # ── 5. active_only list reflects the rename ────────────────────────────────
+    active_after_update = fresh_auth.list_active_credentials()
+    names_after = [c.name for c in active_after_update]
+    assert new_name in names_after, (
+        f"renamed credential not in active_only list: {names_after}"
+    )
+
+    # ── 6. ensure_credential is idempotent — same name = rotate for token ─────
+    token_a = fresh_auth.ensure_credential(new_name, maxCalls=600, creditLimit=3.0)
+    assert token_a, "ensure_credential should return a token"
+    # Second call should also return a token (rotate path)
+    token_b = fresh_auth.ensure_credential(new_name, maxCalls=600, creditLimit=3.0)
+    assert token_b, "ensure_credential second call should return a token"
+
+    # ── 7. ensure_credential creates new credential when name doesn't exist ───
+    brand_new_name = f"sdk-ensure-new-{SESSION_ID}"
+    token_new = fresh_auth.ensure_credential(brand_new_name, maxCalls=50, creditLimit=1.0)
+    assert token_new, f"ensure_credential should issue a new credential for '{brand_new_name}'"
+    # Verify it's now in active list
+    active_final = fresh_auth.list_active_credentials()
+    final_names = [c.name for c in active_final]
+    assert brand_new_name in final_names, (
+        f"ensure_credential-created credential not found: {final_names}"
+    )
