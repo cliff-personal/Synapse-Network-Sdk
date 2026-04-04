@@ -6,6 +6,7 @@ from .exceptions import (
     DiscoveryError,
     InsufficientFundsError,
     InvokeError,
+    PriceMismatchError,
     QuoteError,
     SynapseClientError,
     TimeoutError,

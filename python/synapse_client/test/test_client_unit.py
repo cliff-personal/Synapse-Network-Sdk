@@ -9,6 +9,7 @@ from synapse_client.exceptions import (
     DiscoveryError,
     InsufficientFundsError,
     InvokeError,
+    PriceMismatchError,
     TimeoutError,
 )
 
@@ -379,3 +380,99 @@ def test_ts_style_alias_methods_delegate_to_python_runtime_client(monkeypatch):
     assert client.quote("svc_quotes") == "quote-object"
     assert client.invoke("svc_quotes", {"prompt": "hi"}) == "invocation-object"
     assert client.get_invocation("inv-123") == {"invocationId": "inv-123"}
+
+
+# ---------------------------------------------------------------------------
+# cost_usdc path — single-call /agent/invoke
+# ---------------------------------------------------------------------------
+
+
+def test_invoke_with_cost_usdc_calls_agent_invoke_endpoint(monkeypatch):
+    calls = []
+
+    def fake_post(url, headers, json, timeout):
+        calls.append({"url": url, "json": json})
+        return DummyResponse(
+            json_data={"invocationId": "inv_cost", "status": "SUCCEEDED", "chargedUsdc": 0.05}
+        )
+
+    monkeypatch.setattr("synapse_client.client.requests.post", fake_post)
+    client = SynapseClient(api_key="agt_test")
+    result = client.invoke("svc_1", {"text": "hi"}, cost_usdc=0.05, idempotency_key="k1")
+
+    assert len(calls) == 1
+    assert calls[0]["url"].endswith("/api/v1/agent/invoke")
+    assert calls[0]["json"]["costUsdc"] == pytest.approx(0.05)
+    assert calls[0]["json"]["serviceId"] == "svc_1"
+    assert result.invocation_id == "inv_cost"
+
+
+def test_invoke_with_cost_usdc_sends_payload_body(monkeypatch):
+    captured = []
+
+    def fake_post(url, headers, json, timeout):
+        captured.append(json)
+        return DummyResponse(
+            json_data={"invocationId": "inv_b", "status": "SUCCEEDED", "chargedUsdc": 0.10}
+        )
+
+    monkeypatch.setattr("synapse_client.client.requests.post", fake_post)
+    client = SynapseClient(api_key="agt_test")
+    client.invoke("svc_2", {"prompt": "test"}, cost_usdc=0.10, idempotency_key="ik2")
+
+    assert captured[0]["payload"]["body"] == {"prompt": "test"}
+    assert captured[0]["costUsdc"] == pytest.approx(0.10)
+
+
+def test_invoke_without_cost_usdc_falls_back_to_quote_then_invoke(monkeypatch):
+    urls = []
+
+    def fake_post(url, headers, json, timeout):
+        urls.append(url)
+        if url.endswith("/api/v1/agent/quotes"):
+            return DummyResponse(
+                json_data={
+                    "quoteId": "q_fb",
+                    "serviceId": "svc_3",
+                    "priceUsdc": 0.02,
+                    "budgetCheck": {"allowed": True},
+                    "expiresAt": "2099-01-01T00:00:00Z",
+                    "invokeConstraints": {"body": {}, "timeoutMs": 3000, "maxPayloadBytes": 4096},
+                    "priceModel": "fixed",
+                }
+            )
+        return DummyResponse(
+            json_data={"invocationId": "inv_fb", "status": "SUCCEEDED", "chargedUsdc": 0.02}
+        )
+
+    monkeypatch.setattr("synapse_client.client.requests.post", fake_post)
+    client = SynapseClient(api_key="agt_test")
+    client.invoke("svc_3", {})
+
+    assert any("/api/v1/agent/quotes" in u for u in urls)
+    assert any("/api/v1/agent/invocations" in u for u in urls)
+
+
+def test_invoke_with_cost_usdc_raises_price_mismatch_error(monkeypatch):
+    monkeypatch.setattr(
+        "synapse_client.client.requests.post",
+        lambda url, headers, json, timeout: DummyResponse(
+            status_code=422,
+            ok=False,
+            json_data={
+                "detail": {
+                    "code": "PRICE_MISMATCH",
+                    "message": "Price changed",
+                    "expectedPriceUsdc": 0.05,
+                    "currentPriceUsdc": 0.15,
+                }
+            },
+        ),
+    )
+    client = SynapseClient(api_key="agt_test")
+
+    with pytest.raises(PriceMismatchError) as exc_info:
+        client.invoke("svc_x", {}, cost_usdc=0.05, idempotency_key="k_pm")
+
+    assert exc_info.value.expected_price_usdc == pytest.approx(0.05)
+    assert exc_info.value.current_price_usdc == pytest.approx(0.15)

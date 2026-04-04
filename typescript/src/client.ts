@@ -23,6 +23,7 @@ import {
   InvokeError,
   DiscoveryError,
   TimeoutError,
+  PriceMismatchError,
 } from "./errors";
 
 export class SynapseClient {
@@ -115,23 +116,70 @@ export class SynapseClient {
   // ── Invocation ─────────────────────────────────────────────────────────────
 
   /**
-   * Invoke a service by ID. Internally performs quote → invoke → optional poll.
-   * This is the one-liner "just call it" API.
+   * Invoke a service by ID.
+   *
+   * When `opts.costUsdc` is provided (the price the agent observed during discovery),
+   * a single HTTP call is made to `POST /agent/invoke`. Gateway returns 422 PRICE_MISMATCH
+   * if the live price has changed — the caller should re-discover and retry.
+   *
+   * When `opts.costUsdc` is omitted, falls back to the classic quote → invoke two-step flow.
    */
   async invoke(
     serviceId: string,
     payload: Record<string, unknown> = {},
     opts: InvokeOptions = {}
   ): Promise<InvocationResult> {
-    // 1. Quote
+    if (opts.costUsdc != null) {
+      return this._invokeWithCost(serviceId, payload, opts);
+    }
+    // Classic path: quote → invoke
     const quoteResult = await this.quote(serviceId, { responseMode: opts.responseMode });
-
-    // 2. Invoke
     const idempotencyKey = opts.idempotencyKey ?? uuidv4();
-    return this.invokeByQuote(quoteResult.quoteId, payload, {
-      ...opts,
-      idempotencyKey,
-    });
+    return this.invokeByQuote(quoteResult.quoteId, payload, { ...opts, idempotencyKey });
+  }
+
+  /**
+   * Single-call invoke — sends `costUsdc` (discovered price) for price-assertion check.
+   * Use via `invoke(serviceId, payload, { costUsdc: service.priceUsdc })`.
+   */
+  private async _invokeWithCost(
+    serviceId: string,
+    payload: Record<string, unknown>,
+    opts: InvokeOptions
+  ): Promise<InvocationResult> {
+    const idempotencyKey = opts.idempotencyKey ?? uuidv4();
+    const requestHeaders: Record<string, string> = {};
+    if (opts.requestId) requestHeaders["X-Request-Id"] = opts.requestId;
+
+    let resp: Record<string, unknown>;
+    try {
+      resp = await this._fetch<Record<string, unknown>>(
+        `${this.gatewayUrl}/api/v1/agent/invoke`,
+        {
+          method: "POST",
+          extraHeaders: requestHeaders,
+          body: JSON.stringify({
+            serviceId,
+            idempotencyKey,
+            costUsdc: opts.costUsdc,
+            payload: { body: payload },
+            responseMode: opts.responseMode ?? "sync",
+          }),
+        }
+      );
+    } catch (err) {
+      if (
+        err instanceof AuthenticationError ||
+        err instanceof InsufficientFundsError ||
+        err instanceof PriceMismatchError
+      ) throw err;
+      throw new InvokeError(String(err instanceof Error ? err.message : err));
+    }
+
+    const result = this._parseInvocationResponse(resp);
+    if (TERMINAL_STATUSES.has(result.status)) return result;
+    if (opts.pollTimeoutMs === 0) return result;
+    return this.waitForInvocation(result.invocationId, opts);
   }
 
   /**
@@ -258,9 +306,17 @@ export class SynapseClient {
         const msg = typeof detail === "string" ? detail
           : typeof detail === "object" && detail !== null ? JSON.stringify(detail)
           : text;
+        const detailObj = typeof detail === "object" && detail !== null ? detail as Record<string, unknown> : null;
 
         if (resp.status === 401) throw new AuthenticationError(`401: ${msg}`);
         if (resp.status === 402) throw new InsufficientFundsError(`402: ${msg}`);
+        if (resp.status === 422 && detailObj?.["code"] === "PRICE_MISMATCH") {
+          throw new PriceMismatchError(
+            String(detailObj["message"] ?? msg),
+            Number(detailObj["expectedPriceUsdc"] ?? 0),
+            Number(detailObj["currentPriceUsdc"] ?? 0)
+          );
+        }
         throw new Error(`HTTP ${resp.status}: ${msg}`);
       }
       return data as T;

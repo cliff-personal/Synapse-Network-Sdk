@@ -11,6 +11,7 @@ import {
   InsufficientFundsError,
   QuoteError,
   InvokeError,
+  PriceMismatchError,
 } from "../../src/errors";
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -244,4 +245,95 @@ test("discover() returns service array from response.services", async () => {
   const svcs = await client.discover();
   expect(svcs).toHaveLength(1);
   expect(svcs[0].serviceId).toBe("svc_a");
+});
+
+// ── invoke() with costUsdc — single-call path ─────────────────────────────────
+
+test("invoke() with costUsdc calls /agent/invoke directly (1 HTTP call)", async () => {
+  const urls: string[] = [];
+  (globalThis as unknown as Record<string, unknown>).fetch = jest.fn(async (url: string) => {
+    urls.push(url as string);
+    return {
+      ok: true,
+      status: 200,
+      text: async () =>
+        JSON.stringify({ invocationId: "inv_cost", status: "SUCCEEDED", chargedUsdc: 0.05 }),
+    } as Response;
+  });
+
+  const client = new SynapseClient({ credential: "agt_test", gatewayUrl: "http://127.0.0.1:8000" });
+  const result = await client.invoke("svc_1", { prompt: "hi" }, { costUsdc: 0.05, idempotencyKey: "k1" });
+
+  expect(urls).toHaveLength(1);
+  expect(urls[0]).toContain("/api/v1/agent/invoke");
+  expect(result.invocationId).toBe("inv_cost");
+  expect(result.chargedUsdc).toBeCloseTo(0.05);
+});
+
+test("invoke() with costUsdc sends correct body to /agent/invoke", async () => {
+  let capturedBody: unknown;
+  (globalThis as unknown as Record<string, unknown>).fetch = jest.fn(async (_url: string, init?: RequestInit) => {
+    capturedBody = JSON.parse((init?.body as string) ?? "{}");
+    return {
+      ok: true,
+      status: 200,
+      text: async () => JSON.stringify({ invocationId: "inv_b", status: "SUCCEEDED", chargedUsdc: 0.10 }),
+    } as Response;
+  });
+
+  const client = new SynapseClient({ credential: "agt_test" });
+  await client.invoke("svc_2", { text: "test" }, { costUsdc: 0.10, idempotencyKey: "ik-2" });
+
+  const body = capturedBody as Record<string, unknown>;
+  expect(body["serviceId"]).toBe("svc_2");
+  expect(body["costUsdc"]).toBe(0.10);
+  expect(body["idempotencyKey"]).toBe("ik-2");
+  expect((body["payload"] as Record<string, unknown>)["body"]).toEqual({ text: "test" });
+});
+
+test("invoke() without costUsdc falls back to quote + invoke (2 HTTP calls)", async () => {
+  const urls: string[] = [];
+  (globalThis as unknown as Record<string, unknown>).fetch = jest.fn(async (url: string) => {
+    urls.push(url as string);
+    if ((url as string).endsWith("/api/v1/agent/quotes")) {
+      return {
+        ok: true,
+        status: 200,
+        text: async () => JSON.stringify({ quoteId: "q_fb", serviceId: "svc_3", priceUsdc: 0.02, expiresAt: "2099-01-01T00:00:00Z" }),
+      } as Response;
+    }
+    return {
+      ok: true,
+      status: 200,
+      text: async () => JSON.stringify({ invocationId: "inv_fb", status: "SUCCEEDED", chargedUsdc: 0.02 }),
+    } as Response;
+  });
+
+  const client = new SynapseClient({ credential: "agt_test" });
+  await client.invoke("svc_3", {});
+  expect(urls[0]).toContain("/api/v1/agent/quotes");
+  expect(urls[1]).toContain("/api/v1/agent/invocations");
+  expect(urls).toHaveLength(2);
+});
+
+test("invoke() with costUsdc throws PriceMismatchError on 422 PRICE_MISMATCH", async () => {
+  (globalThis as unknown as Record<string, unknown>).fetch = jest.fn(async () => ({
+    ok: false,
+    status: 422,
+    text: async () =>
+      JSON.stringify({
+        detail: {
+          code: "PRICE_MISMATCH",
+          message: "Price changed: expected 0.05, current 0.15",
+          expectedPriceUsdc: 0.05,
+          currentPriceUsdc: 0.15,
+        },
+      }),
+  } as Response));
+
+  const client = new SynapseClient({ credential: "agt_test" });
+  const err = await client.invoke("svc_x", {}, { costUsdc: 0.05 }).catch((e) => e);
+  expect(err).toBeInstanceOf(PriceMismatchError);
+  expect((err as PriceMismatchError).expectedPriceUsdc).toBeCloseTo(0.05);
+  expect((err as PriceMismatchError).currentPriceUsdc).toBeCloseTo(0.15);
 });

@@ -46,3 +46,17 @@ export class TimeoutError extends SynapseError {
     this.name = "TimeoutError";
   }
 }
+
+export class PriceMismatchError extends SynapseError {
+  /** Live price on the gateway at time of invoke. */
+  public readonly currentPriceUsdc: number;
+  /** Price the agent expected (from discovery). */
+  public readonly expectedPriceUsdc: number;
+
+  constructor(message: string, expectedPriceUsdc: number, currentPriceUsdc: number) {
+    super(message);
+    this.name = "PriceMismatchError";
+    this.expectedPriceUsdc = expectedPriceUsdc;
+    this.currentPriceUsdc = currentPriceUsdc;
+  }
+}

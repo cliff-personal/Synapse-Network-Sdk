@@ -11,6 +11,7 @@ from .exceptions import (
     DiscoveryError,
     InsufficientFundsError,
     InvokeError,
+    PriceMismatchError,
     QuoteError,
     TimeoutError,
 )
@@ -93,6 +94,17 @@ class SynapseClient:
             if error_code in {"BUDGET_EXHAUSTED", "CREDENTIAL_CREDIT_LIMIT_EXCEEDED"}:
                 raise InsufficientFundsError(message)
             raise BudgetExceededError(message)
+
+        if response.status_code == 422 and error_code == "PRICE_MISMATCH":
+            payload = self._response_payload(response)
+            detail = payload.get("detail") or {}
+            if isinstance(detail, dict):
+                raise PriceMismatchError(
+                    message,
+                    expected_price_usdc=float(detail.get("expectedPriceUsdc") or 0),
+                    current_price_usdc=float(detail.get("currentPriceUsdc") or 0),
+                )
+            raise PriceMismatchError(message, expected_price_usdc=0, current_price_usdc=0)
 
         if isinstance(default_error, DiscoveryError):
             raise DiscoveryError(message)
@@ -342,12 +354,32 @@ class SynapseClient:
         service_id: str,
         payload: Optional[Dict[str, Any]] = None,
         *,
+        cost_usdc: Optional[float] = None,
         input_preview: Optional[Dict[str, Any]] = None,
         idempotency_key: Optional[str] = None,
         response_mode: str = "sync",
         poll_timeout_sec: int = 90,
         request_id: Optional[str] = None,
     ) -> InvocationResponse:
+        """Invoke a service.
+
+        When ``cost_usdc`` is provided (the price the agent observed in discovery),
+        a single HTTP call is made to ``POST /agent/invoke``. Gateway returns 422
+        ``PRICE_MISMATCH`` (raises ``PriceMismatchError``) if the live price has
+        changed — re-discover and retry.
+
+        When ``cost_usdc`` is omitted, falls back to the classic quote → invoke flow.
+        """
+        if cost_usdc is not None:
+            return self._invoke_with_cost(
+                service_id=service_id,
+                payload=payload,
+                cost_usdc=cost_usdc,
+                idempotency_key=idempotency_key,
+                response_mode=response_mode,
+                poll_timeout_sec=poll_timeout_sec,
+                request_id=request_id,
+            )
         return self.invoke_service(
             service_id=service_id,
             payload=payload,
@@ -358,6 +390,43 @@ class SynapseClient:
             max_wait_sec=poll_timeout_sec,
             request_id=request_id,
         )
+
+    def _invoke_with_cost(
+        self,
+        service_id: str,
+        payload: Optional[Dict[str, Any]],
+        cost_usdc: float,
+        *,
+        idempotency_key: Optional[str] = None,
+        response_mode: str = "sync",
+        poll_timeout_sec: int = 90,
+        request_id: Optional[str] = None,
+    ) -> InvocationResponse:
+        """Single-call invoke: sends costUsdc for gateway price-assertion check."""
+        if not service_id or not service_id.strip():
+            raise ValueError("service_id is required")
+
+        invocation_key = (idempotency_key or f"invoke-{uuid4().hex}").strip()
+        runtime_payload = RuntimePayload(body=payload or {})
+        body = {
+            "serviceId": service_id.strip(),
+            "idempotencyKey": invocation_key,
+            "costUsdc": round(float(cost_usdc), 6),
+            "payload": runtime_payload.model_dump(by_alias=True),
+            "responseMode": response_mode,
+        }
+        response = requests.post(
+            f"{self.gateway_url}/api/v1/agent/invoke",
+            headers=self._headers(request_id=request_id),
+            json=body,
+            timeout=self.timeout_sec,
+        )
+        self._raise_for_error(response, InvokeError("service invocation failed"))
+        invocation = InvocationResponse(**self._response_payload(response))
+
+        if invocation.status in TERMINAL_STATUSES:
+            return invocation
+        return self.wait_for_invocation(invocation.invocation_id, max_wait_sec=poll_timeout_sec)
 
     def call_service(
         self,

@@ -233,6 +233,14 @@ export interface InvokeOptions {
   requestId?: string;
   pollTimeoutMs?: number;
   pollIntervalMs?: number;
+  /**
+   * The service price the agent saw during discovery (from ServiceRecord.pricing).
+   * When provided, invoke() calls POST /agent/invoke in a single HTTP round-trip.
+   * Gateway returns 422 PRICE_MISMATCH if the live price has changed — the agent
+   * must re-discover and retry.
+   * When omitted, falls back to the classic quote → invoke two-step flow.
+   */
+  costUsdc?: number;
 }
 
 export interface InvocationResult {
