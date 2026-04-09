@@ -1,0 +1,218 @@
+{
+  "generated_at": "2026-04-09T02:04:57.698864+00:00",
+  "project_id": "synapse-network-sdk",
+  "project_root": "/Users/cliff/workspace/agent/Synapse-Network-Sdk",
+  "overall": "READY",
+  "project_bootstrap_ready": true,
+  "project_bootstrap_complete": true,
+  "recommended_next_group": "Refactor",
+  "recommended_next_key": "refactor_bundle",
+  "recommended_next_command": "python3 scripts/memory.py refactor-bundle . --token hotspot-8ec9b16a0f08",
+  "recommended_verify_command": "amem doctor .",
+  "recommended_done_when": "`amem doctor .` no longer reports `python/examples/smoke_test.py::main` as the top refactor hotspot.",
+  "recommended_next_safe_to_auto_execute": true,
+  "recommended_next_approval_required": false,
+  "recommended_next_approval_reason": "refreshes generated planning docs only",
+  "groups": [
+    {
+      "name": "Core",
+      "status": "HEALTHY",
+      "summary": "Core status=HEALTHY (ok=7, warn=0, fail=0, info=0)",
+      "checks": [
+        {
+          "status": "OK",
+          "key": "registry",
+          "detail": "registered as 'synapse-network-sdk'"
+        },
+        {
+          "status": "OK",
+          "key": "active",
+          "detail": "active=true"
+        },
+        {
+          "status": "OK",
+          "key": "root",
+          "detail": "/Users/cliff/workspace/agent/Synapse-Network-Sdk"
+        },
+        {
+          "status": "OK",
+          "key": "python3.12",
+          "detail": "/opt/homebrew/bin/python3.12"
+        },
+        {
+          "status": "OK",
+          "key": "mcp_package",
+          "detail": "mcp import OK"
+        },
+        {
+          "status": "OK",
+          "key": "profile_manifest",
+          "detail": "applied profile 'python-service'"
+        },
+        {
+          "status": "OK",
+          "key": "profile_consistency",
+          "detail": "profile 'python-service' consistency OK"
+        }
+      ]
+    },
+    {
+      "name": "Planning",
+      "status": "HEALTHY",
+      "summary": "Planning status=HEALTHY (ok=2, warn=0, fail=0, info=0)",
+      "checks": [
+        {
+          "status": "OK",
+          "key": "planning_root",
+          "detail": "present: /Users/cliff/workspace/agent/Synapse-Network-Sdk/docs/plans"
+        },
+        {
+          "status": "OK",
+          "key": "planning_bundle",
+          "detail": "0 planning bundle(s) passed plan-check"
+        }
+      ]
+    },
+    {
+      "name": "Integration",
+      "status": "HEALTHY",
+      "summary": "Integration status=HEALTHY (ok=2, warn=0, fail=0, info=0)",
+      "checks": [
+        {
+          "status": "OK",
+          "key": "bridge_instruction",
+          "detail": "/Users/cliff/workspace/agent/Synapse-Network-Sdk/.github/instructions/agents-memory-bridge.instructions.md"
+        },
+        {
+          "status": "OK",
+          "key": "mcp_config",
+          "detail": "agents-memory server configured -> /Users/cliff/workspace/agent/Synapse-Network-Sdk/.vscode/mcp.json"
+        }
+      ]
+    },
+    {
+      "name": "Optional",
+      "status": "WATCH",
+      "summary": "Optional status=WATCH (ok=2, warn=5, fail=0, info=0)",
+      "checks": [
+        {
+          "status": "OK",
+          "key": "copilot_activation",
+          "detail": "Agents-Memory activation block present -> /Users/cliff/workspace/agent/Synapse-Network-Sdk/.github/copilot-instructions.md"
+        },
+        {
+          "status": "OK",
+          "key": "agents_read_order",
+          "detail": "AGENTS.md references current bridge and 8 managed standard(s)"
+        },
+        {
+          "status": "WARN",
+          "key": "refactor_watch",
+          "detail": "python/examples/smoke_test.py::main high complexity (lines=101>40, locals=12>8, branches=5, missing_guiding_comment)"
+        },
+        {
+          "status": "WARN",
+          "key": "refactor_watch",
+          "detail": "python/synapse_client/test/test_consumer_e2e.py::test_python_sdk_consumer_cold_start_e2e high complexity (lines=134>40, locals=30>8, missing_guiding_comment)"
+        },
+        {
+          "status": "WARN",
+          "key": "refactor_watch",
+          "detail": "python/synapse_client/test/test_consumer_e2e.py::_fund_and_deposit high complexity (lines=57>40, locals=15>8, missing_guiding_comment)"
+        },
+        {
+          "status": "WARN",
+          "key": "refactor_watch",
+          "detail": "python/synapse_client/test/test_consumer_e2e.py::test_python_sdk_credential_management_e2e high complexity (lines=75>40, locals=25>8)"
+        },
+        {
+          "status": "WARN",
+          "key": "refactor_watch",
+          "detail": "python/synapse_client/auth.py::SynapseAuth.issue_credential high complexity (branches=7>5, lines=38, locals=8, missing_guiding_comment)"
+        }
+      ]
+    }
+  ],
+  "action_sequence": [
+    "Optional (recommended): Refactor flagged functions before adding more behavior, and add a short guiding comment when complex logic must remain in place."
+  ],
+  "runbook_steps": [],
+  "bootstrap_checklist": [
+    "[x] Core - Core status=HEALTHY (ok=7, warn=0, fail=0, info=0)",
+    "[x] Planning - Planning status=HEALTHY (ok=2, warn=0, fail=0, info=0)",
+    "[x] Integration - Integration status=HEALTHY (ok=2, warn=0, fail=0, info=0)",
+    "[ ] Optional - Optional status=WATCH (ok=2, warn=5, fail=0, info=0)",
+    "[x] Final verification - latest `amem doctor .` already reflects the current healthy state"
+  ],
+  "recommended_steps": [
+    {
+      "group": "Refactor",
+      "priority": "recommended",
+      "key": "refactor_bundle",
+      "status": "WARN",
+      "detail": "refactor bundle ready for python/examples/smoke_test.py::main",
+      "action": "Review and execute the generated refactor bundle at docs/plans/refactor-python-examples-smoke-test-py-main before adding more behavior.",
+      "command": "python3 scripts/memory.py refactor-bundle . --token hotspot-8ec9b16a0f08",
+      "verify_with": "amem doctor .",
+      "done_when": "`amem doctor .` no longer reports `python/examples/smoke_test.py::main` as the top refactor hotspot.",
+      "safe_to_auto_execute": true,
+      "approval_required": false,
+      "approval_reason": "refreshes generated planning docs only",
+      "next_command": "amem doctor .",
+      "bundle_path": "docs/plans/refactor-python-examples-smoke-test-py-main",
+      "task_name": "Refactor hotspot: python/examples/smoke_test.py::main",
+      "task_slug": "refactor-python-examples-smoke-test-py-main",
+      "hotspot_index": 1,
+      "hotspot_token": "hotspot-8ec9b16a0f08",
+      "hotspot": {
+        "identifier": "python/examples/smoke_test.py::main",
+        "rank_token": "hotspot-8ec9b16a0f08",
+        "relative_path": "python/examples/smoke_test.py",
+        "function_name": "main",
+        "qualified_name": "main",
+        "line": 376,
+        "status": "WARN",
+        "effective_lines": 101,
+        "branches": 5,
+        "nesting": 2,
+        "local_vars": 12,
+        "has_guiding_comment": false,
+        "issues": [
+          "lines=101>40",
+          "locals=12>8",
+          "branches=5",
+          "missing_guiding_comment"
+        ],
+        "score": 22
+      }
+    }
+  ],
+  "recommended_refactor_bundle": {
+    "bundle_path": "docs/plans/refactor-python-examples-smoke-test-py-main",
+    "task_name": "Refactor hotspot: python/examples/smoke_test.py::main",
+    "task_slug": "refactor-python-examples-smoke-test-py-main",
+    "hotspot_index": 1,
+    "hotspot_token": "hotspot-8ec9b16a0f08",
+    "hotspot": {
+      "identifier": "python/examples/smoke_test.py::main",
+      "rank_token": "hotspot-8ec9b16a0f08",
+      "relative_path": "python/examples/smoke_test.py",
+      "function_name": "main",
+      "qualified_name": "main",
+      "line": 376,
+      "status": "WARN",
+      "effective_lines": 101,
+      "branches": 5,
+      "nesting": 2,
+      "local_vars": 12,
+      "has_guiding_comment": false,
+      "issues": [
+        "lines=101>40",
+        "locals=12>8",
+        "branches=5",
+        "missing_guiding_comment"
+      ],
+      "score": 22
+    }
+  }
+}
