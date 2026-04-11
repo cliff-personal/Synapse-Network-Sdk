@@ -1,5 +1,5 @@
 from .auth import SynapseAuth
-from .client import SynapseClient
+from .client import AgentWallet, SynapseClient
 from .exceptions import (
     AuthenticationError,
     BudgetExceededError,
@@ -7,6 +7,7 @@ from .exceptions import (
     InsufficientFundsError,
     InvokeError,
     PriceMismatchError,
+    QuoteError,
     SynapseClientError,
     TimeoutError,
 )
@@ -25,12 +26,16 @@ from .models import (
     ProviderService,
     ProviderServiceRegistrationResult,
     ProviderServiceStatus,
+    QuoteResponse,
     SynapseResponse,
     TokenResponse,
     UpdateCredentialResult,
 )
 
 __all__ = [
+    "AgentWallet",
+    "QuoteError",
+    "QuoteResponse",
     "SynapseAuth",
     "SynapseClient",
     "SynapseClientError",

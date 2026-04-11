@@ -12,11 +12,13 @@ from .exceptions import (
     InsufficientFundsError,
     InvokeError,
     PriceMismatchError,
+    QuoteError,
     TimeoutError,
 )
 from .models import (
     DiscoveryResponse,
     InvocationResponse,
+    QuoteResponse,
     RuntimePayload,
 )
 
@@ -193,6 +195,130 @@ class SynapseClient:
         )
         return response.services
 
+    def create_quote(
+        self,
+        service_id: str,
+        *,
+        input_preview: Optional[Dict[str, Any]] = None,
+        payload: Optional[Dict[str, Any]] = None,
+        request_id: Optional[str] = None,
+    ) -> "QuoteResponse":
+        """Request a price quote for a service before invoking it.
+
+        ``input_preview`` is the structured preview dict expected by the gateway;
+        if omitted, it is built automatically from ``payload`` (or left empty).
+        """
+        if not service_id or not service_id.strip():
+            raise ValueError("service_id is required")
+
+        effective_preview = input_preview or {
+            "sample": {"body": payload or {}},
+            "payloadSchema": {"body": {}},
+        }
+        body = {
+            "serviceId": service_id.strip(),
+            "inputPreview": effective_preview,
+            "responseMode": "sync",
+        }
+        response = requests.post(
+            f"{self.gateway_url}/api/v1/agent/quotes",
+            headers=self._headers(request_id=request_id),
+            json=body,
+            timeout=self.timeout_sec,
+        )
+        if not response.ok:
+            error_code = self._error_code(response)
+            message = self._error_message(response, "quote request failed")
+            if response.status_code == 402:
+                if error_code in {"BUDGET_EXHAUSTED", "CREDENTIAL_CREDIT_LIMIT_EXCEEDED"}:
+                    raise InsufficientFundsError(message)
+                raise BudgetExceededError(message)
+            if response.status_code == 401:
+                raise AuthenticationError(message)
+            raise QuoteError(message)
+        return QuoteResponse(**self._response_payload(response))
+
+    # TS-style alias
+    def quote(
+        self,
+        service_id: str,
+        *,
+        input_preview: Optional[Dict[str, Any]] = None,
+        payload: Optional[Dict[str, Any]] = None,
+        request_id: Optional[str] = None,
+    ) -> "QuoteResponse":
+        """Alias for create_quote()."""
+        return self.create_quote(
+            service_id,
+            input_preview=input_preview,
+            payload=payload,
+            request_id=request_id,
+        )
+
+    def create_invocation(
+        self,
+        quote_id: str,
+        payload: Optional[Dict[str, Any]] = None,
+        *,
+        idempotency_key: Optional[str] = None,
+        response_mode: str = "sync",
+        request_id: Optional[str] = None,
+        poll_timeout_sec: int = 90,
+    ) -> InvocationResponse:
+        """Invoke a service using a pre-obtained quote ID.
+
+        This is the second step of the two-step quote → invoke flow.
+        Use ``invoke_service()`` for the combined one-call flow.
+        """
+        if not quote_id or not quote_id.strip():
+            raise ValueError("quote_id is required")
+
+        invocation_key = (idempotency_key or f"invoke-{uuid4().hex}").strip()
+        body = {
+            "quoteId": quote_id.strip(),
+            "idempotencyKey": invocation_key,
+            "payload": {"body": payload or {}},
+            "responseMode": response_mode,
+        }
+        response = requests.post(
+            f"{self.gateway_url}/api/v1/agent/invocations",
+            headers=self._headers(request_id=request_id),
+            json=body,
+            timeout=self.timeout_sec,
+        )
+        self._raise_for_error(response, InvokeError("service invocation failed"))
+        invocation = InvocationResponse(**self._response_payload(response))
+
+        if invocation.status in TERMINAL_STATUSES:
+            return invocation
+        return self.wait_for_invocation(invocation.invocation_id, max_wait_sec=poll_timeout_sec)
+
+    def invoke_service(
+        self,
+        service_id: str,
+        payload: Optional[Dict[str, Any]] = None,
+        *,
+        idempotency_key: Optional[str] = None,
+        max_wait_sec: int = 90,
+        request_id: Optional[str] = None,
+    ) -> InvocationResponse:
+        """High-level combined flow: quote → invoke → wait.
+
+        Automatically creates a quote, then submits an invocation, and polls
+        until a terminal status is reached.  Use this instead of calling
+        create_quote() + create_invocation() separately when you don't need
+        the intermediate QuoteResponse.
+        """
+        invocation_key = (idempotency_key or f"invoke-{uuid4().hex}").strip()
+        q = self.create_quote(service_id, payload=payload, request_id=request_id)
+        return self.create_invocation(
+            q.quote_id,
+            payload=payload,
+            idempotency_key=invocation_key,
+            request_id=request_id,
+            poll_timeout_sec=max_wait_sec,
+        )
+
     def get_invocation_receipt(self, invocation_id: str) -> InvocationResponse:
         """Fetch the latest state for an invocation."""
         if not invocation_id or not invocation_id.strip():
@@ -267,3 +393,59 @@ class SynapseClient:
         if invocation.status in TERMINAL_STATUSES:
             return invocation
         return self.wait_for_invocation(invocation.invocation_id, max_wait_sec=poll_timeout_sec)
+
+
+class AgentWallet(SynapseClient):
+    """Convenience wrapper — the 3-line DX entry point for agent developers.
+
+    Usage::
+
+        from synapse_client import AgentWallet
+        wallet = AgentWallet.connect(budget=5.0)         # Line 1
+        svc = wallet.search_services("market data").services[0]  # Line 2
+        result = wallet.invoke(svc.service_id, payload={}, cost_usdc=float(svc.price_usdc))  # Line 3
+        print(result.status, result.charged_usdc)
+
+    The ``budget`` parameter enforces a spend ceiling tracked client-side.
+    When cumulative ``charged_usdc`` would exceed it, an ``InsufficientFundsError``
+    is raised before the HTTP call is made.
+    """
+
+    def __init__(self, budget: float = 5.0, **kwargs):
+        super().__init__(**kwargs)
+        self._budget_usdc = float(budget)
+        self._spent_usdc: float = 0.0
+
+    @classmethod
+    def connect(
+        cls,
+        budget: float = 5.0,
+        api_key: Optional[str] = None,
+        gateway_url: str = "http://127.0.0.1:8000",
+    ) -> "AgentWallet":
+        """Factory method — create and validate an AgentWallet in one call."""
+        api_key = api_key or os.getenv("SYNAPSE_API_KEY", "demo_key")
+        return cls(budget=budget, api_key=api_key, gateway_url=gateway_url)
+
+    @property
+    def budget_usdc(self) -> float:
+        return self._budget_usdc
+
+    @property
+    def spent_usdc(self) -> float:
+        return self._spent_usdc
+
+    @property
+    def remaining_usdc(self) -> float:
+        return round(self._budget_usdc - self._spent_usdc, 6)
+
+    def invoke(self, service_id: str, *, payload: Optional[Dict[str, Any]] = None, cost_usdc: float = 0.0, **kwargs) -> "InvocationResponse":  # type: ignore[override]
+        """Invoke a service and track spend against the budget ceiling."""
+        cost = float(cost_usdc)
+        if self._spent_usdc + cost > self._budget_usdc:
+            raise InsufficientFundsError(
+                f"Budget exceeded: ${self._spent_usdc:.4f} spent + ${cost:.4f} cost > ${self._budget_usdc:.4f} budget"
+            )
+        result = super().invoke(service_id, payload=payload, cost_usdc=cost_usdc, **kwargs)
+        self._spent_usdc = round(self._spent_usdc + float(result.charged_usdc), 6)
+        return result
