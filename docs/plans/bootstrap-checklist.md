@@ -27,7 +27,7 @@
 ### Planning
 - Summary: Planning status=HEALTHY (ok=2, warn=0, fail=0, info=0)
 - [OK] `planning_root` present: /Users/cliff/workspace/agent/Synapse-Network-Sdk/docs/plans
-- [OK] `planning_bundle` 0 planning bundle(s) passed plan-check
+- [OK] `planning_bundle` 2 planning bundle(s) passed plan-check
 
 ### Integration
 - Summary: Integration status=HEALTHY (ok=2, warn=0, fail=0, info=0)

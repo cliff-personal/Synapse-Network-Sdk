@@ -9,6 +9,7 @@ from synapse_client.exceptions import (
     InsufficientFundsError,
     InvokeError,
     PriceMismatchError,
+    QuoteError,
     TimeoutError,
 )
 
@@ -112,8 +113,87 @@ def test_discover_services_raises_discovery_error_on_failure(monkeypatch):
         client.discover_services(intent="quotes")
 
 
-def test_create_quote_posts_payload_and_returns_quote_REMOVED():
-    pass  # removed — quote path deleted
+def test_create_quote_posts_payload_and_returns_quote(monkeypatch):
+    calls = []
+
+    def fake_post(url, headers, json, timeout):
+        calls.append({"url": url, "json": json})
+        return DummyResponse(
+            json_data={
+                "requestId": "req_001",
+                "quoteId": "qt_001",
+                "serviceId": "svc_quotes_famous_top3",
+                "priceUsdc": 0.05,
+                "priceModel": "fixed",
+            }
+        )
+
+    monkeypatch.setattr("synapse_client.client.requests.post", fake_post)
+    client = SynapseClient(api_key="agt_test")
+    result = client.create_quote("svc_quotes_famous_top3", payload={"text": "hello"})
+
+    assert len(calls) == 1
+    assert calls[0]["url"].endswith("/api/v1/agent/quotes")
+    assert result.quote_id == "qt_001"
+    assert result.service_id == "svc_quotes_famous_top3"
+    assert result.price_usdc == pytest.approx(0.05)
+
+
+def test_create_invocation_posts_quote_id_and_returns_invocation(monkeypatch):
+    calls = []
+
+    def fake_post(url, headers, json, timeout):
+        calls.append({"url": url, "json": json})
+        return DummyResponse(
+            json_data={"invocationId": "inv_abc", "status": "SUCCEEDED", "chargedUsdc": 0.05}
+        )
+
+    monkeypatch.setattr("synapse_client.client.requests.post", fake_post)
+    client = SynapseClient(api_key="agt_test")
+    result = client.create_invocation("qt_abc", {"key": "val"}, idempotency_key="ik_test")
+
+    assert len(calls) == 1
+    assert calls[0]["url"].endswith("/api/v1/agent/invocations")
+    assert result.invocation_id == "inv_abc"
+    assert result.status == "SUCCEEDED"
+
+
+def test_invoke_service_chains_quote_then_invocation(monkeypatch):
+    def fake_post(url, headers, json, timeout):
+        if url.endswith("/quotes"):
+            return DummyResponse(
+                json_data={
+                    "quoteId": "qt_chain",
+                    "requestId": "r1",
+                    "serviceId": "svc_1",
+                    "priceUsdc": 0.05,
+                    "priceModel": "fixed",
+                }
+            )
+        if url.endswith("/invocations"):
+            return DummyResponse(
+                json_data={"invocationId": "inv_chain", "status": "SUCCEEDED", "chargedUsdc": 0.05}
+            )
+
+    monkeypatch.setattr("synapse_client.client.requests.post", fake_post)
+    client = SynapseClient(api_key="agt_test")
+    result = client.invoke_service("svc_1", {"prompt": "test"}, idempotency_key="ik_chain")
+
+    assert result.invocation_id == "inv_chain"
+    assert result.status == "SUCCEEDED"
+
+
+def test_create_quote_raises_quote_error_on_generic_failure(monkeypatch):
+    monkeypatch.setattr(
+        "synapse_client.client.requests.post",
+        lambda url, headers, json, timeout: DummyResponse(
+            status_code=503, ok=False, text="service unavailable"
+        ),
+    )
+    client = SynapseClient(api_key="agt_test")
+
+    with pytest.raises(QuoteError, match="service unavailable"):
+        client.create_quote("svc_1")
 
 
 def test_wait_for_invocation_raises_timeout_when_pending_exceeds_budget(monkeypatch):
