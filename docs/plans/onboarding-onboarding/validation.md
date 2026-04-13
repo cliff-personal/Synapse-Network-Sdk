@@ -26,14 +26,14 @@ python3 scripts/memory.py docs-check .
 
 ## Onboarding Verification
 - primary verification command: `amem doctor .`
-- expected completion: No pending onboarding steps remain.
+- expected completion: `amem doctor .` no longer reports `python/examples/smoke_test.py::main` as the top refactor hotspot.
 
 ## State Snapshot
 ```json
 {
   "project_bootstrap_ready": true,
   "project_bootstrap_complete": true,
-  "recommended_next_command": "amem doctor .",
+  "recommended_next_command": "python3 scripts/memory.py refactor-bundle . --token hotspot-8ec9b16a0f08",
   "recommended_verify_command": "amem doctor ."
 }
 ```

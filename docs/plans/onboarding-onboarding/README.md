@@ -19,8 +19,8 @@ doc_status: active
 - state file: `.agents-memory/onboarding-state.json`
 - bootstrap ready: `yes`
 - bootstrap complete: `yes`
-- next group: `Unknown`
-- next key: `unknown`
-- next command: `amem doctor .`
+- next group: `Refactor`
+- next key: `refactor_bundle`
+- next command: `python3 scripts/memory.py refactor-bundle . --token hotspot-8ec9b16a0f08`
 - verify with: `amem doctor .`
-- done when: No pending onboarding steps remain.
+- done when: `amem doctor .` no longer reports `python/examples/smoke_test.py::main` as the top refactor hotspot.

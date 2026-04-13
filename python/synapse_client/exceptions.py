@@ -26,6 +26,10 @@ class TimeoutError(SynapseClientError):
     """Raised when an async invocation does not reach a terminal state in time."""
 
 
+class QuoteError(SynapseClientError):
+    """Raised when a service quote request fails."""
+
+
 class PriceMismatchError(SynapseClientError):
     """Raised when the live service price differs from the agent's expected cost_usdc.
 

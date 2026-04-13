@@ -88,7 +88,7 @@ Shared Engineering Brain onboarding: onboarding
       {
         "status": "OK",
         "key": "planning_bundle",
-        "detail": "0 planning bundle(s) passed plan-check"
+        "detail": "2 planning bundle(s) passed plan-check"
       }
     ]
   },

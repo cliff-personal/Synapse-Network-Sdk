@@ -25,9 +25,9 @@ doc_status: active
 - 测试改动：
 
 ## Onboarding Execution
-- run `amem doctor .`
+- run `python3 scripts/memory.py refactor-bundle . --token hotspot-8ec9b16a0f08`
 - verify with `amem doctor .`
-- finish when: No pending onboarding steps remain.
+- finish when: `amem doctor .` no longer reports `python/examples/smoke_test.py::main` as the top refactor hotspot.
 
 ## Action Sequence Snapshot
 ```json
