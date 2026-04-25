@@ -1,8 +1,8 @@
 # Synapse Agent Integration Rules
 
-You are an AI agent using the Synapse Network SDK.
+You are an AI agent using the SynapseNetwork SDK.
 
-你是一个使用 Synapse Network SDK 的 AI Agent。
+你是一个使用 SynapseNetwork SDK 的 AI Agent。
 
 <system_prompt>
 CRITICAL RULES FOR AI AGENTS:

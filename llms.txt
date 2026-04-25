@@ -1,12 +1,24 @@
-# Synapse Network SDK
+# SynapseNetwork SDK
 
-This is the SDK and developer onboarding repository for Synapse Network.
+This is the SDK and developer onboarding repository for SynapseNetwork.
 
-这是 Synapse Network 的 SDK 与开发者接入仓库。
+这是 SynapseNetwork 的 SDK 与开发者接入仓库。
 
-English appears first. Chinese follows each major section.
+README language layout:
 
-英文在前，中文说明紧随其后。
+- English default: `README.md`
+- Simplified Chinese: `README.zh-CN.md`
+- SDK docs English hub: `docs/sdk/README.md`
+- SDK docs Simplified Chinese hub: `docs/sdk/README.zh-CN.md`
+- Do not interleave English and Chinese in the same README body.
+
+README 语言结构：
+
+- 英文默认页：`README.md`
+- 简体中文页：`README.zh-CN.md`
+- SDK docs 英文页：`docs/sdk/README.md`
+- SDK docs 简体中文页：`docs/sdk/README.zh-CN.md`
+- 不要在同一个 README 正文中交替混排中英文。
 
 ## Start Here
 
@@ -16,9 +28,11 @@ English appears first. Chinese follows each major section.
 - docs/agent-map/README.md - task-to-file map for AI agents
 - docs/agent-map/index.json - machine-readable routing map
 - llm-instructions.md - minimal prompt rules for AI agents integrating the SDK
-- README.md - public preview README and shortest integration examples
+- README.md - English public preview README and shortest integration examples
+- README.zh-CN.md - Simplified Chinese public preview README and shortest integration examples
 - SECURITY.md - vulnerability reporting, credential handling, and staging/prod safety
-- docs/sdk/README.md - SDK documentation hub
+- docs/sdk/README.md - English SDK documentation hub
+- docs/sdk/README.zh-CN.md - Simplified Chinese SDK documentation hub
 - docs/sdk/capability_inventory.md - current Python and TypeScript SDK capability truth
 - https://staging.synapse-network.ai/docs/sdk/python - public preview Python SDK runbook
 - https://staging.synapse-network.ai/docs/sdk/typescript - public preview TypeScript SDK runbook
@@ -30,9 +44,11 @@ English appears first. Chinese follows each major section.
 - docs/agent-map/README.md - 面向 AI Agent 的任务到文件映射
 - docs/agent-map/index.json - 机器可读路由映射
 - llm-instructions.md - Agent 集成 SDK 的最小提示规则
-- README.md - public preview README 和最短接入示例
+- README.md - 英文 public preview README 和最短接入示例
+- README.zh-CN.md - 简体中文 public preview README 和最短接入示例
 - SECURITY.md - 漏洞报告、凭据处理、staging/prod 安全边界
-- docs/sdk/README.md - SDK 文档 hub
+- docs/sdk/README.md - 英文 SDK 文档 hub
+- docs/sdk/README.zh-CN.md - 简体中文 SDK 文档 hub
 - docs/sdk/capability_inventory.md - Python 和 TypeScript SDK 当前能力真相
 - scripts/ci/pr_checks.sh - GitHub Actions 复用的本地 PR 质量门禁
 
@@ -60,6 +76,8 @@ English appears first. Chinese follows each major section.
 
 边界。
 
+- Product name is SynapseNetwork. Do not use old agent-payment brand labels as the product name.
+- SynapseNetwork is a platform where agents call APIs and make small USDC payments through blockchain-backed settlement.
 - Default public preview environment is staging: `https://api-staging.synapse-network.ai`.
 - Do not reintroduce the retired gateway domain from the old `.network` namespace.
 - Do not commit real credentials, provider secrets, private keys, wallet seed phrases, or production tokens.
@@ -69,6 +87,8 @@ English appears first. Chinese follows each major section.
 
 中文边界：
 
+- 产品名是 SynapseNetwork，不要把旧的 agent-payment 命名当作产品名。
+- SynapseNetwork 是 Agent 调用 API 并通过区块链支持的 USDC 结算完成小额付款的平台。
 - 默认 public preview 环境是 staging: `https://api-staging.synapse-network.ai`。
 - 不要恢复旧 `.network` namespace 下的退役 gateway 域名。
 - 不要提交真实凭据、provider secret、私钥、钱包助记词或生产 token。

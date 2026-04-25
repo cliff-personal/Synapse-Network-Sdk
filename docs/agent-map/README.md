@@ -9,9 +9,21 @@ This directory is the task-to-file index for AI agents working in `Synapse-Netwo
 
 本目录是 AI Agent 在 `Synapse-Network-Sdk` 中工作的任务到文件索引。
 
-English appears first. Chinese follows each major section.
+README language layout:
 
-英文在前，中文说明紧随其后。
+- English default: `README.md`
+- Simplified Chinese: `README.zh-CN.md`
+- SDK docs English hub: `docs/sdk/README.md`
+- SDK docs Simplified Chinese hub: `docs/sdk/README.zh-CN.md`
+- Do not interleave English and Chinese in the same README body.
+
+README 语言结构：
+
+- 英文默认页：`README.md`
+- 简体中文页：`README.zh-CN.md`
+- SDK docs 英文页：`docs/sdk/README.md`
+- SDK docs 简体中文页：`docs/sdk/README.zh-CN.md`
+- 不要在同一个 README 正文中交替混排中英文。
 
 Use it before broad repository search. It keeps SDK work routed to the right Python, TypeScript, docs, and CI surfaces without forcing agents to rediscover the repo every turn.
 
@@ -72,6 +84,18 @@ Update [index.json](./index.json) in the same change when:
 Do not put secrets, real tokens, private deployment URLs, or one-off incident notes in this map.
 
 不要把 secret、真实 token、私有部署 URL 或一次性 incident 记录写进本索引。
+
+## Brand Constraint
+
+品牌约束。
+
+Product name is SynapseNetwork. Do not rename the product to old agent-payment brand labels.
+
+产品名是 SynapseNetwork。不要把产品命名为旧的 agent-payment 品牌词。
+
+Describe the product as a platform where agents call APIs and make small USDC payments through blockchain-backed settlement.
+
+产品描述应表达：Agent 通过平台调用 API，并通过区块链支持的 USDC 结算完成小额付款。
 
 ## Validation
 
