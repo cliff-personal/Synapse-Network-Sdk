@@ -14,6 +14,13 @@ Consumer runtime 主链固定为：
 
 旧的 quote-first 方法 `create_quote()`、`create_invocation()`、`invoke_service()` 已废弃，不再访问旧 endpoint。调用这些方法会直接提示改用 discovery/search + price-asserted invoke。
 
+Staging 产品化 runbook:
+
+1. https://staging.synapse-network.ai/docs/sdk/python
+2. SDK Hub: https://staging.synapse-network.ai/docs/sdk
+
+Production docs 先预留，等 production DNS、`/health` 和 docs deployment 验证后再作为主链路暴露。
+
 ## 安装
 
 ```bash
@@ -48,6 +55,19 @@ python -m pip install -e ".[dev]"
 3. `prod`: `https://api.synapse-network.ai`，需等官方 production DNS 和 `/health` 验证后再用于真实资金流
 
 `AgentWallet.connect()` 不再使用 `demo_key` fallback。没有真实 credential 时会失败。
+
+## Agent-first 接入链路
+
+Fresh setup 不应从 `SYNAPSE_API_KEY` 开始。`SYNAPSE_API_KEY` 是 owner wallet 签发 agent credential 之后得到的 runtime token。
+
+固定顺序：
+
+1. owner wallet 登录并拿到 JWT
+2. 读取 balance / credits
+3. 签发 agent credential
+4. agent runtime 用 credential 搜索服务、调用服务、读取 receipt
+
+如果 owner wallet 还没有余额，可以先选择 `price_usdc == 0` 的免费服务做 smoke path；`price_usdc > 0` 的服务需要先有可用余额、credits 或足够的 credential credit limit。
 
 ## Owner 钱包登录
 

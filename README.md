@@ -9,16 +9,23 @@
 
 Python and TypeScript SDKs for AI agents and developers building on Synapse Network.
 
-Synapse lets an agent discover paid services, invoke them through a gateway, and settle the call with an auditable receipt. The SDKs cover the current canonical flow:
+Synapse lets an agent discover services, invoke them through a gateway, and settle the call with an auditable receipt. The fastest integration path is:
 
-1. Authenticate an owner wallet and issue an agent credential.
-2. Discover services through the Synapse Gateway.
-3. Invoke a selected service with the USDC price observed during discovery.
-4. Read the invocation receipt.
-5. Register provider services through the owner/provider control plane.
+1. Get an Agent Key (`agt_xxx`) from the Synapse Gateway Dashboard.
+2. Create a `SynapseClient`.
+3. Search, invoke, and read the receipt.
 
 > Public Preview default: SDK examples use `staging`, backed by `https://api-staging.synapse-network.ai`.
 > The `prod` preset points to `https://api.synapse-network.ai`, but production should only be used after official DNS and `/health` are live.
+
+## Gateway Docs
+
+| Surface | Link | Status |
+|---|---|---|
+| SDK Hub | [staging.synapse-network.ai/docs/sdk](https://staging.synapse-network.ai/docs/sdk) | Public Preview |
+| Python SDK | [staging.synapse-network.ai/docs/sdk/python](https://staging.synapse-network.ai/docs/sdk/python) | Public Preview |
+| TypeScript SDK | [staging.synapse-network.ai/docs/sdk/typescript](https://staging.synapse-network.ai/docs/sdk/typescript) | Public Preview |
+| Production docs | Reserved until production docs are live | Reserved |
 
 ## Gateway Environments
 
@@ -40,6 +47,12 @@ The SDK never probes DNS and never falls back between environments automatically
 
 ## Agent Quickstart: Python
 
+Step 1: get your Agent Key from the Synapse Gateway Dashboard.
+
+`Gateway Dashboard -> Connect Wallet -> Generate Agent Key`
+
+Step 2: let your agent discover and work.
+
 ```bash
 pip install synapse-client
 export SYNAPSE_ENV=staging
@@ -51,7 +64,7 @@ from synapse_client import SynapseClient
 
 client = SynapseClient()
 
-services = client.search("market data", limit=10)
+services = client.search("free", limit=10)
 service = services[0]
 
 result = client.invoke(
@@ -65,19 +78,15 @@ receipt = client.get_invocation(result.invocation_id)
 print(receipt.invocation_id, receipt.status, receipt.charged_usdc)
 ```
 
-To use an explicit environment:
-
-```python
-client = SynapseClient(api_key="agt_xxx", environment="staging")
-```
-
-To use a custom gateway:
-
-```python
-client = SynapseClient(api_key="agt_xxx", gateway_url="https://your-gateway.example")
-```
+If your wallet has no balance yet, start with services whose `price_usdc` is `0`. Paid services require funded balance, available credits, and a credential budget that allows the call.
 
 ## Agent Quickstart: TypeScript
+
+Step 1: get your Agent Key from the Synapse Gateway Dashboard.
+
+`Gateway Dashboard -> Connect Wallet -> Generate Agent Key`
+
+Step 2: pass the key to the SDK.
 
 ```bash
 npm install @synapse-network/sdk
@@ -91,9 +100,8 @@ const client = new SynapseClient({
   environment: "staging",
 });
 
-const services = await client.search("market data", {
+const services = await client.search("free", {
   limit: 10,
-  tags: ["finance"],
 });
 const service = services[0];
 
@@ -112,9 +120,9 @@ console.log(receipt.invocationId, receipt.status, receipt.chargedUsdc);
 
 TypeScript does not read environment variables by itself. Read them in your app and pass `environment` or `gatewayUrl` explicitly.
 
-## Human Developer Flow
+## Advanced: Programmatic Credential Issuance
 
-Use `SynapseAuth` when a human developer or backend service needs to issue credentials or register provider services:
+Use `SynapseAuth` only when an owner/backend service needs to issue credentials or register provider services programmatically. Ordinary agent runtime code should use `SynapseClient` with an existing `agt_xxx` key.
 
 1. Authenticate an owner wallet.
 2. Issue an agent credential with spending limits.
@@ -150,22 +158,7 @@ const issued = await auth.issueCredential({
 console.log(issued.credential.id, issued.token);
 ```
 
-## Security
-
-- Never commit API keys, JWTs, provider secrets, private keys, wallet mnemonics, or production logs.
-- Treat staging credentials as test-only and production credentials as live funds.
-- Use environment variables, a secret manager, or your runtime's secret store.
-- Do not paste credentials into GitHub issues, pull requests, screenshots, or agent prompts.
-- See [SECURITY.md](./SECURITY.md) for reporting and credential handling guidance.
-
-Release sanity checks:
-
-```bash
-git ls-files | rg '(^|/)\\.env|private|secret|key|pem|wallet|mnemonic|credential' | rg -v '(^|/)\\.env\\.example$'
-rg 'gateway\\.synapse\\.network' .
-```
-
-The first command should not show committed secret-bearing files after the `.env.example` allowlist. The second command should not show new SDK references to the stale gateway domain.
+Credential handling and vulnerability reporting live in [SECURITY.md](./SECURITY.md).
 
 ## Current API Boundary
 

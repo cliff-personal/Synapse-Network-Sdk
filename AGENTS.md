@@ -25,13 +25,15 @@ Generated for the `python-service` profile. Treat the files below as the source 
 
 ## Read Order
 
-1. `.agents-memory/onboarding-state.json` if present
-2. `.github/instructions/agents-memory/standards/python/base.instructions.md`
-3. `.github/instructions/agents-memory/standards/python/tdd.instructions.md`
-4. `.github/instructions/agents-memory/standards/python/dry.instructions.md`
-5. `.github/instructions/agents-memory/standards/docs/docs-sync.instructions.md`
-6. `.github/instructions/agents-memory/standards/planning/harness-engineering.md`
-7. `docs/plans/README.md`
+1. `llms.txt`
+2. `docs/agent-map/README.md` or `docs/agent-map/index.json`
+3. `.agents-memory/onboarding-state.json` if present
+4. `.github/instructions/agents-memory/standards/python/base.instructions.md`
+5. `.github/instructions/agents-memory/standards/python/tdd.instructions.md`
+6. `.github/instructions/agents-memory/standards/python/dry.instructions.md`
+7. `.github/instructions/agents-memory/standards/docs/docs-sync.instructions.md`
+8. `.github/instructions/agents-memory/standards/planning/harness-engineering.md`
+9. `docs/plans/README.md`
 
 ## Onboarding State
 

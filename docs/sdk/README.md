@@ -5,27 +5,53 @@
 ## 文档入口
 
 1. [SDK Capability Inventory](./capability_inventory.md)
-2. [TypeScript Integration Guide](./typescript_integration.md)
-3. [TypeScript Provider Integration Guide](./typescript_provider_integration.md)
-4. [Python Integration Guide](./python_integration.md)
-5. [Python Provider Integration Guide](./python_provider_integration.md)
-6. [Python Local Development](../ops/SDK_Python_Local_Development.md)
-7. [TypeScript Consumer E2E Plan](../test/consumer-e2e-plan.md)
-8. [TypeScript Provider Onboarding E2E Plan](../test/typescript-provider-onboarding-e2e-plan.md)
-9. [Python Consumer Cold-Start E2E Plan](../test/python-consumer-cold-start-e2e-plan.md)
-10. [Python Provider Onboarding E2E Plan](../test/python-provider-onboarding-e2e-plan.md)
+2. [Agent Map](../agent-map/README.md)
+3. [Agent Map JSON](../agent-map/index.json)
+4. [TypeScript Integration Guide](./typescript_integration.md)
+5. [TypeScript Provider Integration Guide](./typescript_provider_integration.md)
+6. [Python Integration Guide](./python_integration.md)
+7. [Python Provider Integration Guide](./python_provider_integration.md)
+8. [Python Local Development](../ops/SDK_Python_Local_Development.md)
+9. [TypeScript Consumer E2E Plan](../test/consumer-e2e-plan.md)
+10. [TypeScript Provider Onboarding E2E Plan](../test/typescript-provider-onboarding-e2e-plan.md)
+11. [Python Consumer Cold-Start E2E Plan](../test/python-consumer-cold-start-e2e-plan.md)
+12. [Python Provider Onboarding E2E Plan](../test/python-provider-onboarding-e2e-plan.md)
 
 ## 当前结论
 
-SDK 当前覆盖的是 consumer/provider canonical main flow：
+SDK 当前覆盖两条主链：
 
-1. owner auth / credential issue
-2. agent discovery/search
-3. `POST /api/v1/agent/invoke`
-4. `GET /api/v1/agent/invocations/{id}`
-5. provider secret 与 provider service 注册/查询
+1. Agent runtime quickstart：已有 `agt_xxx` 后，直接 discovery/search -> invoke -> receipt。
+2. Owner advanced flow：owner auth / credential issue / provider lifecycle。
 
 Python 旧的 quote-first 方法 `create_quote()`、`create_invocation()`、`invoke_service()` 已经废弃。它们不会再访问旧 endpoint，而是直接提示改用 discovery/search + `invoke(..., cost_usdc=...)`。
+
+## Staging Docs
+
+Gateway 的产品化 runbook 以 staging docs 为准：
+
+1. SDK Hub: https://staging.synapse-network.ai/docs/sdk
+2. Python SDK: https://staging.synapse-network.ai/docs/sdk/python
+3. TypeScript SDK: https://staging.synapse-network.ai/docs/sdk/typescript
+
+Production docs 先预留，等 production DNS、`/health` 和 docs deployment 验证后再作为主链路暴露。
+
+## Agent-first 接入链路
+
+README 顶部优先展示 TTFC 最短路径：
+
+1. Gateway Dashboard 连接钱包
+2. Generate Agent Key
+3. agent runtime 使用 `SynapseClient` 执行 discovery / invoke / receipt
+
+Programmatic credential issuance 属于 Advanced owner flow：
+
+1. owner wallet 签名登录
+2. gateway 返回 JWT
+3. 读取 balance / credits
+4. owner 签发 agent credential
+
+如果 owner wallet 还没有余额，优先选择 `price_usdc == 0` 的免费服务做 smoke path。付费服务需要 owner balance、credits 或 credential credit limit 足够覆盖本次调用。
 
 ## 配置真相
 
@@ -60,7 +86,7 @@ TypeScript:
 
 ### `api_key is required`
 
-没有传 `api_key`，也没有设置 `SYNAPSE_API_KEY`。
+没有传 `api_key`，也没有设置 `SYNAPSE_API_KEY`。新用户应先通过 `SynapseAuth` 签发 agent credential，再把返回的 token 交给 `SynapseClient`。
 
 ```bash
 export SYNAPSE_API_KEY='agt_xxx_your_real_key'

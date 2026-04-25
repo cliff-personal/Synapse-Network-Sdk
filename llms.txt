@@ -1,0 +1,42 @@
+# Synapse Network SDK
+
+This is the SDK and developer onboarding repository for Synapse Network.
+
+## Start Here
+
+- AGENTS.md - repository-local agent instructions and validation expectations
+- docs/agent-map/README.md - task-to-file map for AI agents
+- docs/agent-map/index.json - machine-readable routing map
+- llm-instructions.md - minimal prompt rules for AI agents integrating the SDK
+- README.md - public preview README and shortest integration examples
+- SECURITY.md - vulnerability reporting, credential handling, and staging/prod safety
+- docs/sdk/README.md - SDK documentation hub
+- docs/sdk/capability_inventory.md - current Python and TypeScript SDK capability truth
+- https://staging.synapse-network.ai/docs/sdk/python - public preview Python SDK runbook
+- https://staging.synapse-network.ai/docs/sdk/typescript - public preview TypeScript SDK runbook
+- scripts/ci/pr_checks.sh - local PR quality gate used by GitHub Actions
+
+## Main Areas
+
+- Python SDK: `python/synapse_client`
+- TypeScript SDK: `typescript/src`
+- Python tests: `python/synapse_client/test`
+- TypeScript tests: `typescript/tests`
+- SDK docs: `docs/sdk`
+- CI scripts: `scripts/ci`
+
+## Validation
+
+- Full PR gate: `bash scripts/ci/pr_checks.sh`
+- Python checks: `bash scripts/ci/python_checks.sh`
+- TypeScript checks: `bash scripts/ci/typescript_checks.sh`
+- Repo hygiene: `bash scripts/ci/repo_hygiene_checks.sh`
+
+## Boundaries
+
+- Default public preview environment is staging: `https://api-staging.synapse-network.ai`.
+- Do not reintroduce the retired gateway domain from the old `.network` namespace.
+- Do not commit real credentials, provider secrets, private keys, wallet seed phrases, or production tokens.
+- SDK runtime flow is discovery/search plus price-asserted invoke plus receipt.
+- Agent runtime code should use `SynapseClient` with an `agt_xxx` key. Do not initialize `SynapseAuth` unless the task explicitly asks for owner credential issuance.
+- Old Python quote-first helpers are deprecated compatibility shims and must not call removed gateway endpoints.

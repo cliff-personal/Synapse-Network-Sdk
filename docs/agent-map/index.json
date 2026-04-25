@@ -1,0 +1,221 @@
+{
+  "schema_version": 1,
+  "repository": "Synapse-Network-Sdk",
+  "updated_at": "2026-04-25",
+  "purpose": "Task-to-file routing map for AI agents working on the SDK repository.",
+  "global_entrypoints": [
+    "llms.txt",
+    "AGENTS.md",
+    "README.md",
+    "llm-instructions.md",
+    "SECURITY.md",
+    "docs/sdk/README.md",
+    "docs/sdk/capability_inventory.md",
+    "scripts/ci/pr_checks.sh"
+  ],
+  "domains": [
+    {
+      "id": "sdk_runtime_client",
+      "title": "Consumer runtime client",
+      "use_when": [
+        "discovery, search, invoke, receipt, usage logs, or runtime SDK errors change",
+        "Python SynapseClient or TypeScript SynapseClient behavior changes",
+        "PRICE_MISMATCH rediscovery or typed runtime errors change"
+      ],
+      "primary_files": [
+        "python/synapse_client/client.py",
+        "python/synapse_client/errors.py",
+        "python/synapse_client/test/test_client_unit.py",
+        "typescript/src/client.ts",
+        "typescript/src/errors.ts",
+        "typescript/tests/unit/client.test.ts"
+      ],
+      "supporting_files": [
+        "docs/sdk/capability_inventory.md",
+        "docs/sdk/python_integration.md",
+        "docs/sdk/typescript_integration.md",
+        "README.md"
+      ],
+      "validation_commands": [
+        "bash scripts/ci/python_checks.sh",
+        "bash scripts/ci/typescript_checks.sh"
+      ],
+      "notes": [
+        "Canonical runtime flow is discovery/search plus price-asserted invoke plus receipt.",
+        "Do not restore old quote-first gateway calls."
+      ]
+    },
+    {
+      "id": "sdk_owner_auth",
+      "title": "Owner auth and credential lifecycle",
+      "use_when": [
+        "wallet auth, JWT cache, balance, deposit intent, credentials, quota, or audit logs change",
+        "SynapseAuth owner methods change in Python or TypeScript"
+      ],
+      "primary_files": [
+        "python/synapse_client/auth.py",
+        "python/synapse_client/test/test_auth_unit.py",
+        "typescript/src/auth.ts",
+        "typescript/tests/unit/auth.test.ts"
+      ],
+      "supporting_files": [
+        "docs/sdk/capability_inventory.md",
+        "docs/sdk/python_integration.md",
+        "docs/sdk/typescript_integration.md",
+        "SECURITY.md"
+      ],
+      "validation_commands": [
+        "bash scripts/ci/python_checks.sh",
+        "bash scripts/ci/typescript_checks.sh"
+      ],
+      "notes": [
+        "Credential and finance-adjacent helpers must not log real tokens or secrets.",
+        "High-impact finance helpers may wrap API calls, but should not auto-execute irreversible user actions."
+      ]
+    },
+    {
+      "id": "sdk_provider_lifecycle",
+      "title": "Provider lifecycle helpers",
+      "use_when": [
+        "provider secrets, provider service registration, service update/delete/ping, registration guide, or provider health changes"
+      ],
+      "primary_files": [
+        "python/synapse_client/auth.py",
+        "python/synapse_client/test/test_auth_unit.py",
+        "typescript/src/auth.ts",
+        "typescript/tests/unit/auth.test.ts"
+      ],
+      "supporting_files": [
+        "docs/sdk/python_provider_integration.md",
+        "docs/sdk/typescript_provider_integration.md",
+        "docs/sdk/capability_inventory.md"
+      ],
+      "validation_commands": [
+        "bash scripts/ci/python_checks.sh",
+        "bash scripts/ci/typescript_checks.sh"
+      ],
+      "notes": [
+        "Provider onboarding success is measured through owner control-plane service records, not public discovery alone."
+      ]
+    },
+    {
+      "id": "sdk_environment_config",
+      "title": "Gateway environment configuration",
+      "use_when": [
+        "local, staging, prod, gateway URL, environment resolver, or public preview defaults change",
+        "README or SECURITY guidance for staging/prod changes"
+      ],
+      "primary_files": [
+        "python/synapse_client/config.py",
+        "python/synapse_client/test/test_client_unit.py",
+        "python/synapse_client/test/test_auth_unit.py",
+        "typescript/src/config.ts",
+        "typescript/tests/unit/client.test.ts",
+        ".env.example",
+        "README.md",
+        "SECURITY.md"
+      ],
+      "supporting_files": [
+        "docs/sdk/README.md",
+        "docs/sdk/capability_inventory.md"
+      ],
+      "validation_commands": [
+        "bash scripts/ci/repo_hygiene_checks.sh",
+        "bash scripts/ci/python_checks.sh",
+        "bash scripts/ci/typescript_checks.sh"
+      ],
+      "notes": [
+        "Default environment is staging.",
+        "Do not reintroduce the retired gateway domain from the old .network namespace.",
+        "Explicit gateway URL always wins over environment preset."
+      ]
+    },
+    {
+      "id": "sdk_public_docs",
+      "title": "Public SDK docs and examples",
+      "use_when": [
+        "README, integration guides, provider guides, capability inventory, or public examples change",
+        "the product gateway docs need to stay aligned with the SDK repo",
+        "staging docs links or fresh-start onboarding flow changes"
+      ],
+      "primary_files": [
+        "README.md",
+        "llm-instructions.md",
+        "docs/sdk/README.md",
+        "docs/sdk/capability_inventory.md",
+        "docs/sdk/python_integration.md",
+        "docs/sdk/typescript_integration.md",
+        "docs/sdk/python_provider_integration.md",
+        "docs/sdk/typescript_provider_integration.md"
+      ],
+      "supporting_files": [
+        "../Synapse-Network/services/user-front/src/app/docs/sdk/page.tsx",
+        "../Synapse-Network/services/user-front/src/app/docs/sdk/typescript/page.tsx",
+        "../Synapse-Network/services/user-front/src/app/docs/sdk/python/page.tsx",
+        "../Synapse-Network/docs/reference/Agent_Task_Map.json"
+      ],
+      "validation_commands": [
+        "bash scripts/ci/repo_hygiene_checks.sh",
+        "bash scripts/ci/pr_checks.sh"
+      ],
+      "notes": [
+        "Public docs should say Public Preview unless production DNS and health checks are verified.",
+        "Use agt_xxx or REPLACE_ME placeholders only.",
+        "README and gateway docs must show Agent Key -> SynapseClient first, with owner auth -> JWT -> credential issuance under Advanced."
+      ]
+    },
+    {
+      "id": "sdk_ci_quality_gates",
+      "title": "CI and quality gates",
+      "use_when": [
+        "GitHub Actions, PR checks, coverage thresholds, lint, build, or repo hygiene gates change"
+      ],
+      "primary_files": [
+        ".github/workflows/pr-ci.yml",
+        "scripts/ci/pr_checks.sh",
+        "scripts/ci/python_checks.sh",
+        "scripts/ci/typescript_checks.sh",
+        "scripts/ci/repo_hygiene_checks.sh",
+        "typescript/package.json"
+      ],
+      "supporting_files": [
+        "README.md",
+        "docs/sdk/README.md"
+      ],
+      "validation_commands": [
+        "bash scripts/ci/pr_checks.sh"
+      ],
+      "notes": [
+        "Local scripts and GitHub Actions must share the same entrypoint."
+      ]
+    },
+    {
+      "id": "sdk_examples_and_e2e",
+      "title": "Examples and e2e onboarding plans",
+      "use_when": [
+        "Python examples, TypeScript examples, smoke tests, or e2e onboarding plans change"
+      ],
+      "primary_files": [
+        "python/examples",
+        "typescript/examples",
+        "docs/test/consumer-e2e-plan.md",
+        "docs/test/typescript-provider-onboarding-e2e-plan.md",
+        "docs/test/python-consumer-cold-start-e2e-plan.md",
+        "docs/test/python-provider-onboarding-e2e-plan.md"
+      ],
+      "supporting_files": [
+        "docs/sdk/python_integration.md",
+        "docs/sdk/typescript_integration.md",
+        "README.md"
+      ],
+      "validation_commands": [
+        "bash scripts/ci/repo_hygiene_checks.sh",
+        "bash scripts/ci/python_checks.sh",
+        "bash scripts/ci/typescript_checks.sh"
+      ],
+      "notes": [
+        "E2E flows may require real staging credentials; PR CI should keep e2e out of the default gate unless explicitly configured."
+      ]
+    }
+  ]
+}
