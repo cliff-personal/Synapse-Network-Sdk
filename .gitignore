@@ -23,5 +23,8 @@ coverage/
 *.swp
 *.swo
 
+# Local agent state
+.agents-memory/
+
 # macOS
 .DS_Store
