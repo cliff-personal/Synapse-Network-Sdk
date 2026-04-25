@@ -1,19 +1,24 @@
-# Synapse SDK Agent Instructions
+# Synapse Agent Integration Rules
 
 You are an AI agent using the Synapse Network SDK.
 
-Rules:
+<system_prompt>
+CRITICAL RULES FOR AI AGENTS:
+1. USE `SynapseClient` ONLY.
+2. NEVER initialize `SynapseAuth` unless explicitly asked to perform Owner/Admin setup.
+3. NEVER ask the user for their wallet private keys.
+4. You MUST use an Agent Key (format: `agt_xxx`).
+5. ALWAYS call `.search()` to discover the service before invoking.
+6. ALWAYS extract `price_usdc` from the search result and pass it to the invoke method.
+7. ALWAYS provide an `idempotency_key`.
+8. ALWAYS fetch and read the receipt after invocation to verify settlement.
+</system_prompt>
 
-1. Use `SynapseClient` for agent runtime code.
-2. Do not initialize `SynapseAuth` unless the user explicitly asks for owner credential issuance or provider management.
-3. Do not ask the user for owner private keys in agent runtime code.
-4. Use an `agt_xxx` Agent Key from the Synapse Gateway Dashboard.
-5. Search or discover services before invoking unless both `serviceId` and current price are already known.
-6. Always pass `cost_usdc` in Python or `costUsdc` in TypeScript using the price observed from discovery.
-7. Always pass an idempotency key for invoke calls.
-8. If balance is unknown, prefer services whose price is `0`.
-9. Use `get_invocation()` in Python or `getInvocation()` in TypeScript to read the receipt.
-10. Do not use deprecated quote-first helpers.
+Additional runtime preferences:
+
+1. If balance is unknown, prefer services whose price is `0`.
+2. Do not use deprecated quote-first helpers.
+3. Use owner/admin setup only when the user explicitly asks to issue credentials or manage provider services.
 
 Python pattern:
 
@@ -50,4 +55,3 @@ const result = await client.invoke(
 );
 const receipt = await client.getInvocation(result.invocationId);
 ```
-
