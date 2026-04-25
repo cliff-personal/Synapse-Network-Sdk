@@ -111,6 +111,26 @@ export class SynapseAuth {
     return this.authenticate();
   }
 
+  /** Clear the gateway session token and local cache. */
+  async logout(): Promise<Record<string, unknown>> {
+    const token = await this.getToken();
+    const resp = await this._fetch<Record<string, unknown>>(`${this.gatewayUrl}/api/v1/auth/logout`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    this._token = null;
+    this._tokenExpiresAt = 0;
+    return resp;
+  }
+
+  /** Return the authenticated owner profile. */
+  async getOwnerProfile(): Promise<Record<string, unknown>> {
+    const token = await this.getToken();
+    return this._fetch<Record<string, unknown>>(`${this.gatewayUrl}/api/v1/auth/me`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+  }
+
   /** Issue a new agent credential and return its token + metadata. */
   async issueCredential(opts: IssueCredentialOptions = {}): Promise<IssueCredentialResult> {
     const token = await this.getToken();
@@ -192,6 +212,16 @@ export class SynapseAuth {
     return resp.secrets ?? [];
   }
 
+  /** Delete a provider control-plane secret. */
+  async deleteProviderSecret(secretId: string): Promise<Record<string, unknown>> {
+    const token = await this.getToken();
+    const id = this.requireValue(secretId, "secretId");
+    return this._fetch<Record<string, unknown>>(`${this.gatewayUrl}/api/v1/secrets/provider/${encodeURIComponent(id)}`, {
+      method: "DELETE",
+      headers: { Authorization: `Bearer ${token}` },
+    });
+  }
+
   /** List all agent credentials for this wallet. */
   async listCredentials(): Promise<AgentCredential[]> {
     const token = await this.getToken();
@@ -200,6 +230,77 @@ export class SynapseAuth {
       { headers: { Authorization: `Bearer ${token}` } }
     );
     return resp.credentials ?? [];
+  }
+
+  /** Check whether a credential is still valid and usable. */
+  async checkCredentialStatus(credentialId: string): Promise<Record<string, unknown>> {
+    const token = await this.getToken();
+    const id = this.requireValue(credentialId, "credentialId");
+    return this._fetch<Record<string, unknown>>(
+      `${this.gatewayUrl}/api/v1/credentials/agent/${encodeURIComponent(id)}/status`,
+      { headers: { Authorization: `Bearer ${token}` } }
+    );
+  }
+
+  /** Alias for checkCredentialStatus(). */
+  async getCredentialStatus(credentialId: string): Promise<Record<string, unknown>> {
+    return this.checkCredentialStatus(credentialId);
+  }
+
+  /** Revoke an agent credential without deleting its audit trail. */
+  async revokeCredential(credentialId: string): Promise<Record<string, unknown>> {
+    const token = await this.getToken();
+    const id = this.requireValue(credentialId, "credentialId");
+    return this._fetch<Record<string, unknown>>(
+      `${this.gatewayUrl}/api/v1/credentials/agent/${encodeURIComponent(id)}/revoke`,
+      { method: "POST", headers: { Authorization: `Bearer ${token}` } }
+    );
+  }
+
+  /** Rotate an agent credential and return the gateway response containing the new token. */
+  async rotateCredential(credentialId: string): Promise<Record<string, unknown>> {
+    const token = await this.getToken();
+    const id = this.requireValue(credentialId, "credentialId");
+    return this._fetch<Record<string, unknown>>(
+      `${this.gatewayUrl}/api/v1/credentials/agent/${encodeURIComponent(id)}/rotate`,
+      { method: "POST", headers: { Authorization: `Bearer ${token}` } }
+    );
+  }
+
+  /** Delete an agent credential. Use revokeCredential for emergency shutoff. */
+  async deleteCredential(credentialId: string): Promise<Record<string, unknown>> {
+    const token = await this.getToken();
+    const id = this.requireValue(credentialId, "credentialId");
+    return this._fetch<Record<string, unknown>>(
+      `${this.gatewayUrl}/api/v1/credentials/agent/${encodeURIComponent(id)}`,
+      { method: "DELETE", headers: { Authorization: `Bearer ${token}` } }
+    );
+  }
+
+  /** Update spend/call/rate quota fields for an agent credential. */
+  async updateCredentialQuota(
+    credentialId: string,
+    opts: { maxCalls?: number; rpm?: number; creditLimit?: number; resetInterval?: string; expiresAt?: string | number; expiration?: number } = {}
+  ): Promise<Record<string, unknown>> {
+    const token = await this.getToken();
+    const id = this.requireValue(credentialId, "credentialId");
+    return this._fetch<Record<string, unknown>>(
+      `${this.gatewayUrl}/api/v1/credentials/agent/${encodeURIComponent(id)}/quota`,
+      {
+        method: "PATCH",
+        headers: { Authorization: `Bearer ${token}` },
+        body: JSON.stringify(opts),
+      }
+    );
+  }
+
+  /** Fetch credential lifecycle audit logs for the authenticated owner. */
+  async getCredentialAuditLogs(opts: { limit?: number } = {}): Promise<Record<string, unknown>> {
+    const token = await this.getToken();
+    const url = this.withQuery(`${this.gatewayUrl}/api/v1/credentials/agent/audit-logs`, {
+      limit: opts.limit ?? 100,
+    });
+    return this._fetch<Record<string, unknown>>(url, { headers: { Authorization: `Bearer ${token}` } });
   }
 
   /** Get balance summary for this wallet. */
@@ -264,6 +365,42 @@ export class SynapseAuth {
           ? { allowUnlimited: true }
           : { spendingLimitUsdc: usdc, allowUnlimited: false }
       ),
+    });
+  }
+
+  /** Redeem a voucher into the authenticated owner balance. */
+  async redeemVoucher(voucherCode: string, idempotencyKey?: string): Promise<Record<string, unknown>> {
+    const token = await this.getToken();
+    const code = this.requireValue(voucherCode, "voucherCode");
+    return this._fetch<Record<string, unknown>>(`${this.gatewayUrl}/api/v1/balance/vouchers/redeem`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "X-Idempotency-Key": idempotencyKey ?? `voucher-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+      },
+      body: JSON.stringify({ voucherCode: code }),
+    });
+  }
+
+  /** Fetch owner usage logs for observability and billing review. */
+  async getUsageLogs(opts: { limit?: number } = {}): Promise<Record<string, unknown>> {
+    const token = await this.getToken();
+    const url = this.withQuery(`${this.gatewayUrl}/api/v1/usage/logs`, { limit: opts.limit ?? 100 });
+    return this._fetch<Record<string, unknown>>(url, { headers: { Authorization: `Bearer ${token}` } });
+  }
+
+  /** Fetch finance audit logs. High-impact finance actions remain explicit. */
+  async getFinanceAuditLogs(opts: { limit?: number } = {}): Promise<Record<string, unknown>> {
+    const token = await this.getToken();
+    const url = this.withQuery(`${this.gatewayUrl}/api/v1/finance/audit-logs`, { limit: opts.limit ?? 100 });
+    return this._fetch<Record<string, unknown>>(url, { headers: { Authorization: `Bearer ${token}` } });
+  }
+
+  /** Return the owner finance risk overview. */
+  async getRiskOverview(): Promise<Record<string, unknown>> {
+    const token = await this.getToken();
+    return this._fetch<Record<string, unknown>>(`${this.gatewayUrl}/api/v1/finance/risk-overview`, {
+      headers: { Authorization: `Bearer ${token}` },
     });
   }
 
@@ -362,6 +499,110 @@ export class SynapseAuth {
     return resp.services ?? [];
   }
 
+  /** Fetch the provider registration guide from the gateway control plane. */
+  async getRegistrationGuide(): Promise<Record<string, unknown>> {
+    const token = await this.getToken();
+    return this._fetch<Record<string, unknown>>(`${this.gatewayUrl}/api/v1/services/registration-guide`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+  }
+
+  /** Convert a curl command into a provider service manifest draft. */
+  async parseCurlToServiceManifest(curlCommand: string): Promise<Record<string, unknown>> {
+    const token = await this.getToken();
+    const command = this.requireValue(curlCommand, "curlCommand");
+    return this._fetch<Record<string, unknown>>(`${this.gatewayUrl}/api/v1/services/parse-curl`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ curlCommand: command }),
+    });
+  }
+
+  /** Patch a provider service registration by gateway record ID. */
+  async updateProviderService(serviceRecordId: string, patch: Record<string, unknown>): Promise<Record<string, unknown>> {
+    const token = await this.getToken();
+    const id = this.requireValue(serviceRecordId, "serviceRecordId");
+    return this._fetch<Record<string, unknown>>(`${this.gatewayUrl}/api/v1/services/${encodeURIComponent(id)}`, {
+      method: "PUT",
+      headers: { Authorization: `Bearer ${token}` },
+      body: JSON.stringify(patch ?? {}),
+    });
+  }
+
+  /** Delete a provider service registration by gateway record ID. */
+  async deleteProviderService(serviceRecordId: string): Promise<Record<string, unknown>> {
+    const token = await this.getToken();
+    const id = this.requireValue(serviceRecordId, "serviceRecordId");
+    return this._fetch<Record<string, unknown>>(`${this.gatewayUrl}/api/v1/services/${encodeURIComponent(id)}`, {
+      method: "DELETE",
+      headers: { Authorization: `Bearer ${token}` },
+    });
+  }
+
+  /** Force a provider service health ping. */
+  async pingProviderService(serviceRecordId: string): Promise<Record<string, unknown>> {
+    const token = await this.getToken();
+    const id = this.requireValue(serviceRecordId, "serviceRecordId");
+    return this._fetch<Record<string, unknown>>(`${this.gatewayUrl}/api/v1/services/${encodeURIComponent(id)}/ping`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${token}` },
+    });
+  }
+
+  /** Fetch health history for a provider service. */
+  async getProviderServiceHealthHistory(
+    serviceRecordId: string,
+    opts: { limitPerTarget?: number } = {}
+  ): Promise<Record<string, unknown>> {
+    const token = await this.getToken();
+    const id = this.requireValue(serviceRecordId, "serviceRecordId");
+    const url = this.withQuery(`${this.gatewayUrl}/api/v1/services/${encodeURIComponent(id)}/health/history`, {
+      limitPerTarget: opts.limitPerTarget ?? 100,
+    });
+    return this._fetch<Record<string, unknown>>(url, { headers: { Authorization: `Bearer ${token}` } });
+  }
+
+  /** Return provider earnings summary for the authenticated owner. */
+  async getProviderEarningsSummary(): Promise<Record<string, unknown>> {
+    const token = await this.getToken();
+    return this._fetch<Record<string, unknown>>(`${this.gatewayUrl}/api/v1/providers/earnings/summary`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+  }
+
+  /** Return whether provider withdrawals are currently available. */
+  async getProviderWithdrawalCapability(): Promise<Record<string, unknown>> {
+    const token = await this.getToken();
+    return this._fetch<Record<string, unknown>>(`${this.gatewayUrl}/api/v1/providers/withdrawals/capability`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+  }
+
+  /** Create a provider withdrawal intent. This does not auto-submit funds on-chain. */
+  async createProviderWithdrawalIntent(
+    amountUsdc: number,
+    opts: { idempotencyKey?: string; destinationAddress?: string } = {}
+  ): Promise<Record<string, unknown>> {
+    const token = await this.getToken();
+    const body: Record<string, unknown> = { amountUsdc };
+    if (opts.destinationAddress) body["destinationAddress"] = opts.destinationAddress;
+    return this._fetch<Record<string, unknown>>(`${this.gatewayUrl}/api/v1/providers/withdrawals/intent`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "X-Idempotency-Key": opts.idempotencyKey ?? `provider-withdraw-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+      },
+      body: JSON.stringify(body),
+    });
+  }
+
+  /** List provider withdrawal records. */
+  async listProviderWithdrawals(opts: { limit?: number } = {}): Promise<Record<string, unknown>> {
+    const token = await this.getToken();
+    const url = this.withQuery(`${this.gatewayUrl}/api/v1/providers/withdrawals`, { limit: opts.limit ?? 100 });
+    return this._fetch<Record<string, unknown>>(url, { headers: { Authorization: `Bearer ${token}` } });
+  }
+
   /** Return one provider-owned service by serviceId. */
   async getProviderService(serviceId: string): Promise<ProviderServiceRecord> {
     const resolvedServiceId = serviceId?.trim();
@@ -386,6 +627,21 @@ export class SynapseAuth {
   }
 
   // ── Internal helpers ───────────────────────────────────────────────────────
+
+  private requireValue(value: string, name: string): string {
+    const resolved = String(value ?? "").trim();
+    if (!resolved) throw new Error(`${name} is required`);
+    return resolved;
+  }
+
+  private withQuery(url: string, params: Record<string, string | number | boolean | null | undefined>): string {
+    const search = new URLSearchParams();
+    for (const [key, value] of Object.entries(params)) {
+      if (value !== null && value !== undefined) search.set(key, String(value));
+    }
+    const query = search.toString();
+    return query ? `${url}?${query}` : url;
+  }
 
   private async _fetch<T>(url: string, init: { method?: string; body?: string; headers?: Record<string, string> } = {}): Promise<T> {
     const controller = new AbortController();

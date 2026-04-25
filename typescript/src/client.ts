@@ -74,6 +74,39 @@ export class SynapseClient {
     }
   }
 
+  /** Check the public gateway health endpoint without consuming agent budget. */
+  async checkGatewayHealth(): Promise<Record<string, unknown>> {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), this.timeoutMs);
+    try {
+      const resp = await fetch(`${this.gatewayUrl}/health`, { signal: controller.signal });
+      const text = await resp.text();
+      const data = text ? JSON.parse(text) as Record<string, unknown> : {};
+      if (!resp.ok) throw new Error(`HTTP ${resp.status}: ${text}`);
+      return data;
+    } finally {
+      clearTimeout(timer);
+    }
+  }
+
+  /** Return agent-friendly diagnostics for an empty discovery result. */
+  explainDiscoveryEmptyResult(opts: { query?: string; tags?: string[] } = {}): Record<string, unknown> {
+    return {
+      query: opts.query ?? "",
+      tags: opts.tags ?? [],
+      possibleReasons: [
+        "No provider service matched the current discovery filters.",
+        "The matching provider may be inactive, unhealthy, or not yet registered in this environment.",
+        "The agent credential may target a different environment than the provider service.",
+      ],
+      suggestions: [
+        "Retry with a broader query and no tags.",
+        "Confirm environment / gatewayUrl matches the provider registration environment.",
+        "Ask the provider owner to verify service status and health history.",
+      ],
+    };
+  }
+
   // ── Invocation ─────────────────────────────────────────────────────────────
 
   /**
@@ -123,6 +156,40 @@ export class SynapseClient {
     return this.waitForInvocation(result.invocationId, opts);
   }
 
+  /**
+   * Invoke once, then handle PRICE_MISMATCH by re-discovering and retrying once by default.
+   */
+  async invokeWithRediscovery(
+    serviceId: string,
+    payload: Record<string, unknown> = {},
+    opts: InvokeOptions & {
+      query?: string;
+      tags?: string[];
+      maxRediscoveryRetries?: number;
+    }
+  ): Promise<InvocationResult> {
+    try {
+      return await this.invoke(serviceId, payload, opts);
+    } catch (err) {
+      if (!(err instanceof PriceMismatchError) || (opts.maxRediscoveryRetries ?? 1) <= 0) {
+        throw err;
+      }
+
+      let livePrice = err.currentPriceUsdc;
+      const services = await this.search(opts.query ?? serviceId, { limit: 10, tags: opts.tags });
+      const matched = services.find((service) => (service.serviceId ?? service.id) === serviceId);
+      const discoveredPrice = matched ? this.extractServicePrice(matched) : null;
+      if (discoveredPrice != null) livePrice = discoveredPrice;
+      if (!livePrice || livePrice <= 0) throw err;
+
+      return this.invoke(serviceId, payload, {
+        ...opts,
+        costUsdc: livePrice,
+        maxRediscoveryRetries: undefined,
+      } as InvokeOptions);
+    }
+  }
+
   /** Poll invocation receipt until it reaches a terminal status. */
   async waitForInvocation(
     invocationId: string,
@@ -148,7 +215,25 @@ export class SynapseClient {
     return this._parseInvocationResponse(resp);
   }
 
+  /** Alias for getInvocation(). */
+  async getInvocationReceipt(invocationId: string): Promise<InvocationResult> {
+    return this.getInvocation(invocationId);
+  }
+
   // ── Internal helpers ───────────────────────────────────────────────────────
+
+  private extractServicePrice(service: ServiceRecord): number | null {
+    const pricing = service.pricing;
+    if (typeof pricing === "string" || typeof pricing === "number") {
+      const parsed = Number(pricing);
+      return Number.isFinite(parsed) ? parsed : null;
+    }
+    if (pricing && typeof pricing === "object") {
+      const parsed = Number((pricing as { amount?: unknown }).amount);
+      return Number.isFinite(parsed) ? parsed : null;
+    }
+    return null;
+  }
 
   private _parseInvocationResponse(resp: Record<string, unknown>): InvocationResult {
     const invocationId =

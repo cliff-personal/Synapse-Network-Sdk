@@ -326,3 +326,67 @@ def test_invoke_with_cost_usdc_raises_price_mismatch_error(monkeypatch):
 
     assert exc_info.value.expected_price_usdc == pytest.approx(0.05)
     assert exc_info.value.current_price_usdc == pytest.approx(0.15)
+
+
+def test_invoke_with_rediscovery_retries_once_on_price_mismatch(monkeypatch):
+    post_calls = []
+
+    def fake_post(url, headers, json, timeout):
+        post_calls.append({"url": url, "json": json})
+        if url.endswith("/api/v1/agent/invoke") and len([c for c in post_calls if c["url"].endswith("/api/v1/agent/invoke")]) == 1:
+            return DummyResponse(
+                status_code=422,
+                ok=False,
+                json_data={
+                    "detail": {
+                        "code": "PRICE_MISMATCH",
+                        "message": "Price changed",
+                        "expectedPriceUsdc": 0.05,
+                        "currentPriceUsdc": 0.12,
+                    }
+                },
+            )
+        if url.endswith("/api/v1/agent/discovery/search"):
+            return DummyResponse(
+                json_data={
+                    "results": [
+                        {
+                            "serviceId": "svc_1",
+                            "serviceName": "Service 1",
+                            "pricing": {"amount": "0.12", "currency": "USDC"},
+                        }
+                    ],
+                    "count": 1,
+                }
+            )
+        return DummyResponse(json_data={"invocationId": "inv_retry", "status": "SUCCEEDED", "chargedUsdc": 0.12})
+
+    monkeypatch.setattr("synapse_client.client.requests.post", fake_post)
+
+    client = SynapseClient(api_key="agt_test")
+    result = client.invoke_with_rediscovery(
+        "svc_1",
+        {"prompt": "hello"},
+        query="market data",
+        cost_usdc=0.05,
+        idempotency_key="ik-retry",
+    )
+
+    assert result.invocation_id == "inv_retry"
+    assert post_calls[1]["url"].endswith("/api/v1/agent/discovery/search")
+    assert post_calls[1]["json"]["query"] == "market data"
+    assert post_calls[2]["json"]["costUsdc"] == pytest.approx(0.12)
+
+
+def test_gateway_health_and_empty_discovery_diagnostics(monkeypatch):
+    monkeypatch.setattr(
+        "synapse_client.client.requests.get",
+        lambda url, timeout: DummyResponse(json_data={"status": "ok", "version": "2.0.0"}),
+    )
+
+    client = SynapseClient(api_key="agt_test", gateway_url="http://127.0.0.1:8000")
+
+    assert client.check_gateway_health()["status"] == "ok"
+    diagnostics = client.explain_discovery_empty_result(query="quotes", tags=["text"])
+    assert diagnostics["query"] == "quotes"
+    assert "suggestions" in diagnostics

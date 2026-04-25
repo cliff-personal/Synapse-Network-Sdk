@@ -173,20 +173,23 @@ Supported today:
 
 - Consumer discovery/search
 - Price-asserted invoke
+- Price-mismatch rediscovery helper
 - Invocation receipt lookup
-- Owner auth and credential issue/list/update
-- Balance and deposit intent helpers
-- Provider secret issue/list
-- Provider service register/list/get/status
+- Gateway health and empty-discovery diagnostics
+- Owner auth and credential issue/list/update/revoke/rotate/delete/quota/audit logs
+- Balance, voucher, usage, finance audit, and risk overview helpers
+- Provider secret issue/list/delete
+- Provider service register/list/get/status/update/delete/ping/registration guide/health history
+- Provider earnings and withdrawal intent/list/capability helpers
 
 Not yet wrapped:
 
-- Credential revoke/delete/audit logs
-- Provider secret revoke
-- Service update/delete/ping/health history
-- Usage logs, vouchers, refunds, withdrawals, notifications, community APIs
+- Refunds, notifications, community, and event APIs
+- On-chain deposit transaction signing helpers
 
 See [docs/sdk/capability_inventory.md](./docs/sdk/capability_inventory.md) for the detailed inventory.
+
+Finance and withdrawal helpers are explicit API wrappers only. The SDK will not automatically move funds, sign transactions, or submit high-impact financial actions on behalf of an agent.
 
 ## Development
 

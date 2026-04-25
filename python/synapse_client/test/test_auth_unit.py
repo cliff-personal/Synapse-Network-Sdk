@@ -343,3 +343,84 @@ def test_register_provider_service_derives_defaults_and_reads_status(monkeypatch
     assert calls[2]["json"]["agentToolName"] == "sea_invoice_ocr"
     assert calls[2]["json"]["payoutAccount"]["payoutAddress"] == "0xabc"
     assert calls[2]["json"]["healthCheck"]["path"] == "/health"
+
+
+def test_credential_lifecycle_and_owner_observability_helpers(monkeypatch):
+    calls = []
+
+    def fake_request(method, url, headers, json, timeout):
+        calls.append({"method": method, "url": url, "headers": headers, "json": json})
+        if url.endswith("/api/v1/auth/challenge?address=0xabc"):
+            return DummyResponse(json_data={"success": True, "challenge": "sign-me", "domain": "a2a-pay-network"})
+        if url.endswith("/api/v1/auth/verify"):
+            return DummyResponse(json_data={"success": True, "access_token": "jwt-token", "token_type": "bearer", "expires_in": 3600})
+        return DummyResponse(json_data={"status": "success", "credentialId": "cred_1"})
+
+    monkeypatch.setattr("synapse_client.auth.requests.request", fake_request)
+
+    auth = SynapseAuth(wallet_address="0xabc", signer=lambda _: "0xsigned", gateway_url="http://127.0.0.1:8000")
+    auth.revoke_credential("cred_1")
+    auth.rotate_credential("cred_1")
+    auth.update_credential_quota("cred_1", credit_limit=5, rpm=60)
+    auth.delete_credential("cred_1")
+    auth.get_credential_audit_logs(limit=25)
+    auth.get_owner_profile()
+    auth.get_usage_logs(limit=10)
+    auth.get_finance_audit_logs(limit=7)
+    auth.get_risk_overview()
+
+    urls = [call["url"] for call in calls[2:]]
+    methods = [call["method"] for call in calls[2:]]
+    assert methods[:4] == ["POST", "POST", "PATCH", "DELETE"]
+    assert urls[0].endswith("/api/v1/credentials/agent/cred_1/revoke")
+    assert urls[1].endswith("/api/v1/credentials/agent/cred_1/rotate")
+    assert urls[2].endswith("/api/v1/credentials/agent/cred_1/quota")
+    assert calls[4]["json"] == {"rpm": 60, "creditLimit": 5}
+    assert urls[4].endswith("/api/v1/credentials/agent/audit-logs?limit=25")
+    assert urls[5].endswith("/api/v1/auth/me")
+    assert urls[6].endswith("/api/v1/usage/logs?limit=10")
+    assert urls[7].endswith("/api/v1/finance/audit-logs?limit=7")
+    assert urls[8].endswith("/api/v1/finance/risk-overview")
+
+
+def test_provider_lifecycle_and_finance_helpers(monkeypatch):
+    calls = []
+
+    def fake_request(method, url, headers, json, timeout):
+        calls.append({"method": method, "url": url, "headers": headers, "json": json})
+        if url.endswith("/api/v1/auth/challenge?address=0xabc"):
+            return DummyResponse(json_data={"success": True, "challenge": "sign-me", "domain": "a2a-pay-network"})
+        if url.endswith("/api/v1/auth/verify"):
+            return DummyResponse(json_data={"success": True, "access_token": "jwt-token", "token_type": "bearer", "expires_in": 3600})
+        return DummyResponse(json_data={"status": "success"})
+
+    monkeypatch.setattr("synapse_client.auth.requests.request", fake_request)
+
+    auth = SynapseAuth(wallet_address="0xabc", signer=lambda _: "0xsigned", gateway_url="http://127.0.0.1:8000")
+    auth.delete_provider_secret("psk_1")
+    auth.get_registration_guide()
+    auth.parse_curl_to_service_manifest("curl https://provider.example/health")
+    auth.update_provider_service("svc_rec_1", {"summary": "updated"})
+    auth.delete_provider_service("svc_rec_1")
+    auth.ping_provider_service("svc_rec_1")
+    auth.get_provider_service_health_history("svc_rec_1", limit=12)
+    auth.get_provider_earnings_summary()
+    auth.get_provider_withdrawal_capability()
+    auth.create_provider_withdrawal_intent(10, idempotency_key="provider-withdraw-fixed")
+    auth.list_provider_withdrawals(limit=5)
+    auth.redeem_voucher("ABC123DEF456", idempotency_key="voucher-fixed-1234")
+
+    urls = [call["url"] for call in calls[2:]]
+    assert urls[0].endswith("/api/v1/secrets/provider/psk_1")
+    assert urls[1].endswith("/api/v1/services/registration-guide")
+    assert urls[2].endswith("/api/v1/services/parse-curl")
+    assert calls[4]["json"] == {"curlCommand": "curl https://provider.example/health"}
+    assert urls[3].endswith("/api/v1/services/svc_rec_1")
+    assert urls[5].endswith("/api/v1/services/svc_rec_1/ping")
+    assert urls[6].endswith("/api/v1/services/svc_rec_1/health/history?limitPerTarget=12")
+    assert urls[7].endswith("/api/v1/providers/earnings/summary")
+    assert urls[8].endswith("/api/v1/providers/withdrawals/capability")
+    assert urls[9].endswith("/api/v1/providers/withdrawals/intent")
+    assert calls[11]["headers"]["X-Idempotency-Key"] == "provider-withdraw-fixed"
+    assert urls[10].endswith("/api/v1/providers/withdrawals?limit=5")
+    assert urls[11].endswith("/api/v1/balance/vouchers/redeem")

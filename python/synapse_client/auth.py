@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import time
 from typing import Any, Callable, Dict, Optional
+from urllib.parse import urlencode
 from uuid import uuid4
 
 import requests
@@ -151,6 +152,20 @@ class SynapseAuth:
             raise AuthenticationError(message)
         return payload
 
+    @staticmethod
+    def _require_value(value: str, name: str) -> str:
+        resolved = str(value or "").strip()
+        if not resolved:
+            raise ValueError(f"{name} is required")
+        return resolved
+
+    @staticmethod
+    def _query_path(path: str, params: Dict[str, Any]) -> str:
+        filtered = {key: value for key, value in params.items() if value is not None}
+        if not filtered:
+            return path
+        return f"{path}?{urlencode(filtered)}"
+
     def authenticate(self, force_refresh: bool = False) -> str:
         now = time.time()
         if (
@@ -199,7 +214,24 @@ class SynapseAuth:
         self._token_expires_at = 0
         return payload
 
+    def get_owner_profile(self) -> Dict[str, Any]:
+        """Return the authenticated owner profile."""
+        return self._request(
+            "GET",
+            "/api/v1/auth/me",
+            headers=self._authorized_headers(),
+        )
+
     def issue_credential(self, **options: Any) -> IssueCredentialResult:
+        aliases = {
+            "max_calls": "maxCalls",
+            "credit_limit": "creditLimit",
+            "reset_interval": "resetInterval",
+            "expires_in_sec": "expiresInSec",
+        }
+        for source, target in aliases.items():
+            if source in options and target not in options:
+                options[target] = options[source]
         body: Dict[str, Any] = {}
         for key in ("name", "maxCalls", "creditLimit", "resetInterval", "rpm", "expiresInSec", "expiration"):
             value = options.get(key)
@@ -244,6 +276,15 @@ class SynapseAuth:
         return IssueCredentialResult(credential=credential, token=credential.token or credential_token)
 
     def issue_provider_secret(self, **options: Any) -> IssueProviderSecretResult:
+        aliases = {
+            "max_calls": "maxCalls",
+            "credit_limit": "creditLimit",
+            "reset_interval": "resetInterval",
+            "expires_in_sec": "expiresInSec",
+        }
+        for source, target in aliases.items():
+            if source in options and target not in options:
+                options[target] = options[source]
         body: Dict[str, Any] = {}
         for key in ("name", "maxCalls", "creditLimit", "resetInterval", "rpm", "expiresInSec", "expiration"):
             value = options.get(key)
@@ -273,6 +314,15 @@ class SynapseAuth:
         if not isinstance(secrets, list):
             return []
         return [ProviderSecret.model_validate(item) for item in secrets if isinstance(item, dict)]
+
+    def delete_provider_secret(self, secret_id: str) -> Dict[str, Any]:
+        """Delete a provider control-plane secret."""
+        secret_id = self._require_value(secret_id, "secret_id")
+        return self._request(
+            "DELETE",
+            f"/api/v1/secrets/provider/{secret_id}",
+            headers=self._authorized_headers(),
+        )
 
     def list_credentials(self) -> list[AgentCredential]:
         payload = self._request(
@@ -312,19 +362,80 @@ class SynapseAuth:
 
     def get_credential_status(self, credential_id: str) -> CredentialStatusResult:
         """Check whether a credential is valid and usable."""
-        if not credential_id or not credential_id.strip():
-            raise ValueError("credential_id is required")
+        credential_id = self._require_value(credential_id, "credential_id")
         payload = self._request(
             "GET",
-            f"/api/v1/credentials/agent/{credential_id.strip()}/status",
+            f"/api/v1/credentials/agent/{credential_id}/status",
             headers=self._authorized_headers(),
         )
         return CredentialStatusResult.model_validate(payload)
 
+    def revoke_credential(self, credential_id: str) -> Dict[str, Any]:
+        """Revoke an agent credential without deleting its audit trail."""
+        credential_id = self._require_value(credential_id, "credential_id")
+        return self._request(
+            "POST",
+            f"/api/v1/credentials/agent/{credential_id}/revoke",
+            headers=self._authorized_headers(),
+        )
+
+    def rotate_credential(self, credential_id: str) -> Dict[str, Any]:
+        """Rotate an agent credential and return the gateway response containing the new token."""
+        credential_id = self._require_value(credential_id, "credential_id")
+        return self._request(
+            "POST",
+            f"/api/v1/credentials/agent/{credential_id}/rotate",
+            headers=self._authorized_headers(),
+        )
+
+    def delete_credential(self, credential_id: str) -> Dict[str, Any]:
+        """Delete an agent credential. Use revoke_credential for emergency shutoff."""
+        credential_id = self._require_value(credential_id, "credential_id")
+        return self._request(
+            "DELETE",
+            f"/api/v1/credentials/agent/{credential_id}",
+            headers=self._authorized_headers(),
+        )
+
+    def update_credential_quota(self, credential_id: str, **options: Any) -> Dict[str, Any]:
+        """Update spend/call/rate quota fields for an agent credential."""
+        credential_id = self._require_value(credential_id, "credential_id")
+        aliases = {
+            "max_calls": "maxCalls",
+            "credit_limit": "creditLimit",
+            "reset_interval": "resetInterval",
+            "expires_at": "expiresAt",
+        }
+        for source, target in aliases.items():
+            if source in options and target not in options:
+                options[target] = options[source]
+        body: Dict[str, Any] = {}
+        for key in ("maxCalls", "rpm", "creditLimit", "resetInterval", "expiresAt", "expiration"):
+            value = options.get(key)
+            if value is not None:
+                body[key] = value
+        return self._request(
+            "PATCH",
+            f"/api/v1/credentials/agent/{credential_id}/quota",
+            headers=self._authorized_headers(),
+            json_body=body,
+        )
+
+    def get_credential_audit_logs(self, *, limit: int = 100) -> Dict[str, Any]:
+        """Fetch credential lifecycle audit logs for the authenticated owner."""
+        return self._request(
+            "GET",
+            self._query_path("/api/v1/credentials/agent/audit-logs", {"limit": limit}),
+            headers=self._authorized_headers(),
+        )
+
+    def check_credential_status(self, credential_id: str) -> CredentialStatusResult:
+        """Alias for get_credential_status()."""
+        return self.get_credential_status(credential_id)
+
     def update_credential(self, credential_id: str, **options: Any) -> UpdateCredentialResult:
         """Update name and/or quota fields of a credential (PATCH)."""
-        if not credential_id or not credential_id.strip():
-            raise ValueError("credential_id is required")
+        credential_id = self._require_value(credential_id, "credential_id")
         body: Dict[str, Any] = {}
         for key in ("name", "maxCalls", "rpm", "expiresAt", "creditLimit", "resetInterval", "expiration"):
             value = options.get(key)
@@ -332,7 +443,7 @@ class SynapseAuth:
                 body[key] = value
         payload = self._request(
             "PATCH",
-            f"/api/v1/credentials/agent/{credential_id.strip()}",
+            f"/api/v1/credentials/agent/{credential_id}",
             headers=self._authorized_headers(),
             json_body=body,
         )
@@ -444,6 +555,43 @@ class SynapseAuth:
             json_body=body,
         )
 
+    def redeem_voucher(self, voucher_code: str, *, idempotency_key: Optional[str] = None) -> Dict[str, Any]:
+        """Redeem a voucher into the authenticated owner balance."""
+        voucher_code = self._require_value(voucher_code, "voucher_code")
+        return self._request(
+            "POST",
+            "/api/v1/balance/vouchers/redeem",
+            headers={
+                **self._authorized_headers(),
+                "X-Idempotency-Key": idempotency_key or f"voucher-{uuid4().hex}",
+            },
+            json_body={"voucherCode": voucher_code},
+        )
+
+    def get_usage_logs(self, *, limit: int = 100) -> Dict[str, Any]:
+        """Fetch owner usage logs for observability and billing review."""
+        return self._request(
+            "GET",
+            self._query_path("/api/v1/usage/logs", {"limit": limit}),
+            headers=self._authorized_headers(),
+        )
+
+    def get_finance_audit_logs(self, *, limit: int = 100) -> Dict[str, Any]:
+        """Fetch finance audit logs. High-impact finance actions remain explicit."""
+        return self._request(
+            "GET",
+            self._query_path("/api/v1/finance/audit-logs", {"limit": limit}),
+            headers=self._authorized_headers(),
+        )
+
+    def get_risk_overview(self) -> Dict[str, Any]:
+        """Return the owner finance risk overview."""
+        return self._request(
+            "GET",
+            "/api/v1/finance/risk-overview",
+            headers=self._authorized_headers(),
+        )
+
     def register_provider_service(
         self,
         *,
@@ -550,6 +698,106 @@ class SynapseAuth:
         if not isinstance(services, list):
             return []
         return [ProviderService.model_validate(item) for item in services if isinstance(item, dict)]
+
+    def get_registration_guide(self) -> Dict[str, Any]:
+        """Fetch the provider registration guide from the gateway control plane."""
+        return self._request(
+            "GET",
+            "/api/v1/services/registration-guide",
+            headers=self._authorized_headers(),
+        )
+
+    def parse_curl_to_service_manifest(self, curl_command: str) -> Dict[str, Any]:
+        """Convert a curl command into a provider service manifest draft."""
+        curl_command = self._require_value(curl_command, "curl_command")
+        return self._request(
+            "POST",
+            "/api/v1/services/parse-curl",
+            headers=self._authorized_headers(),
+            json_body={"curlCommand": curl_command},
+        )
+
+    def update_provider_service(self, service_record_id: str, patch: Dict[str, Any]) -> Dict[str, Any]:
+        """Patch a provider service registration by gateway record ID."""
+        service_record_id = self._require_value(service_record_id, "service_record_id")
+        return self._request(
+            "PUT",
+            f"/api/v1/services/{service_record_id}",
+            headers=self._authorized_headers(),
+            json_body=patch or {},
+        )
+
+    def delete_provider_service(self, service_record_id: str) -> Dict[str, Any]:
+        """Delete a provider service registration by gateway record ID."""
+        service_record_id = self._require_value(service_record_id, "service_record_id")
+        return self._request(
+            "DELETE",
+            f"/api/v1/services/{service_record_id}",
+            headers=self._authorized_headers(),
+        )
+
+    def ping_provider_service(self, service_record_id: str) -> Dict[str, Any]:
+        """Force a provider service health ping."""
+        service_record_id = self._require_value(service_record_id, "service_record_id")
+        return self._request(
+            "POST",
+            f"/api/v1/services/{service_record_id}/ping",
+            headers=self._authorized_headers(),
+        )
+
+    def get_provider_service_health_history(self, service_record_id: str, *, limit: int = 100) -> Dict[str, Any]:
+        """Fetch health history for a provider service."""
+        service_record_id = self._require_value(service_record_id, "service_record_id")
+        return self._request(
+            "GET",
+            self._query_path(f"/api/v1/services/{service_record_id}/health/history", {"limitPerTarget": limit}),
+            headers=self._authorized_headers(),
+        )
+
+    def get_provider_earnings_summary(self) -> Dict[str, Any]:
+        """Return provider earnings summary for the authenticated owner."""
+        return self._request(
+            "GET",
+            "/api/v1/providers/earnings/summary",
+            headers=self._authorized_headers(),
+        )
+
+    def get_provider_withdrawal_capability(self) -> Dict[str, Any]:
+        """Return whether provider withdrawals are currently available."""
+        return self._request(
+            "GET",
+            "/api/v1/providers/withdrawals/capability",
+            headers=self._authorized_headers(),
+        )
+
+    def create_provider_withdrawal_intent(
+        self,
+        amount_usdc: float,
+        *,
+        idempotency_key: Optional[str] = None,
+        destination_address: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """Create a provider withdrawal intent. This does not auto-submit funds on-chain."""
+        body: Dict[str, Any] = {"amountUsdc": amount_usdc}
+        if destination_address:
+            body["destinationAddress"] = destination_address
+        return self._request(
+            "POST",
+            "/api/v1/providers/withdrawals/intent",
+            headers={
+                **self._authorized_headers(),
+                "X-Idempotency-Key": idempotency_key or f"provider-withdraw-{uuid4().hex}",
+            },
+            json_body=body,
+        )
+
+    def list_provider_withdrawals(self, *, limit: int = 100) -> Dict[str, Any]:
+        """List provider withdrawal records."""
+        return self._request(
+            "GET",
+            self._query_path("/api/v1/providers/withdrawals", {"limit": limit}),
+            headers=self._authorized_headers(),
+        )
 
     def get_provider_service(self, service_id: str) -> ProviderService:
         resolved_service_id = str(service_id or "").strip()

@@ -295,6 +295,26 @@ test("invoke() returns pending result without polling when pollTimeoutMs is zero
   expect((globalThis.fetch as jest.Mock)).toHaveBeenCalledTimes(1);
 });
 
+test("invoke() polls when sync response is non-terminal and polling remains enabled", async () => {
+  const statuses = ["PENDING", "SUCCEEDED"];
+  (globalThis as unknown as Record<string, unknown>).fetch = jest.fn(async (url: string) => ({
+    ok: true,
+    status: 200,
+    text: async () =>
+      JSON.stringify(
+        url.includes("/api/v1/agent/invoke")
+          ? { invocationId: "inv_poll", status: "PENDING", chargedUsdc: 0 }
+          : { invocationId: "inv_poll", status: statuses.shift() ?? "SUCCEEDED", chargedUsdc: 0.03 }
+      ),
+  } as Response));
+
+  const client = new SynapseClient({ credential: "agt_test" });
+  const result = await client.invoke("svc_poll", {}, { costUsdc: 0.03, pollIntervalMs: 0, pollTimeoutMs: 50 });
+
+  expect(result.status).toBe("SUCCEEDED");
+  expect((globalThis.fetch as jest.Mock).mock.calls.length).toBeGreaterThan(1);
+});
+
 test("waitForInvocation polls until a terminal receipt is returned", async () => {
   const statuses = ["PENDING", "SUCCEEDED"];
   (globalThis as unknown as Record<string, unknown>).fetch = jest.fn(async (url: string) => ({
@@ -347,4 +367,168 @@ test("search accepts legacy array discovery response", async () => {
   const services = await client.search("array", { limit: 0, offset: -10 });
 
   expect(services).toEqual([{ serviceId: "svc_array", serviceName: "Array Service" }]);
+});
+
+test("invokeWithRediscovery retries once with live discovered price", async () => {
+  const calls: Array<{ url: string; body?: Record<string, unknown> }> = [];
+  let invokeCount = 0;
+  (globalThis as unknown as Record<string, unknown>).fetch = jest.fn(async (url: string, init?: RequestInit) => {
+    const body = init?.body ? JSON.parse(init.body as string) as Record<string, unknown> : undefined;
+    calls.push({ url, body });
+    if (url.includes("/api/v1/agent/invoke")) {
+      invokeCount += 1;
+      if (invokeCount === 1) {
+        return {
+          ok: false,
+          status: 422,
+          text: async () =>
+            JSON.stringify({
+              detail: {
+                code: "PRICE_MISMATCH",
+                message: "Price changed",
+                expectedPriceUsdc: 0.05,
+                currentPriceUsdc: 0.12,
+              },
+            }),
+        } as Response;
+      }
+      return {
+        ok: true,
+        status: 200,
+        text: async () => JSON.stringify({ invocationId: "inv_retry", status: "SUCCEEDED", chargedUsdc: 0.12 }),
+      } as Response;
+    }
+    return {
+      ok: true,
+      status: 200,
+      text: async () =>
+        JSON.stringify({
+          services: [{ serviceId: "svc_1", serviceName: "Service 1", pricing: { amount: "0.12", currency: "USDC" } }],
+        }),
+    } as Response;
+  });
+
+  const client = new SynapseClient({ credential: "agt_test" });
+  const result = await client.invokeWithRediscovery("svc_1", { prompt: "hi" }, {
+    costUsdc: 0.05,
+    query: "market data",
+    idempotencyKey: "ik-retry",
+  });
+
+  expect(result.invocationId).toBe("inv_retry");
+  expect(calls[1].url).toContain("/api/v1/agent/discovery/search");
+  expect(calls[1].body?.query).toBe("market data");
+  expect(calls[2].body?.costUsdc).toBe(0.12);
+});
+
+test("gateway health, invocation receipt alias, and empty discovery diagnostics are exposed", async () => {
+  (globalThis as unknown as Record<string, unknown>).fetch = jest.fn(async (url: string) => ({
+    ok: true,
+    status: 200,
+    text: async () =>
+      url.endsWith("/health")
+        ? JSON.stringify({ status: "ok" })
+        : JSON.stringify({ invocationId: "inv_1", status: "SUCCEEDED", chargedUsdc: 0 }),
+  } as Response));
+
+  const client = new SynapseClient({ credential: "agt_test", environment: "local" });
+  await expect(client.checkGatewayHealth()).resolves.toEqual({ status: "ok" });
+  await expect(client.getInvocationReceipt("inv_1")).resolves.toMatchObject({ invocationId: "inv_1" });
+  expect(client.explainDiscoveryEmptyResult({ query: "quotes" })).toMatchObject({ query: "quotes" });
+});
+
+test("invokeWithRediscovery respects disabled retry and falls back to gateway live price", async () => {
+  (globalThis as unknown as Record<string, unknown>).fetch = jest.fn(async () => ({
+    ok: false,
+    status: 422,
+    text: async () =>
+      JSON.stringify({
+        detail: {
+          code: "PRICE_MISMATCH",
+          message: "Price changed",
+          expectedPriceUsdc: 0.05,
+          currentPriceUsdc: 0.12,
+        },
+      }),
+  } as Response));
+
+  const client = new SynapseClient({ credential: "agt_test" });
+  await expect(client.invokeWithRediscovery("svc_1", {}, {
+    costUsdc: 0.05,
+    maxRediscoveryRetries: 0,
+  })).rejects.toThrow(PriceMismatchError);
+});
+
+test("invokeWithRediscovery handles string prices and missing discovered prices", async () => {
+  const calls: Array<{ url: string; body?: Record<string, unknown> }> = [];
+  let invokeCount = 0;
+  (globalThis as unknown as Record<string, unknown>).fetch = jest.fn(async (url: string, init?: RequestInit) => {
+    const body = init?.body ? JSON.parse(init.body as string) as Record<string, unknown> : undefined;
+    calls.push({ url, body });
+    if (url.includes("/api/v1/agent/invoke")) {
+      invokeCount += 1;
+      if (invokeCount === 1) {
+        return {
+          ok: false,
+          status: 422,
+          text: async () =>
+            JSON.stringify({
+              detail: {
+                code: "PRICE_MISMATCH",
+                message: "Price changed",
+                expectedPriceUsdc: 0.05,
+                currentPriceUsdc: 0.13,
+              },
+            }),
+        } as Response;
+      }
+      return {
+        ok: true,
+        status: 200,
+        text: async () => JSON.stringify({ invocationId: "inv_string_price", status: "SUCCEEDED", chargedUsdc: 0.14 }),
+      } as Response;
+    }
+    return {
+      ok: true,
+      status: 200,
+      text: async () => JSON.stringify({ services: [{ serviceId: "svc_1", pricing: "0.14" }] }),
+    } as Response;
+  });
+
+  const client = new SynapseClient({ credential: "agt_test" });
+  const result = await client.invokeWithRediscovery("svc_1", {}, { costUsdc: 0.05 });
+
+  expect(result.invocationId).toBe("inv_string_price");
+  expect(calls[2].body?.costUsdc).toBe(0.14);
+});
+
+test("invokeWithRediscovery fails clearly when rediscovery cannot provide a price", async () => {
+  let invokeCount = 0;
+  (globalThis as unknown as Record<string, unknown>).fetch = jest.fn(async (url: string) => {
+    if (url.includes("/api/v1/agent/invoke")) {
+      invokeCount += 1;
+      return {
+        ok: false,
+        status: 422,
+        text: async () =>
+          JSON.stringify({
+            detail: {
+              code: "PRICE_MISMATCH",
+              message: "Price changed but no live price was returned",
+              expectedPriceUsdc: 0.05,
+              currentPriceUsdc: 0,
+            },
+          }),
+      } as Response;
+    }
+    return {
+      ok: true,
+      status: 200,
+      text: async () => JSON.stringify({ services: [{ serviceId: "svc_1", pricing: {} }] }),
+    } as Response;
+  });
+
+  const client = new SynapseClient({ credential: "agt_test" });
+  await expect(client.invokeWithRediscovery("svc_1", {}, { costUsdc: 0.05 })).rejects.toThrow(PriceMismatchError);
+  expect(invokeCount).toBe(1);
 });

@@ -271,6 +271,39 @@ class SynapseClient:
     def get_invocation(self, invocation_id: str) -> InvocationResponse:
         return self.get_invocation_receipt(invocation_id)
 
+    def check_gateway_health(self) -> Dict[str, Any]:
+        """Check the public gateway health endpoint without consuming agent budget."""
+        response = requests.get(
+            f"{self.gateway_url}/health",
+            timeout=self.timeout_sec,
+        )
+        self._raise_for_error(response, InvokeError("gateway health check failed"))
+        return self._response_payload(response)
+
+    @staticmethod
+    def explain_discovery_empty_result(
+        *,
+        query: Optional[str] = None,
+        tags: Optional[list[str]] = None,
+    ) -> Dict[str, Any]:
+        """Return agent-friendly diagnostics for an empty discovery result."""
+        reasons = [
+            "No provider service matched the current discovery filters.",
+            "The matching provider may be inactive, unhealthy, or not yet registered in this environment.",
+            "The agent credential may target a different environment than the provider service.",
+        ]
+        suggestions = [
+            "Retry with a broader query and no tags.",
+            "Confirm SYNAPSE_ENV / gateway_url matches the provider registration environment.",
+            "Ask the provider owner to verify service status and health history.",
+        ]
+        return {
+            "query": query or "",
+            "tags": tags or [],
+            "possibleReasons": reasons,
+            "suggestions": suggestions,
+        }
+
     def wait_for_invocation(
         self,
         invocation_id: str,
@@ -329,6 +362,60 @@ class SynapseClient:
         if invocation.status in TERMINAL_STATUSES:
             return invocation
         return self.wait_for_invocation(invocation.invocation_id, max_wait_sec=poll_timeout_sec)
+
+    def invoke_with_rediscovery(
+        self,
+        service_id: str,
+        payload: Optional[Dict[str, Any]] = None,
+        *,
+        query: Optional[str] = None,
+        tags: Optional[list[str]] = None,
+        cost_usdc: float,
+        max_rediscovery_retries: int = 1,
+        idempotency_key: Optional[str] = None,
+        response_mode: str = "sync",
+        poll_timeout_sec: int = 90,
+        request_id: Optional[str] = None,
+    ) -> InvocationResponse:
+        """Invoke once, then handle PRICE_MISMATCH by re-discovering and retrying once by default."""
+        try:
+            return self.invoke(
+                service_id,
+                payload,
+                cost_usdc=cost_usdc,
+                idempotency_key=idempotency_key,
+                response_mode=response_mode,
+                poll_timeout_sec=poll_timeout_sec,
+                request_id=request_id,
+            )
+        except PriceMismatchError as exc:
+            if max_rediscovery_retries <= 0:
+                raise
+
+            live_price = float(exc.current_price_usdc or 0)
+            services = self.search(
+                query or service_id,
+                limit=10,
+                tags=tags,
+                request_id=request_id,
+            )
+            for service in services:
+                if getattr(service, "service_id", "") == service_id or getattr(service, "serviceId", "") == service_id:
+                    if service.price_usdc is not None:
+                        live_price = float(service.price_usdc)
+                    break
+            if live_price <= 0:
+                raise
+
+            return self.invoke(
+                service_id,
+                payload,
+                cost_usdc=live_price,
+                idempotency_key=idempotency_key,
+                response_mode=response_mode,
+                poll_timeout_sec=poll_timeout_sec,
+                request_id=request_id,
+            )
 
 
 class AgentWallet(SynapseClient):

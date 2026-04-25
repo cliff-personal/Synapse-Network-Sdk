@@ -271,3 +271,110 @@ test("auth fetch includes HTTP detail for non-ok responses", async () => {
   mockFetch([{ status: 500, body: { detail: { code: "BROKEN" } } }]);
   await expect(authForTests().authenticate()).rejects.toThrow("HTTP 500");
 });
+
+test("credential lifecycle and owner observability helpers call current gateway routes", async () => {
+  const calls = mockFetch([
+    ...authHandshakeResponses(),
+    { body: { status: "success" } },
+    { body: { status: "success" } },
+    { body: { status: "success" } },
+    { body: { status: "success" } },
+    { body: { logs: [] } },
+    { body: { profile: { ownerAddress: "0xabcdef" } } },
+    { body: { logs: [] } },
+    { body: { logs: [] } },
+    { body: { risk: "low" } },
+  ]);
+  const auth = authForTests();
+
+  await auth.revokeCredential("cred_1");
+  await auth.rotateCredential("cred_1");
+  await auth.updateCredentialQuota("cred_1", { creditLimit: 5, rpm: 60 });
+  await auth.deleteCredential("cred_1");
+  await auth.getCredentialAuditLogs({ limit: 25 });
+  await auth.getOwnerProfile();
+  await auth.getUsageLogs({ limit: 10 });
+  await auth.getFinanceAuditLogs({ limit: 7 });
+  await auth.getRiskOverview();
+
+  expect(calls[2].url).toContain("/api/v1/credentials/agent/cred_1/revoke");
+  expect(calls[3].url).toContain("/api/v1/credentials/agent/cred_1/rotate");
+  expect(calls[4].url).toContain("/api/v1/credentials/agent/cred_1/quota");
+  expect(JSON.parse((calls[4].init?.body as string) ?? "{}")).toEqual({ creditLimit: 5, rpm: 60 });
+  expect(calls[5].url).toContain("/api/v1/credentials/agent/cred_1");
+  expect(calls[6].url).toContain("/api/v1/credentials/agent/audit-logs?limit=25");
+  expect(calls[7].url).toContain("/api/v1/auth/me");
+  expect(calls[8].url).toContain("/api/v1/usage/logs?limit=10");
+  expect(calls[9].url).toContain("/api/v1/finance/audit-logs?limit=7");
+  expect(calls[10].url).toContain("/api/v1/finance/risk-overview");
+});
+
+test("logout clears session and credential status aliases share current route", async () => {
+  const calls = mockFetch([
+    ...authHandshakeResponses(),
+    { body: { status: "valid" } },
+    { body: { status: "valid" } },
+    { body: { status: "logged_out" } },
+    { body: { success: true, challenge: "sign again", domain: "synapse" } },
+    { body: { success: true, access_token: "jwt-token-2", token_type: "bearer", expires_in: 3600 } },
+  ]);
+  const auth = authForTests();
+
+  await expect(auth.checkCredentialStatus("cred_1")).resolves.toEqual({ status: "valid" });
+  await expect(auth.getCredentialStatus("cred_1")).resolves.toEqual({ status: "valid" });
+  await expect(auth.logout()).resolves.toEqual({ status: "logged_out" });
+  await expect(auth.getToken()).resolves.toBe("jwt-token-2");
+
+  expect(calls[2].url).toContain("/api/v1/credentials/agent/cred_1/status");
+  expect(calls[3].url).toContain("/api/v1/credentials/agent/cred_1/status");
+  expect(calls[4].url).toContain("/api/v1/auth/logout");
+  expect(calls[5].url).toContain("/api/v1/auth/challenge");
+});
+
+test("provider lifecycle and finance helpers call current gateway routes", async () => {
+  const calls = mockFetch([
+    ...authHandshakeResponses(),
+    { body: { status: "success" } },
+    { body: { steps: [] } },
+    { body: { data: { serviceId: "svc_1" } } },
+    { body: { status: "success" } },
+    { body: { status: "success" } },
+    { body: { status: "success" } },
+    { body: { history: [] } },
+    { body: { total: "12.34" } },
+    { body: { available: true } },
+    { body: { intentId: "wd_1" } },
+    { body: { withdrawals: [] } },
+    { body: { status: "redeemed" } },
+  ]);
+  const auth = authForTests();
+
+  await auth.deleteProviderSecret("psk_1");
+  await auth.getRegistrationGuide();
+  await auth.parseCurlToServiceManifest("curl https://provider.example/health");
+  await auth.updateProviderService("svc_rec_1", { summary: "updated" });
+  await auth.deleteProviderService("svc_rec_1");
+  await auth.pingProviderService("svc_rec_1");
+  await auth.getProviderServiceHealthHistory("svc_rec_1", { limitPerTarget: 12 });
+  await auth.getProviderEarningsSummary();
+  await auth.getProviderWithdrawalCapability();
+  await auth.createProviderWithdrawalIntent(10, { idempotencyKey: "provider-withdraw-fixed" });
+  await auth.listProviderWithdrawals({ limit: 5 });
+  await auth.redeemVoucher("ABC123DEF456", "voucher-fixed-1234");
+
+  expect(calls[2].url).toContain("/api/v1/secrets/provider/psk_1");
+  expect(calls[3].url).toContain("/api/v1/services/registration-guide");
+  expect(calls[4].url).toContain("/api/v1/services/parse-curl");
+  expect(JSON.parse((calls[4].init?.body as string) ?? "{}")).toEqual({
+    curlCommand: "curl https://provider.example/health",
+  });
+  expect(calls[5].url).toContain("/api/v1/services/svc_rec_1");
+  expect(calls[7].url).toContain("/api/v1/services/svc_rec_1/ping");
+  expect(calls[8].url).toContain("/api/v1/services/svc_rec_1/health/history?limitPerTarget=12");
+  expect(calls[9].url).toContain("/api/v1/providers/earnings/summary");
+  expect(calls[10].url).toContain("/api/v1/providers/withdrawals/capability");
+  expect(calls[11].url).toContain("/api/v1/providers/withdrawals/intent");
+  expect(headersOf(calls[11])["X-Idempotency-Key"]).toBe("provider-withdraw-fixed");
+  expect(calls[12].url).toContain("/api/v1/providers/withdrawals?limit=5");
+  expect(calls[13].url).toContain("/api/v1/balance/vouchers/redeem");
+});
