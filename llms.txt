@@ -2,7 +2,15 @@
 
 This is the SDK and developer onboarding repository for Synapse Network.
 
+这是 Synapse Network 的 SDK 与开发者接入仓库。
+
+English appears first. Chinese follows each major section.
+
+英文在前，中文说明紧随其后。
+
 ## Start Here
+
+优先阅读。
 
 - AGENTS.md - repository-local agent instructions and validation expectations
 - docs/agent-map/README.md - task-to-file map for AI agents
@@ -16,7 +24,21 @@ This is the SDK and developer onboarding repository for Synapse Network.
 - https://staging.synapse-network.ai/docs/sdk/typescript - public preview TypeScript SDK runbook
 - scripts/ci/pr_checks.sh - local PR quality gate used by GitHub Actions
 
+中文入口说明：
+
+- AGENTS.md - 仓库级 Agent 指令和验证要求
+- docs/agent-map/README.md - 面向 AI Agent 的任务到文件映射
+- docs/agent-map/index.json - 机器可读路由映射
+- llm-instructions.md - Agent 集成 SDK 的最小提示规则
+- README.md - public preview README 和最短接入示例
+- SECURITY.md - 漏洞报告、凭据处理、staging/prod 安全边界
+- docs/sdk/README.md - SDK 文档 hub
+- docs/sdk/capability_inventory.md - Python 和 TypeScript SDK 当前能力真相
+- scripts/ci/pr_checks.sh - GitHub Actions 复用的本地 PR 质量门禁
+
 ## Main Areas
+
+主要区域。
 
 - Python SDK: `python/synapse_client`
 - TypeScript SDK: `typescript/src`
@@ -27,6 +49,8 @@ This is the SDK and developer onboarding repository for Synapse Network.
 
 ## Validation
 
+验证命令。
+
 - Full PR gate: `bash scripts/ci/pr_checks.sh`
 - Python checks: `bash scripts/ci/python_checks.sh`
 - TypeScript checks: `bash scripts/ci/typescript_checks.sh`
@@ -34,9 +58,20 @@ This is the SDK and developer onboarding repository for Synapse Network.
 
 ## Boundaries
 
+边界。
+
 - Default public preview environment is staging: `https://api-staging.synapse-network.ai`.
 - Do not reintroduce the retired gateway domain from the old `.network` namespace.
 - Do not commit real credentials, provider secrets, private keys, wallet seed phrases, or production tokens.
 - SDK runtime flow is discovery/search plus price-asserted invoke plus receipt.
 - Agent runtime code should use `SynapseClient` with an `agt_xxx` key. Do not initialize `SynapseAuth` unless the task explicitly asks for owner credential issuance.
 - Old Python quote-first helpers are deprecated compatibility shims and must not call removed gateway endpoints.
+
+中文边界：
+
+- 默认 public preview 环境是 staging: `https://api-staging.synapse-network.ai`。
+- 不要恢复旧 `.network` namespace 下的退役 gateway 域名。
+- 不要提交真实凭据、provider secret、私钥、钱包助记词或生产 token。
+- SDK runtime 主链是 discovery/search + price-asserted invoke + receipt。
+- Agent runtime 代码应使用 `SynapseClient` 和 `agt_xxx` key。除非任务明确要求 owner credential issuance，否则不要初始化 `SynapseAuth`。
+- 旧 Python quote-first helper 是废弃兼容层，不能调用已移除的 gateway endpoint。
