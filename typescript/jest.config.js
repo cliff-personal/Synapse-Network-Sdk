@@ -18,6 +18,15 @@ module.exports = {
       },
     ],
   },
+  collectCoverageFrom: ["src/**/*.ts", "!src/**/*.d.ts"],
+  coverageThreshold: {
+    global: {
+      branches: 75,
+      functions: 75,
+      lines: 75,
+      statements: 75,
+    },
+  },
   testTimeout: 120000,
   verbose: true,
 };

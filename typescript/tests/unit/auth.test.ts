@@ -1,0 +1,273 @@
+import { SynapseAuth, SynapseClient, AuthenticationError, resolveGatewayUrl } from "../../src";
+
+type MockResponse = { status?: number; body: unknown };
+
+function mockFetch(responses: MockResponse[]) {
+  const calls: Array<{ url: string; init?: RequestInit }> = [];
+  let index = 0;
+  (globalThis as unknown as Record<string, unknown>).fetch = jest.fn(
+    async (url: string, init?: RequestInit) => {
+      calls.push({ url, init });
+      const response = responses[Math.min(index, responses.length - 1)];
+      index += 1;
+      const status = response.status ?? 200;
+      return {
+        ok: status >= 200 && status < 300,
+        status,
+        text: async () =>
+          typeof response.body === "string" ? response.body : JSON.stringify(response.body),
+      } as Response;
+    }
+  );
+  return calls;
+}
+
+function authForTests(): SynapseAuth {
+  return SynapseAuth.fromWallet(
+    {
+      address: "0xABCDEF",
+      signMessage: async (message: string) => `signed:${message}`,
+    },
+    { environment: "local" }
+  );
+}
+
+function authHandshakeResponses(token = "jwt-token"): MockResponse[] {
+  return [
+    { body: { success: true, challenge: "sign this", domain: "synapse" } },
+    { body: { success: true, access_token: token, token_type: "bearer", expires_in: 3600 } },
+  ];
+}
+
+function headersOf(call: { init?: RequestInit }): Record<string, string> {
+  return (call.init?.headers ?? {}) as Record<string, string>;
+}
+
+beforeEach(() => {
+  jest.restoreAllMocks();
+});
+
+test("public barrel exports SDK entrypoints", () => {
+  expect(SynapseAuth).toBeDefined();
+  expect(SynapseClient).toBeDefined();
+  expect(resolveGatewayUrl({ environment: "local" })).toBe("http://127.0.0.1:8000");
+});
+
+test("authenticate signs challenge, verifies wallet, and caches JWT", async () => {
+  const signer = jest.fn(async (message: string) => `signature:${message}`);
+  const calls = mockFetch(authHandshakeResponses("cached-jwt"));
+  const auth = new SynapseAuth({
+    environment: "local",
+    signer,
+    walletAddress: "0xABCDEF",
+  });
+
+  await expect(auth.authenticate()).resolves.toBe("cached-jwt");
+  await expect(auth.getToken()).resolves.toBe("cached-jwt");
+
+  expect(signer).toHaveBeenCalledTimes(1);
+  expect(calls).toHaveLength(2);
+  expect(calls[0].url).toContain("/api/v1/auth/challenge?address=0xabcdef");
+  expect(calls[1].url).toContain("/api/v1/auth/verify");
+  expect(JSON.parse((calls[1].init?.body as string) ?? "{}")).toEqual({
+    wallet_address: "0xabcdef",
+    message: "sign this",
+    signature: "signature:sign this",
+  });
+});
+
+test("authenticate maps unsuccessful challenge and verify responses to AuthenticationError", async () => {
+  mockFetch([{ body: { success: false, error: "bad challenge" } }]);
+  await expect(authForTests().authenticate()).rejects.toThrow(AuthenticationError);
+
+  mockFetch([
+    { body: { success: true, challenge: "sign this" } },
+    { body: { success: false, error: "bad verify" } },
+  ]);
+  await expect(authForTests().authenticate()).rejects.toThrow(AuthenticationError);
+});
+
+test("issueCredential returns flattened credential token and metadata", async () => {
+  const calls = mockFetch([
+    ...authHandshakeResponses(),
+    {
+      body: {
+        credential: {
+          id: "cred_1",
+          token: "agt_1",
+          status: "active",
+        },
+      },
+    },
+  ]);
+
+  const result = await authForTests().issueCredential({
+    name: "CI bot",
+    maxCalls: 10,
+    creditLimit: 2,
+    resetInterval: "monthly",
+    rpm: 30,
+    expiresInSec: 600,
+  });
+
+  expect(result.token).toBe("agt_1");
+  expect(result.credential.credential_id).toBe("cred_1");
+  expect(JSON.parse((calls[2].init?.body as string) ?? "{}")).toEqual({
+    name: "CI bot",
+    maxCalls: 10,
+    creditLimit: 2,
+    resetInterval: "monthly",
+    rpm: 30,
+    expiresInSec: 600,
+  });
+});
+
+test("issueCredential fails when gateway omits credential token or id", async () => {
+  mockFetch([...authHandshakeResponses(), { body: { credential: { id: "cred_1" } } }]);
+  await expect(authForTests().issueCredential()).rejects.toThrow("Credential token missing");
+
+  mockFetch([...authHandshakeResponses(), { body: { token: "agt_1" } }]);
+  await expect(authForTests().issueCredential()).rejects.toThrow("Credential ID missing");
+});
+
+test("provider secret and credential list APIs use owner bearer token", async () => {
+  const calls = mockFetch([
+    ...authHandshakeResponses(),
+    { body: { status: "ok", secret: { id: "sec_1", token: "prov_1" } } },
+    { body: { secrets: [{ id: "sec_1", token: "prov_1" }] } },
+    { body: { credentials: [{ id: "cred_1", token: "agt_1", status: "active" }] } },
+  ]);
+  const auth = authForTests();
+
+  await expect(auth.issueProviderSecret({ name: "provider" })).resolves.toEqual({
+    status: "ok",
+    secret: { id: "sec_1", token: "prov_1" },
+  });
+  await expect(auth.listProviderSecrets()).resolves.toHaveLength(1);
+  await expect(auth.listCredentials()).resolves.toHaveLength(1);
+
+  expect(calls.slice(2).every((call) => headersOf(call)["Authorization"] === "Bearer jwt-token")).toBe(true);
+});
+
+test("issueProviderSecret fails on malformed gateway payload", async () => {
+  mockFetch([...authHandshakeResponses(), { body: { status: "ok", secret: {} } }]);
+  await expect(authForTests().issueProviderSecret()).rejects.toThrow("Provider secret payload missing");
+});
+
+test("balance, deposit, confirm, and spending limit APIs send expected payloads", async () => {
+  const calls = mockFetch([
+    ...authHandshakeResponses(),
+    { body: { balance: { availableUsdc: 42 } } },
+    { body: { status: "registered", intentId: "dep_1" } },
+    { body: { status: "confirmed" } },
+    { body: { status: "limited" } },
+    { body: { status: "unlimited" } },
+  ]);
+  const auth = authForTests();
+
+  await expect(auth.getBalance()).resolves.toEqual({ availableUsdc: 42 });
+  await expect(auth.registerDepositIntent("0xtx", 1.25, "idem-1")).resolves.toEqual({
+    status: "registered",
+    intentId: "dep_1",
+  });
+  await expect(auth.confirmDeposit("dep_1", "event-1")).resolves.toEqual({ status: "confirmed" });
+  await expect(auth.setSpendingLimit(9.5)).resolves.toBeUndefined();
+  await expect(auth.setSpendingLimit(null)).resolves.toBeUndefined();
+
+  expect(headersOf(calls[3])["X-Idempotency-Key"]).toBe("idem-1");
+  expect(JSON.parse((calls[4].init?.body as string) ?? "{}")).toEqual({
+    eventKey: "event-1",
+    confirmations: 1,
+  });
+  expect(JSON.parse((calls[5].init?.body as string) ?? "{}")).toEqual({
+    spendingLimitUsdc: 9.5,
+    allowUnlimited: false,
+  });
+  expect(JSON.parse((calls[6].init?.body as string) ?? "{}")).toEqual({
+    allowUnlimited: true,
+  });
+});
+
+test("registerProviderService validates input and builds provider service contract", async () => {
+  await expect(authForTests().registerProviderService({
+    serviceName: "",
+    endpointUrl: "http://provider.local/invoke",
+    descriptionForModel: "Summarize text",
+    basePriceUsdc: 0.01,
+  })).rejects.toThrow("serviceName is required");
+  await expect(authForTests().registerProviderService({
+    serviceName: "Summarizer",
+    endpointUrl: "",
+    descriptionForModel: "Summarize text",
+    basePriceUsdc: 0.01,
+  })).rejects.toThrow("endpointUrl is required");
+  await expect(authForTests().registerProviderService({
+    serviceName: "Summarizer",
+    endpointUrl: "http://provider.local/invoke",
+    descriptionForModel: "",
+    basePriceUsdc: 0.01,
+  })).rejects.toThrow("descriptionForModel is required");
+
+  const calls = mockFetch([
+    ...authHandshakeResponses(),
+    { body: { status: "created", service: { serviceId: "summarizer", status: "active" } } },
+  ]);
+
+  await expect(authForTests().registerProviderService({
+    serviceName: "Summarizer Pro",
+    endpointUrl: "http://provider.local/invoke",
+    descriptionForModel: "Summarize text",
+    basePriceUsdc: 0.05,
+    tags: ["text"],
+    providerDisplayName: "Provider Inc",
+  })).resolves.toMatchObject({
+    status: "created",
+    serviceId: "summarizer",
+  });
+
+  const body = JSON.parse((calls[2].init?.body as string) ?? "{}");
+  expect(body.serviceId).toBe("summarizer_pro");
+  expect(body.pricing).toEqual({ amount: "0.05", currency: "USDC" });
+  expect(body.providerProfile).toEqual({ displayName: "Provider Inc" });
+  expect(body.payoutAccount.payoutAddress).toBe("0xabcdef");
+});
+
+test("provider service lookup and status derive from listed services", async () => {
+  mockFetch([
+    ...authHandshakeResponses(),
+    {
+      body: {
+        services: [
+          {
+            serviceId: "svc_1",
+            status: "active",
+            runtimeAvailable: true,
+            health: { ok: true },
+          },
+        ],
+      },
+    },
+  ]);
+  const auth = authForTests();
+
+  await expect(auth.listProviderServices()).resolves.toHaveLength(1);
+  await expect(auth.getProviderService("svc_1")).resolves.toMatchObject({ serviceId: "svc_1" });
+  await expect(auth.getProviderServiceStatus("svc_1")).resolves.toEqual({
+    serviceId: "svc_1",
+    lifecycleStatus: "active",
+    runtimeAvailable: true,
+    health: { ok: true },
+  });
+});
+
+test("provider service lookup rejects empty or unknown service id", async () => {
+  await expect(authForTests().getProviderService(" ")).rejects.toThrow("serviceId is required");
+
+  mockFetch([...authHandshakeResponses(), { body: { services: [] } }]);
+  await expect(authForTests().getProviderService("missing")).rejects.toThrow(AuthenticationError);
+});
+
+test("auth fetch includes HTTP detail for non-ok responses", async () => {
+  mockFetch([{ status: 500, body: { detail: { code: "BROKEN" } } }]);
+  await expect(authForTests().authenticate()).rejects.toThrow("HTTP 500");
+});

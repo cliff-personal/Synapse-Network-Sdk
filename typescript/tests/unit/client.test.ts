@@ -10,9 +10,11 @@ import { SynapseAuth } from "../../src/auth";
 import { resolveGatewayUrl } from "../../src/config";
 import {
   AuthenticationError,
+  DiscoveryError,
   InsufficientFundsError,
   InvokeError,
   PriceMismatchError,
+  TimeoutError,
 } from "../../src/errors";
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -277,4 +279,72 @@ test("invoke() throws PriceMismatchError on 422 PRICE_MISMATCH", async () => {
   expect(err).toBeInstanceOf(PriceMismatchError);
   expect((err as PriceMismatchError).expectedPriceUsdc).toBeCloseTo(0.05);
   expect((err as PriceMismatchError).currentPriceUsdc).toBeCloseTo(0.15);
+});
+
+test("invoke() returns pending result without polling when pollTimeoutMs is zero", async () => {
+  (globalThis as unknown as Record<string, unknown>).fetch = jest.fn(async () => ({
+    ok: true,
+    status: 200,
+    text: async () => JSON.stringify({ invocationId: "inv_pending", status: "PENDING" }),
+  } as Response));
+
+  const client = new SynapseClient({ credential: "agt_test" });
+  const result = await client.invoke("svc_pending", {}, { costUsdc: 0.01, pollTimeoutMs: 0 });
+
+  expect(result.status).toBe("PENDING");
+  expect((globalThis.fetch as jest.Mock)).toHaveBeenCalledTimes(1);
+});
+
+test("waitForInvocation polls until a terminal receipt is returned", async () => {
+  const statuses = ["PENDING", "SUCCEEDED"];
+  (globalThis as unknown as Record<string, unknown>).fetch = jest.fn(async (url: string) => ({
+    ok: true,
+    status: 200,
+    text: async () =>
+      JSON.stringify({
+        id: decodeURIComponent(url.split("/").pop() ?? ""),
+        status: statuses.shift() ?? "SUCCEEDED",
+        charged_usdc: 0.2,
+      }),
+  } as Response));
+
+  const client = new SynapseClient({ credential: "agt_test" });
+  const result = await client.waitForInvocation("inv spaced", { pollTimeoutMs: 50, pollIntervalMs: 0 });
+
+  expect(result.invocationId).toBe("inv spaced");
+  expect(result.status).toBe("SUCCEEDED");
+  expect(result.chargedUsdc).toBeCloseTo(0.2);
+  expect((globalThis.fetch as jest.Mock).mock.calls[0][0]).toContain("inv%20spaced");
+});
+
+test("waitForInvocation times out when receipt never reaches terminal state", async () => {
+  (globalThis as unknown as Record<string, unknown>).fetch = jest.fn();
+
+  const client = new SynapseClient({ credential: "agt_test" });
+  await expect(client.waitForInvocation("inv_timeout", { pollTimeoutMs: 0 })).rejects.toThrow(TimeoutError);
+});
+
+test("discover and search map gateway failures to DiscoveryError", async () => {
+  (globalThis as unknown as Record<string, unknown>).fetch = jest.fn(async () => ({
+    ok: false,
+    status: 500,
+    text: async () => JSON.stringify({ detail: { code: "DISCOVERY_DOWN" } }),
+  } as Response));
+
+  const client = new SynapseClient({ credential: "agt_test" });
+  await expect(client.search("broken")).rejects.toThrow(DiscoveryError);
+  await expect(client.discover()).rejects.toThrow(DiscoveryError);
+});
+
+test("search accepts legacy array discovery response", async () => {
+  (globalThis as unknown as Record<string, unknown>).fetch = jest.fn(async () => ({
+    ok: true,
+    status: 200,
+    text: async () => JSON.stringify([{ serviceId: "svc_array", serviceName: "Array Service" }]),
+  } as Response));
+
+  const client = new SynapseClient({ credential: "agt_test" });
+  const services = await client.search("array", { limit: 0, offset: -10 });
+
+  expect(services).toEqual([{ serviceId: "svc_array", serviceName: "Array Service" }]);
 });

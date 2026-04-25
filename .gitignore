@@ -8,10 +8,13 @@ dist/
 build/
 .pytest_cache/
 .mypy_cache/
+.coverage
+coverage.xml
 
 # TypeScript / Node
 node_modules/
 dist/
+coverage/
 *.tsbuildinfo
 
 # IDE

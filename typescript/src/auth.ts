@@ -271,7 +271,6 @@ export class SynapseAuth {
   async registerProviderService(
     opts: RegisterProviderServiceOptions
   ): Promise<RegisterProviderServiceResult> {
-    const token = await this.getToken();
     const serviceName = opts.serviceName?.trim();
     const endpointUrl = opts.endpointUrl?.trim();
     const description = opts.descriptionForModel?.trim();
@@ -279,6 +278,7 @@ export class SynapseAuth {
     if (!endpointUrl) throw new Error("endpointUrl is required");
     if (!description) throw new Error("descriptionForModel is required");
 
+    const token = await this.getToken();
     const serviceId = opts.serviceId?.trim() || this.defaultServiceId(serviceName);
     const body = {
       serviceId,
