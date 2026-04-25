@@ -1,4 +1,4 @@
-import { SynapseAuth, SynapseClient, AuthenticationError, resolveGatewayUrl } from "../../src";
+import { SynapseAuth, SynapseClient, SynapseProvider, AuthenticationError, resolveGatewayUrl } from "../../src";
 
 type MockResponse = { status?: number; body: unknown };
 
@@ -50,6 +50,7 @@ beforeEach(() => {
 test("public barrel exports SDK entrypoints", () => {
   expect(SynapseAuth).toBeDefined();
   expect(SynapseClient).toBeDefined();
+  expect(SynapseProvider).toBeDefined();
   expect(resolveGatewayUrl({ environment: "local" })).toBe("http://127.0.0.1:8000");
 });
 
@@ -377,4 +378,74 @@ test("provider lifecycle and finance helpers call current gateway routes", async
   expect(headersOf(calls[11])["X-Idempotency-Key"]).toBe("provider-withdraw-fixed");
   expect(calls[12].url).toContain("/api/v1/providers/withdrawals?limit=5");
   expect(calls[13].url).toContain("/api/v1/balance/vouchers/redeem");
+});
+
+test("provider facade delegates to owner auth provider methods", async () => {
+  const auth = {
+    issueProviderSecret: jest.fn(async () => ({ secret: { id: "psk_1" } })),
+    listProviderSecrets: jest.fn(async () => []),
+    deleteProviderSecret: jest.fn(async () => ({ status: "deleted" })),
+    getRegistrationGuide: jest.fn(async () => ({ steps: [] })),
+    parseCurlToServiceManifest: jest.fn(async () => ({ manifest: {} })),
+    registerProviderService: jest.fn(async () => ({ serviceId: "svc_1", service: { serviceId: "svc_1" } })),
+    listProviderServices: jest.fn(async () => []),
+    getProviderService: jest.fn(async () => ({ serviceId: "svc_1" })),
+    getProviderServiceStatus: jest.fn(async () => ({ serviceId: "svc_1" })),
+    updateProviderService: jest.fn(async () => ({ status: "updated" })),
+    deleteProviderService: jest.fn(async () => ({ status: "deleted" })),
+    pingProviderService: jest.fn(async () => ({ status: "ok" })),
+    getProviderServiceHealthHistory: jest.fn(async () => ({ history: [] })),
+    getProviderEarningsSummary: jest.fn(async () => ({ total: "0" })),
+    getProviderWithdrawalCapability: jest.fn(async () => ({ available: true })),
+    createProviderWithdrawalIntent: jest.fn(async () => ({ intentId: "wd_1" })),
+    listProviderWithdrawals: jest.fn(async () => ({ withdrawals: [] })),
+  } as unknown as SynapseAuth;
+  const provider = new SynapseProvider(auth);
+
+  await provider.issueSecret({ name: "provider" });
+  await provider.issueSecret();
+  await provider.listSecrets();
+  await provider.deleteSecret("psk_1");
+  await provider.getRegistrationGuide();
+  await provider.parseCurlToServiceManifest("curl https://provider.example/health");
+  await provider.registerService({
+    serviceName: "Weather",
+    endpointUrl: "https://provider.example/invoke",
+    descriptionForModel: "Weather data",
+    basePriceUsdc: 0,
+  });
+  await provider.listServices();
+  await provider.getService("svc_1");
+  await provider.getServiceStatus("svc_1");
+  await provider.updateService("rec_1", { summary: "updated" });
+  await provider.deleteService("rec_1");
+  await provider.pingService("rec_1");
+  await provider.getServiceHealthHistory("rec_1", { limitPerTarget: 3 });
+  await provider.getServiceHealthHistory("rec_2");
+  await provider.getEarningsSummary();
+  await provider.getWithdrawalCapability();
+  await provider.createWithdrawalIntent(5, { idempotencyKey: "fixed", destinationAddress: "0xabc" });
+  await provider.createWithdrawalIntent(6);
+  await provider.listWithdrawals({ limit: 2 });
+  await provider.listWithdrawals();
+
+  expect(auth.issueProviderSecret).toHaveBeenCalledWith({ name: "provider" });
+  expect(auth.issueProviderSecret).toHaveBeenCalledWith({});
+  expect(auth.deleteProviderSecret).toHaveBeenCalledWith("psk_1");
+  expect(auth.registerProviderService).toHaveBeenCalledWith({
+    serviceName: "Weather",
+    endpointUrl: "https://provider.example/invoke",
+    descriptionForModel: "Weather data",
+    basePriceUsdc: 0,
+  });
+  expect(auth.getProviderServiceHealthHistory).toHaveBeenCalledWith("rec_1", { limitPerTarget: 3 });
+  expect(auth.getProviderServiceHealthHistory).toHaveBeenCalledWith("rec_2", {});
+  expect(auth.createProviderWithdrawalIntent).toHaveBeenCalledWith(5, {
+    idempotencyKey: "fixed",
+    destinationAddress: "0xabc",
+  });
+  expect(auth.createProviderWithdrawalIntent).toHaveBeenCalledWith(6, {});
+  expect(auth.listProviderWithdrawals).toHaveBeenCalledWith({ limit: 2 });
+  expect(auth.listProviderWithdrawals).toHaveBeenCalledWith({});
+  expect(authForTests().provider()).toBeInstanceOf(SynapseProvider);
 });

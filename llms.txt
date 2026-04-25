@@ -83,6 +83,7 @@ README 语言结构：
 - Do not commit real credentials, provider secrets, private keys, wallet seed phrases, or production tokens.
 - SDK runtime flow is discovery/search plus price-asserted invoke plus receipt.
 - Agent runtime code should use `SynapseClient` with an `agt_xxx` key. Do not initialize `SynapseAuth` unless the task explicitly asks for owner credential issuance.
+- Provider publishing code should use `auth.provider()` / `SynapseProvider`; Provider is an owner-scoped supply-side role, not a separate root account.
 - Old Python quote-first helpers are deprecated compatibility shims and must not call removed gateway endpoints.
 
 中文边界：
@@ -94,4 +95,5 @@ README 语言结构：
 - 不要提交真实凭据、provider secret、私钥、钱包助记词或生产 token。
 - SDK runtime 主链是 discovery/search + price-asserted invoke + receipt。
 - Agent runtime 代码应使用 `SynapseClient` 和 `agt_xxx` key。除非任务明确要求 owner credential issuance，否则不要初始化 `SynapseAuth`。
+- Provider 发布代码应使用 `auth.provider()` / `SynapseProvider`；Provider 是 owner scope 下的供给侧角色，不是第二套根账户体系。
 - 旧 Python quote-first helper 是废弃兼容层，不能调用已移除的 gateway endpoint。

@@ -77,12 +77,14 @@
       "id": "sdk_provider_lifecycle",
       "title": "Provider lifecycle helpers",
       "use_when": [
-        "provider secrets, provider service registration, service update/delete/ping, registration guide, or provider health changes"
+        "provider secrets, provider facade, provider service registration, service update/delete/ping, registration guide, or provider health changes"
       ],
       "primary_files": [
         "python/synapse_client/auth.py",
+        "python/synapse_client/provider.py",
         "python/synapse_client/test/test_auth_unit.py",
         "typescript/src/auth.ts",
+        "typescript/src/provider.ts",
         "typescript/tests/unit/auth.test.ts"
       ],
       "supporting_files": [
@@ -95,7 +97,8 @@
         "bash scripts/ci/typescript_checks.sh"
       ],
       "notes": [
-        "Provider onboarding success is measured through owner control-plane service records, not public discovery alone."
+        "Provider onboarding success is measured through owner control-plane service records, not public discovery alone.",
+        "Provider is an owner-scoped supply-side role; use auth.provider() / SynapseProvider rather than a separate root identity."
       ]
     },
     {

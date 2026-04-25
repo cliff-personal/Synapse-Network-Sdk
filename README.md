@@ -49,6 +49,16 @@ Resolution rules:
 
 The SDK never probes DNS and never falls back between environments automatically. This prevents production credentials or funds from being routed to the wrong gateway.
 
+## Choose Your SDK Surface
+
+| Goal | Use | Credential |
+|---|---|---|
+| Let an agent call services | `SynapseClient` | Agent Key (`agt_xxx`) |
+| Issue, rotate, or revoke agent keys | `SynapseAuth` | Owner wallet / JWT |
+| Publish and manage provider APIs | `SynapseProvider` via `auth.provider()` | Owner wallet / JWT |
+
+Provider is an owner-scoped supply-side role, not a separate root account. Keep ordinary agent runtime code on `SynapseClient`; use `SynapseProvider` only when you are registering or operating services exposed through SynapseNetwork.
+
 ## Agent Quickstart: Python
 
 Step 1: get your Agent Key from the Synapse Gateway Dashboard.
@@ -162,6 +172,51 @@ const issued = await auth.issueCredential({
 console.log(issued.credential.id, issued.token);
 ```
 
+## Provider Publishing
+
+Use `SynapseProvider` when an owner wants to publish an API as a SynapseNetwork service. It is a facade over owner-authenticated provider control-plane methods, so existing `SynapseAuth` methods remain supported.
+
+Python:
+
+```python
+from synapse_client import SynapseAuth
+
+auth = SynapseAuth.from_private_key("0xYOUR_PRIVATE_KEY", environment="staging")
+provider = auth.provider()
+
+secret = provider.issue_secret(name="weather-api")
+guide = provider.get_registration_guide()
+service = provider.register_service(
+    service_name="Weather API",
+    endpoint_url="https://provider.example.com/invoke",
+    base_price_usdc="0.001",
+    description_for_model="Returns weather data for a city.",
+)
+status = provider.get_service_status(service.service_id)
+```
+
+TypeScript:
+
+```ts
+import { Wallet } from "ethers";
+import { SynapseAuth } from "@synapse-network/sdk";
+
+const auth = SynapseAuth.fromWallet(new Wallet(process.env.OWNER_PRIVATE_KEY!), {
+  environment: "staging",
+});
+const provider = auth.provider();
+
+const secret = await provider.issueSecret({ name: "weather-api" });
+const guide = await provider.getRegistrationGuide();
+const service = await provider.registerService({
+  serviceName: "Weather API",
+  endpointUrl: "https://provider.example.com/invoke",
+  basePriceUsdc: "0.001",
+  descriptionForModel: "Returns weather data for a city.",
+});
+const status = await provider.getServiceStatus(service.serviceId);
+```
+
 Credential handling and vulnerability reporting live in [SECURITY.md](./SECURITY.md).
 
 ## Current API Boundary
@@ -175,6 +230,7 @@ Supported today:
 - Gateway health and empty-discovery diagnostics
 - Owner auth and credential issue/list/update/revoke/rotate/delete/quota/audit logs
 - Balance, voucher, usage, finance audit, and risk overview helpers
+- Provider publishing facade through `auth.provider()`
 - Provider secret issue/list/delete
 - Provider service register/list/get/status/update/delete/ping/registration guide/health history
 - Provider earnings and withdrawal intent/list/capability helpers

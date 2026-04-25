@@ -22,6 +22,7 @@ import {
 } from "./types";
 import { AuthenticationError } from "./errors";
 import { resolveGatewayUrl } from "./config";
+import { SynapseProvider } from "./provider";
 
 type SignerFn = (message: string) => Promise<string>;
 
@@ -45,6 +46,11 @@ export class SynapseAuth {
     this.timeoutMs = opts.timeoutMs ?? 30_000;
     this.signer = opts.signer;
     this.walletAddress = opts.walletAddress.toLowerCase();
+  }
+
+  /** Return a provider publishing facade scoped to this authenticated owner. */
+  provider(): SynapseProvider {
+    return new SynapseProvider(this);
   }
 
   private defaultServiceId(serviceName: string): string {

@@ -52,6 +52,12 @@ class SynapseAuth:
         self._token: str | None = None
         self._token_expires_at: float = 0
 
+    def provider(self):
+        """Return a provider publishing facade scoped to this authenticated owner."""
+        from .provider import SynapseProvider
+
+        return SynapseProvider(self)
+
     @classmethod
     def from_private_key(
         cls,

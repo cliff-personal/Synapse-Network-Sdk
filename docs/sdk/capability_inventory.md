@@ -55,23 +55,26 @@ Deprecated:
 
 Supported:
 
-1. issue provider secret
-2. list provider secret
-3. delete provider secret
-4. registration guide
-5. parse curl to service manifest
-6. register provider service
-7. list provider service
-8. get provider service
-9. provider service status
-10. update provider service
-11. delete provider service
-12. ping provider service
-13. provider service health history
-14. provider earnings summary
-15. provider withdrawal capability
-16. create provider withdrawal intent
-17. list provider withdrawals
+Provider publishing is available through `auth.provider()` and existing `SynapseAuth` compatibility methods:
+
+1. provider facade: `SynapseProvider`
+2. issue provider secret
+3. list provider secret
+4. delete provider secret
+5. registration guide
+6. parse curl to service manifest
+7. register provider service
+8. list provider service
+9. get provider service
+10. provider service status
+11. update provider service
+12. delete provider service
+13. ping provider service
+14. provider service health history
+15. provider earnings summary
+16. provider withdrawal capability
+17. create provider withdrawal intent
+18. list provider withdrawals
 
 ## TypeScript Consumer
 
@@ -106,23 +109,26 @@ Discovery/search sends the current gateway request body: `query`, `tags`, `page`
 
 Supported:
 
-1. issue provider secret
-2. list provider secret
-3. delete provider secret
-4. registration guide
-5. parse curl to service manifest
-6. register provider service
-7. list provider service
-8. get provider service
-9. provider service status
-10. update provider service
-11. delete provider service
-12. ping provider service
-13. provider service health history
-14. provider earnings summary
-15. provider withdrawal capability
-16. create provider withdrawal intent
-17. list provider withdrawals
+Provider publishing is available through `auth.provider()` and existing `SynapseAuth` compatibility methods:
+
+1. provider facade: `SynapseProvider`
+2. issue provider secret
+3. list provider secret
+4. delete provider secret
+5. registration guide
+6. parse curl to service manifest
+7. register provider service
+8. list provider service
+9. get provider service
+10. provider service status
+11. update provider service
+12. delete provider service
+13. ping provider service
+14. provider service health history
+15. provider earnings summary
+16. provider withdrawal capability
+17. create provider withdrawal intent
+18. list provider withdrawals
 
 ## Gateway Capabilities Not Yet Wrapped
 
@@ -137,6 +143,6 @@ The SDK does not currently wrap the full gateway management surface. Known uncov
 
 ## Product Boundary
 
-The SDK current promise is consumer/provider canonical main flow coverage, not full gateway administration coverage. New management APIs should be added deliberately with tests and docs, rather than implied by broad README language.
+The SDK current promise is agent runtime plus owner/provider canonical main flow coverage, not full gateway administration coverage. Provider is an owner-scoped supply-side role; `SynapseProvider` is a facade over owner-authenticated provider control-plane operations. New management APIs should be added deliberately with tests and docs, rather than implied by broad README language.
 
 Finance and withdrawal methods are high-impact wrappers. They construct gateway requests but do not sign on-chain transactions, automatically move funds, or make policy decisions for an agent.

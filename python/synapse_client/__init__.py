@@ -1,6 +1,7 @@
 from .auth import SynapseAuth
 from .client import AgentWallet, SynapseClient
 from .config import DEFAULT_ENVIRONMENT, GATEWAY_URLS, resolve_gateway_url
+from .provider import SynapseProvider
 from .exceptions import (
     AuthenticationError,
     BudgetExceededError,
@@ -38,6 +39,7 @@ __all__ = [
     "QuoteError",
     "QuoteResponse",
     "SynapseAuth",
+    "SynapseProvider",
     "SynapseClient",
     "DEFAULT_ENVIRONMENT",
     "GATEWAY_URLS",

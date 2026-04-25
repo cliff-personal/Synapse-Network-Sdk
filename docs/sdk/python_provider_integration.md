@@ -9,7 +9,7 @@
 3. service manifest 最小注册 payload
 4. 注册后状态查询
 
-当前 Python SDK 的 canonical 入口仍然是 `SynapseAuth`，因为 Provider onboarding 在工程真相里属于 **owner wallet 控制面**。
+当前 Python SDK 的 provider 入口是 `auth.provider()`。它返回 `SynapseProvider` facade，但底层仍然使用 `SynapseAuth` 的 owner wallet / JWT，因为 Provider onboarding 在工程真相里属于 **owner wallet 控制面**。
 
 ---
 
@@ -17,13 +17,24 @@
 
 这次补齐后，Python SDK 的 Provider 面已经支持：
 
-1. `get_token()`
-2. `issue_provider_secret()`
-3. `list_provider_secrets()`
-4. `register_provider_service()`
-5. `list_provider_services()`
-6. `get_provider_service()`
-7. `get_provider_service_status()`
+1. `auth.provider()`
+2. `provider.issue_secret()`
+3. `provider.list_secrets()`
+4. `provider.delete_secret()`
+5. `provider.get_registration_guide()`
+6. `provider.parse_curl_to_service_manifest()`
+7. `provider.register_service()`
+8. `provider.list_services()`
+9. `provider.get_service()`
+10. `provider.get_service_status()`
+11. `provider.update_service()`
+12. `provider.delete_service()`
+13. `provider.ping_service()`
+14. `provider.get_service_health_history()`
+15. `provider.get_earnings_summary()`
+16. `provider.get_withdrawal_capability()`
+17. `provider.create_withdrawal_intent()`
+18. `provider.list_withdrawals()`
 
 ---
 
@@ -40,14 +51,16 @@ auth = SynapseAuth.from_private_key(
 jwt = auth.get_token()
 print(jwt)
 
-secret = auth.issue_provider_secret(
+provider = auth.provider()
+
+secret = provider.issue_secret(
     name="provider-secret-prod",
     rpm=180,
     creditLimit=25.0,
 )
 print(secret.secret.id, secret.secret.masked_key)
 
-registered = auth.register_provider_service(
+registered = provider.register_service(
     service_name="SEA Invoice OCR",
     endpoint_url="https://provider.example.com/invoke",
     base_price_usdc="0.008",
@@ -56,7 +69,7 @@ registered = auth.register_provider_service(
 
 print(registered.service_id)
 
-status = auth.get_provider_service_status(registered.service_id)
+status = provider.get_service_status(registered.service_id)
 print(status.lifecycle_status, status.health.overall_status, status.runtime_available)
 ```
 
@@ -64,7 +77,7 @@ print(status.lifecycle_status, status.health.overall_status, status.runtime_avai
 
 ## 4. SDK 设计原则
 
-### 4.1 为什么 provider 能力放在 `SynapseAuth`
+### 4.1 为什么 provider 能力从 `SynapseAuth` 派生
 
 因为当前工程真相是：
 
@@ -72,11 +85,11 @@ print(status.lifecycle_status, status.health.overall_status, status.runtime_avai
 2. Provider role 绑定在 owner wallet scope
 3. 服务注册接口使用 bearer JWT
 
-所以 Provider onboarding 不应该再绕一个新的 client 类。
+所以 Provider onboarding 不需要第二套认证 client。`SynapseProvider` 是从 `SynapseAuth` 派生的 provider publishing facade，用来把 provider 工作流从 owner credential 管理中分出来。
 
 ### 4.2 最小注册输入
 
-`register_provider_service()` 对外只要求：
+`provider.register_service()` 对外只要求：
 
 1. `service_name`
 2. `endpoint_url`
@@ -118,12 +131,13 @@ Python SDK 处理方式：
 
 1. 对外继续用更产品化的 `description_for_model`
 2. 内部映射到当前 Gateway contract 的 `summary`
+3. 现有 `auth.register_provider_service()` 继续兼容，推荐新代码使用 `provider.register_service()`
 
 ---
 
 ## 6. 状态读取语义
 
-`get_provider_service_status(service_id)` 返回的是控制面状态，而不是 public discovery SLA 承诺。
+`provider.get_service_status(service_id)` 返回的是控制面状态，而不是 public discovery SLA 承诺。
 
 当前它组合了：
 

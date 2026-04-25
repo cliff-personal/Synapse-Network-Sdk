@@ -14,6 +14,8 @@ CRITICAL RULES FOR AI AGENTS:
 6. ALWAYS extract `price_usdc` from the search result and pass it to the invoke method.
 7. ALWAYS provide an `idempotency_key`.
 8. ALWAYS fetch and read the receipt after invocation to verify settlement.
+9. IF the user asks to publish/register/manage a provider API, initialize `SynapseAuth` and use `auth.provider()`.
+10. Provider setup is owner-scoped. Do not treat Provider as a separate root account.
 </system_prompt>
 
 <zh_rules>
@@ -26,6 +28,8 @@ AI Agent 中文规则：
 6. 必须从搜索结果读取 `price_usdc`，并把价格传给 invoke 方法。
 7. 必须提供 `idempotency_key`。
 8. 调用后必须读取 receipt，确认结算状态。
+9. 如果用户要求发布、注册或管理 provider API，才初始化 `SynapseAuth` 并使用 `auth.provider()`。
+10. Provider 是 owner scope 下的角色，不是第二套根账户体系。
 </zh_rules>
 
 Additional runtime preferences:
@@ -34,7 +38,8 @@ Additional runtime preferences:
 
 1. If balance is unknown, prefer services whose price is `0`.
 2. Do not use deprecated quote-first helpers.
-3. Use owner/admin setup only when the user explicitly asks to issue credentials or manage provider services.
+3. Use `SynapseAuth` for owner/admin setup only when the user explicitly asks to issue credentials.
+4. Use `SynapseProvider` from `auth.provider()` only when the user explicitly asks to publish or manage provider services.
 
 Python pattern:
 
@@ -74,4 +79,34 @@ const result = await client.invoke(
   }
 );
 const receipt = await client.getInvocation(result.invocationId);
+```
+
+Provider publishing pattern:
+
+Provider 发布模式：
+
+```python
+from synapse_client import SynapseAuth
+
+auth = SynapseAuth.from_private_key("0xOWNER_PRIVATE_KEY", environment="staging")
+provider = auth.provider()
+service = provider.register_service(
+    service_name="Weather API",
+    endpoint_url="https://provider.example.com/invoke",
+    base_price_usdc="0.001",
+    description_for_model="Returns weather data for a city.",
+)
+```
+
+```ts
+import { SynapseAuth } from "@synapse-network/sdk";
+
+const auth = SynapseAuth.fromWallet(wallet, { environment: "staging" });
+const provider = auth.provider();
+const service = await provider.registerService({
+  serviceName: "Weather API",
+  endpointUrl: "https://provider.example.com/invoke",
+  basePriceUsdc: "0.001",
+  descriptionForModel: "Returns weather data for a city.",
+});
 ```

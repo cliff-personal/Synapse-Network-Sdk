@@ -23,10 +23,13 @@ This directory is the SDK-side source of truth for capabilities, integration gui
 
 ## Current Position
 
-The SDK currently covers two main flows:
+The SDK currently has three explicit public surfaces:
 
-1. Agent runtime quickstart: after receiving an `agt_xxx` key, call discovery/search -> invoke -> receipt.
-2. Owner advanced flow: owner auth / credential issuance / provider lifecycle.
+1. `SynapseClient`: agent runtime quickstart. After receiving an `agt_xxx` key, call discovery/search -> invoke -> receipt.
+2. `SynapseAuth`: owner control plane for wallet auth, credential issuance, key rotation, and owner finance helpers.
+3. `SynapseProvider`: provider publishing facade from `auth.provider()` for provider secrets, service registration, lifecycle, health, earnings, and withdrawal helpers.
+
+Provider remains an owner-scoped supply-side role. `SynapseProvider` improves discoverability but does not introduce a second provider root identity.
 
 Python quote-first methods `create_quote()`, `create_invocation()`, and `invoke_service()` are deprecated. They no longer call old endpoints and instead tell users to use discovery/search + `invoke(..., cost_usdc=...)`.
 
@@ -56,6 +59,14 @@ Programmatic credential issuance is an advanced owner flow:
 4. Owner issues agent credential.
 
 If the owner wallet has no balance, use services where `price_usdc == 0` as the smoke path. Paid services require owner balance, credits, or credential credit limit.
+
+Provider publishing is a separate owner-authenticated flow:
+
+1. Owner wallet signs in through `SynapseAuth`.
+2. Code calls `provider = auth.provider()`.
+3. Provider issues a provider secret if needed.
+4. Provider registers or updates a service manifest.
+5. Provider checks service status, health history, earnings, and withdrawals from the same facade.
 
 ## Configuration Truth
 

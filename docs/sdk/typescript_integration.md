@@ -187,11 +187,13 @@ TypeScript Provider onboarding 文档：
 1. `docs/sdk/typescript_provider_integration.md`
 2. `docs/test/typescript-provider-onboarding-e2e-plan.md`
 
-TypeScript SDK 当前支持：
+TypeScript SDK 当前通过 `auth.provider()` / `SynapseProvider` 支持：
 
-1. provider secret 创建与列举
-2. provider 服务注册
-3. provider 服务状态查询
+1. provider secret 创建、列举、删除
+2. provider registration guide 与 curl manifest 解析
+3. provider 服务注册、列举、读取、更新、删除
+4. provider 服务 ping、状态查询、health history
+5. provider earnings 与 withdrawals helper
 
 Provider onboarding 成功标准以 owner `/api/v1/services` 列表为准，不以 public discovery 为准。
 

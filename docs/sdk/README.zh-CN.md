@@ -23,10 +23,13 @@
 
 ## 当前结论
 
-SDK 当前覆盖两条主链：
+SDK 当前有三个明确的公开入口：
 
-1. Agent runtime quickstart：已有 `agt_xxx` 后，直接 discovery/search -> invoke -> receipt。
-2. Owner advanced flow：owner auth / credential issue / provider lifecycle。
+1. `SynapseClient`：Agent runtime quickstart。已有 `agt_xxx` 后，直接 discovery/search -> invoke -> receipt。
+2. `SynapseAuth`：Owner control plane，用于 wallet auth、credential issuance、key rotation 和 owner finance helper。
+3. `SynapseProvider`：通过 `auth.provider()` 获取的 provider publishing facade，用于 provider secret、service registration、lifecycle、health、earnings 和 withdrawal helper。
+
+Provider 仍然是 owner scope 下的供给侧角色。`SynapseProvider` 只是让 provider 接入更容易发现，不引入第二套 provider root 身份。
 
 Python 旧的 quote-first 方法 `create_quote()`、`create_invocation()`、`invoke_service()` 已经废弃。它们不会再访问旧 endpoint，而是直接提示改用 discovery/search + `invoke(..., cost_usdc=...)`。
 
@@ -56,6 +59,14 @@ Programmatic credential issuance 属于 Advanced owner flow：
 4. owner 签发 agent credential。
 
 如果 owner wallet 还没有余额，优先选择 `price_usdc == 0` 的免费服务做 smoke path。付费服务需要 owner balance、credits 或 credential credit limit 足够覆盖本次调用。
+
+Provider publishing 是另一条 owner-authenticated flow：
+
+1. Owner wallet 通过 `SynapseAuth` 登录。
+2. 代码调用 `provider = auth.provider()`。
+3. Provider 按需签发 provider secret。
+4. Provider 注册或更新 service manifest。
+5. Provider 通过同一个 facade 查询 service status、health history、earnings 和 withdrawals。
 
 ## 配置真相
 
