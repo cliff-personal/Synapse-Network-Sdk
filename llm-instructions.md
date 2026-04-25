@@ -40,6 +40,7 @@ Additional runtime preferences:
 2. Do not use deprecated quote-first helpers.
 3. Use `SynapseAuth` for owner/admin setup only when the user explicitly asks to issue credentials.
 4. Use `SynapseProvider` from `auth.provider()` only when the user explicitly asks to publish or manage provider services.
+5. For examples, use `python/examples/consumer_call_provider.py` to call a service, `python/examples/provider_staging_onboarding.py` to publish a provider API, and `python/examples/consumer_wallet_to_invoke.py` for a full fresh-wallet flow.
 
 Python pattern:
 

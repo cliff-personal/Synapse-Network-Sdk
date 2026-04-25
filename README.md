@@ -219,6 +219,41 @@ const status = await provider.getServiceStatus(service.serviceId);
 
 Credential handling and vulnerability reporting live in [SECURITY.md](./SECURITY.md).
 
+## Python Examples
+
+The Python examples are staging-first and live under `python/examples`.
+
+```bash
+cd /Users/cliff/workspace/agent/Synapse-Network-Sdk/python
+```
+
+Register a provider service on staging:
+
+```bash
+PYTHONPATH="$PWD" .venv/bin/python examples/provider_staging_onboarding.py \
+  --provider-private-key "$SYNAPSE_PROVIDER_PRIVATE_KEY" \
+  --endpoint-url "https://your-provider.example.com/invoke" \
+  --service-name "Weather API" \
+  --description "Returns weather data for a city." \
+  --price-usdc 0
+```
+
+Call a provider service with an existing Agent Key:
+
+```bash
+export SYNAPSE_API_KEY=agt_xxx
+PYTHONPATH="$PWD" .venv/bin/python examples/consumer_call_provider.py \
+  --service-id "weather_api" \
+  --payload-json '{"prompt":"hello"}'
+```
+
+Create a fresh staging wallet, issue an Agent Key, and invoke a free service:
+
+```bash
+PYTHONPATH="$PWD" .venv/bin/python examples/consumer_wallet_to_invoke.py \
+  --query "free"
+```
+
 ## Current API Boundary
 
 Supported today:

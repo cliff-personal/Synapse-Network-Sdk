@@ -219,6 +219,41 @@ const status = await provider.getServiceStatus(service.serviceId);
 
 凭据处理和漏洞报告请查看 [SECURITY.md](./SECURITY.md)。
 
+## Python 示例
+
+Python examples 默认面向 staging，位于 `python/examples`。
+
+```bash
+cd /Users/cliff/workspace/agent/Synapse-Network-Sdk/python
+```
+
+在 staging 注册 provider service：
+
+```bash
+PYTHONPATH="$PWD" .venv/bin/python examples/provider_staging_onboarding.py \
+  --provider-private-key "$SYNAPSE_PROVIDER_PRIVATE_KEY" \
+  --endpoint-url "https://your-provider.example.com/invoke" \
+  --service-name "Weather API" \
+  --description "Returns weather data for a city." \
+  --price-usdc 0
+```
+
+使用已有 Agent Key 调用 provider service：
+
+```bash
+export SYNAPSE_API_KEY=agt_xxx
+PYTHONPATH="$PWD" .venv/bin/python examples/consumer_call_provider.py \
+  --service-id "weather_api" \
+  --payload-json '{"prompt":"hello"}'
+```
+
+创建新的 staging wallet、签发 Agent Key，并调用免费服务：
+
+```bash
+PYTHONPATH="$PWD" .venv/bin/python examples/consumer_wallet_to_invoke.py \
+  --query "free"
+```
+
 ## 当前 API 边界
 
 当前已支持：

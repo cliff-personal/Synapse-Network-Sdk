@@ -199,8 +199,10 @@
         "Python examples, TypeScript examples, smoke tests, or e2e onboarding plans change"
       ],
       "primary_files": [
-        "python/examples",
-        "typescript/examples",
+        "python/examples/smoke_test.py",
+        "python/examples/provider_staging_onboarding.py",
+        "python/examples/consumer_call_provider.py",
+        "python/examples/consumer_wallet_to_invoke.py",
         "docs/test/consumer-e2e-plan.md",
         "docs/test/typescript-provider-onboarding-e2e-plan.md",
         "docs/test/python-consumer-cold-start-e2e-plan.md",
@@ -217,6 +219,8 @@
         "bash scripts/ci/typescript_checks.sh"
       ],
       "notes": [
+        "Provider staging examples require a public HTTPS endpoint, not localhost.",
+        "Consumer wallet-to-invoke examples default to free services unless --allow-paid is explicit.",
         "E2E flows may require real staging credentials; PR CI should keep e2e out of the default gate unless explicitly configured."
       ]
     }
