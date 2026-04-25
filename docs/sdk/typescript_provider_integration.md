@@ -36,7 +36,7 @@ import { SynapseAuth } from "@synapse-network/sdk";
 const wallet = new Wallet(process.env.PROVIDER_PRIVATE_KEY!);
 
 const auth = SynapseAuth.fromWallet(wallet, {
-  gatewayUrl: "http://127.0.0.1:8000",
+  environment: "staging",
 });
 
 const jwt = await auth.getToken();

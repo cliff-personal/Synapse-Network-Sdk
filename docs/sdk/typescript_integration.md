@@ -34,11 +34,17 @@ TypeScript SDK 使用显式配置：
 ```ts
 const client = new SynapseClient({
   credential: issued.token,
-  gatewayUrl: process.env.SYNAPSE_GATEWAY ?? "http://127.0.0.1:8000",
+  environment: "staging",
 });
 ```
 
-SDK 库内部不隐式读取环境变量；Node、browser、worker runtime 都由应用层决定如何传入配置。
+SDK 库内部不隐式读取环境变量；Node、browser、worker runtime 都由应用层决定如何传入配置。可用环境 preset：
+
+1. `local`: `http://127.0.0.1:8000`
+2. `staging`: `https://api-staging.synapse-network.ai`
+3. `prod`: `https://api.synapse-network.ai`，需等官方 production DNS 和 `/health` 验证后再用于真实资金流
+
+显式 `gatewayUrl` 会覆盖 `environment`。
 
 ## Owner 钱包登录
 
@@ -48,7 +54,7 @@ import { SynapseAuth } from "@synapse-network/sdk";
 
 const wallet = new Wallet(process.env.OWNER_PRIVATE_KEY!);
 const auth = SynapseAuth.fromWallet(wallet, {
-  gatewayUrl: "http://127.0.0.1:8000",
+  environment: "staging",
 });
 
 const jwt = await auth.getToken();
@@ -106,7 +112,7 @@ import { SynapseClient } from "@synapse-network/sdk";
 
 const client = new SynapseClient({
   credential: issued.token,
-  gatewayUrl: "http://127.0.0.1:8000",
+  environment: "staging",
 });
 
 const services = await client.search("market data", {

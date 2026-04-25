@@ -6,6 +6,8 @@
  */
 
 import { SynapseClient } from "../../src/client";
+import { SynapseAuth } from "../../src/auth";
+import { resolveGatewayUrl } from "../../src/config";
 import {
   AuthenticationError,
   InsufficientFundsError,
@@ -46,6 +48,46 @@ test("constructor accepts default gatewayUrl", () => {
   expect(client).toBeInstanceOf(SynapseClient);
 });
 
+test("resolveGatewayUrl defaults to staging public preview", () => {
+  expect(resolveGatewayUrl()).toBe("https://api-staging.synapse-network.ai");
+});
+
+test("resolveGatewayUrl supports presets and explicit override", () => {
+  expect(resolveGatewayUrl({ environment: "local" })).toBe("http://127.0.0.1:8000");
+  expect(resolveGatewayUrl({ environment: "staging" })).toBe("https://api-staging.synapse-network.ai");
+  expect(resolveGatewayUrl({ environment: "prod" })).toBe("https://api.synapse-network.ai");
+  expect(resolveGatewayUrl({ environment: "prod", gatewayUrl: "https://gateway.example/" })).toBe("https://gateway.example");
+});
+
+test("resolveGatewayUrl rejects invalid environment", () => {
+  expect(() => resolveGatewayUrl({ environment: "preview" as never })).toThrow("unsupported Synapse environment");
+});
+
+test("SynapseAuth defaults to staging gateway", async () => {
+  const urls: string[] = [];
+  (globalThis as unknown as Record<string, unknown>).fetch = jest.fn(async (url: string) => {
+    urls.push(url);
+    return {
+      ok: true,
+      status: 200,
+      text: async () =>
+        JSON.stringify(
+          urls.length === 1
+            ? { success: true, challenge: "sign-me", domain: "synapse" }
+            : { success: true, access_token: "jwt-token", token_type: "bearer", expires_in: 3600 }
+        ),
+    } as Response;
+  });
+
+  const auth = SynapseAuth.fromWallet({
+    address: "0xabc",
+    signMessage: async () => "0xsigned",
+  });
+
+  await auth.getToken();
+  expect(urls[0]).toContain("https://api-staging.synapse-network.ai/api/v1/auth/challenge");
+});
+
 // ── invoke() — single-call path ───────────────────────────────────────────────
 
 test("invoke() calls /agent/invoke and returns InvocationResult", async () => {
@@ -70,7 +112,7 @@ test("invoke() calls /agent/invoke and returns InvocationResult", async () => {
 
   const client = new SynapseClient({
     credential: "agt_test",
-    gatewayUrl: "http://127.0.0.1:8000",
+    environment: "local",
   });
 
   const result = await client.invoke("svc_test", { prompt: "hi" }, { costUsdc: 0.05, idempotencyKey: "key-1" });

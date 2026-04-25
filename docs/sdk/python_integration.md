@@ -34,7 +34,18 @@ python -m pip install -e ".[dev]"
 
 1. `gateway_url` 显式参数
 2. `SYNAPSE_GATEWAY`
-3. `http://127.0.0.1:8000`
+
+`environment` 读取顺序：
+
+1. `environment` 显式参数
+2. `SYNAPSE_ENV`
+3. `staging`
+
+环境 preset：
+
+1. `local`: `http://127.0.0.1:8000`
+2. `staging`: `https://api-staging.synapse-network.ai`
+3. `prod`: `https://api.synapse-network.ai`，需等官方 production DNS 和 `/health` 验证后再用于真实资金流
 
 `AgentWallet.connect()` 不再使用 `demo_key` fallback。没有真实 credential 时会失败。
 
@@ -45,7 +56,7 @@ from synapse_client import SynapseAuth
 
 auth = SynapseAuth.from_private_key(
     "0xYOUR_PRIVATE_KEY",
-    gateway_url="http://127.0.0.1:8000",
+    environment="staging",
 )
 
 jwt = auth.get_token()
@@ -80,7 +91,7 @@ from synapse_client import SynapseClient
 
 client = SynapseClient(
     api_key=issued.token,
-    gateway_url="http://127.0.0.1:8000",
+    environment="staging",
 )
 
 services = client.search("market data", limit=20, tags=["finance"])

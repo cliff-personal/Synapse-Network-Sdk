@@ -9,7 +9,7 @@ import shlex
 import sys
 from uuid import uuid4
 
-from synapse_client import SynapseClient
+from synapse_client import SynapseClient, resolve_gateway_url
 from synapse_client.exceptions import (
     AuthenticationError,
     BudgetExceededError,
@@ -35,8 +35,13 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument(
         "--gateway-url",
-        default=os.getenv("SYNAPSE_GATEWAY", "http://127.0.0.1:8000").strip(),
-        help="Gateway base URL. Defaults to SYNAPSE_GATEWAY or http://127.0.0.1:8000.",
+        default="",
+        help="Gateway base URL. Overrides --environment and SYNAPSE_ENV.",
+    )
+    parser.add_argument(
+        "--environment",
+        default=os.getenv("SYNAPSE_ENV", "").strip(),
+        help="Gateway environment preset: local, staging, or prod. Defaults to staging.",
     )
     parser.add_argument(
         "--query",
@@ -151,6 +156,7 @@ def format_curl(
 def print_stage_curl(
     *,
     args: argparse.Namespace,
+    gateway_url: str,
     request_id: str,
     discovery_body: dict | None,
     invoke_body: dict | None,
@@ -163,7 +169,7 @@ def print_stage_curl(
     if discovery_body is not None:
         print("discovery:")
         print(format_curl(
-            gateway_url=args.gateway_url,
+            gateway_url=gateway_url,
             path="/api/v1/agent/discovery/search",
             request_id=request_id,
             body=discovery_body,
@@ -171,7 +177,7 @@ def print_stage_curl(
     if invoke_body is not None:
         print("invoke:")
         print(format_curl(
-            gateway_url=args.gateway_url,
+            gateway_url=gateway_url,
             path="/api/v1/agent/invoke",
             request_id=request_id,
             body=invoke_body,
@@ -280,6 +286,7 @@ def resolve_service_id(
 def handle_discovery_miss(
     *,
     args: argparse.Namespace,
+    gateway_url: str,
     request_id: str,
     idempotency_key: str,
     discovery_body: dict | None,
@@ -294,6 +301,7 @@ def handle_discovery_miss(
     )
     print_stage_curl(
         args=args,
+        gateway_url=gateway_url,
         request_id=request_id,
         discovery_body=discovery_body,
         invoke_body=None,
@@ -348,7 +356,8 @@ def main() -> int:
 
     request_id, idempotency_key = resolve_request_identity(args)
 
-    client = SynapseClient(api_key=args.api_key, gateway_url=args.gateway_url)
+    gateway_url = resolve_gateway_url(environment=args.environment, gateway_url=args.gateway_url)
+    client = SynapseClient(api_key=args.api_key, gateway_url=gateway_url)
 
     service_id = args.service_id.strip()
     discovery_body = build_discovery_body(args) if not service_id else None
@@ -356,7 +365,7 @@ def main() -> int:
     stage_context: dict[str, dict | None] = {"invoke_body": None}
 
     print_section("smoke test context")
-    print(f"Gateway: {args.gateway_url}")
+    print(f"Gateway: {gateway_url}")
     print(f"Request id: {request_id}")
     print(f"Idempotency key: {idempotency_key}")
     print(f"Service id override: {service_id or '<discover>'}")
@@ -374,6 +383,7 @@ def main() -> int:
         if discovery_exit_code != 0:
             return handle_discovery_miss(
                 args=args,
+                gateway_url=gateway_url,
                 request_id=request_id,
                 idempotency_key=idempotency_key,
                 discovery_body=discovery_body,
@@ -382,6 +392,7 @@ def main() -> int:
         if args.skip_invoke:
             print_stage_curl(
                 args=args,
+                gateway_url=gateway_url,
                 request_id=request_id,
                 discovery_body=discovery_body,
                 invoke_body=None,
@@ -409,6 +420,7 @@ def main() -> int:
         )
         print_stage_curl(
             args=args,
+            gateway_url=gateway_url,
             request_id=request_id,
             discovery_body=discovery_body,
             invoke_body=invoke_body,
@@ -425,6 +437,7 @@ def main() -> int:
         )
         print_stage_curl(
             args=args,
+            gateway_url=gateway_url,
             request_id=request_id,
             discovery_body=discovery_body,
             invoke_body=invoke_body,
@@ -433,6 +446,7 @@ def main() -> int:
 
     print_stage_curl(
         args=args,
+        gateway_url=gateway_url,
         request_id=request_id,
         discovery_body=discovery_body,
         invoke_body=invoke_body,

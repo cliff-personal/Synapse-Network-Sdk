@@ -2,9 +2,10 @@
  * SynapseClient — Consumer API client.
  *
  * Uses an agent credential (X-Credential header) for service discovery,
- * quoting, and invocation. Get a credential via SynapseAuth.issueCredential().
+ * and invocation. Get a credential via SynapseAuth.issueCredential().
  */
 import { v4 as uuidv4 } from "uuid";
+import { resolveGatewayUrl } from "./config";
 import {
   SynapseClientOptions,
   ServiceRecord,
@@ -33,7 +34,7 @@ export class SynapseClient {
       throw new Error("credential is required. Get one via SynapseAuth.issueCredential().");
     }
     this.credential = opts.credential.trim();
-    this.gatewayUrl = (opts.gatewayUrl ?? "http://127.0.0.1:8000").replace(/\/$/, "");
+    this.gatewayUrl = resolveGatewayUrl({ environment: opts.environment, gatewayUrl: opts.gatewayUrl });
     this.timeoutMs = opts.timeoutMs ?? 30_000;
   }
 

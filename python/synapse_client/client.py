@@ -5,6 +5,7 @@ from uuid import uuid4
 
 import requests
 
+from .config import resolve_gateway_url
 from .exceptions import (
     AuthenticationError,
     BudgetExceededError,
@@ -38,16 +39,12 @@ class SynapseClient:
         self,
         api_key: Optional[str] = None,
         gateway_url: Optional[str] = None,
+        environment: Optional[str] = None,
         timeout_sec: int = 30,
     ):
         # Resolve api_key from arguments or environment variable
         self.api_key = (api_key or os.getenv("SYNAPSE_API_KEY", "")).strip()
-        resolved_gateway_url = (
-            gateway_url
-            or os.getenv("SYNAPSE_GATEWAY", "")
-            or "http://127.0.0.1:8000"
-        )
-        self.gateway_url = resolved_gateway_url.rstrip("/")
+        self.gateway_url = resolve_gateway_url(environment=environment, gateway_url=gateway_url)
         self.timeout_sec = timeout_sec
 
         if not self.api_key:
@@ -361,10 +358,11 @@ class AgentWallet(SynapseClient):
         budget: float = 5.0,
         api_key: Optional[str] = None,
         gateway_url: Optional[str] = None,
+        environment: Optional[str] = None,
     ) -> "AgentWallet":
         """Factory method — create and validate an AgentWallet in one call."""
         api_key = api_key or os.getenv("SYNAPSE_API_KEY", "")
-        return cls(budget=budget, api_key=api_key, gateway_url=gateway_url)
+        return cls(budget=budget, api_key=api_key, gateway_url=gateway_url, environment=environment)
 
     @property
     def budget_usdc(self) -> float:

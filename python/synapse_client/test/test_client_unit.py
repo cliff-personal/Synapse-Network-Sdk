@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import pytest
 
-from synapse_client import AgentWallet, SynapseClient
+from synapse_client import AgentWallet, SynapseClient, resolve_gateway_url
 from synapse_client.exceptions import (
     AuthenticationError,
     DiscoveryError,
@@ -38,6 +38,45 @@ def test_client_uses_synapse_gateway_env(monkeypatch):
     client = SynapseClient(api_key="agt_test")
 
     assert client.gateway_url == "https://gateway.example"
+
+
+def test_resolve_gateway_url_defaults_to_staging(monkeypatch):
+    monkeypatch.delenv("SYNAPSE_GATEWAY", raising=False)
+    monkeypatch.delenv("SYNAPSE_ENV", raising=False)
+
+    assert resolve_gateway_url() == "https://api-staging.synapse-network.ai"
+
+
+def test_resolve_gateway_url_supports_presets_and_explicit_override(monkeypatch):
+    monkeypatch.delenv("SYNAPSE_GATEWAY", raising=False)
+    monkeypatch.delenv("SYNAPSE_ENV", raising=False)
+
+    assert resolve_gateway_url(environment="local") == "http://127.0.0.1:8000"
+    assert resolve_gateway_url(environment="staging") == "https://api-staging.synapse-network.ai"
+    assert resolve_gateway_url(environment="prod") == "https://api.synapse-network.ai"
+    assert resolve_gateway_url(environment="prod", gateway_url="https://gateway.example/") == "https://gateway.example"
+
+
+def test_resolve_gateway_url_uses_synapse_env(monkeypatch):
+    monkeypatch.delenv("SYNAPSE_GATEWAY", raising=False)
+    monkeypatch.setenv("SYNAPSE_ENV", "local")
+
+    assert resolve_gateway_url() == "http://127.0.0.1:8000"
+
+
+def test_resolve_gateway_url_prefers_explicit_environment_over_synapse_gateway(monkeypatch):
+    monkeypatch.setenv("SYNAPSE_GATEWAY", "https://gateway.example")
+    monkeypatch.delenv("SYNAPSE_ENV", raising=False)
+
+    assert resolve_gateway_url(environment="staging") == "https://api-staging.synapse-network.ai"
+
+
+def test_resolve_gateway_url_rejects_invalid_environment(monkeypatch):
+    monkeypatch.delenv("SYNAPSE_GATEWAY", raising=False)
+    monkeypatch.delenv("SYNAPSE_ENV", raising=False)
+
+    with pytest.raises(ValueError, match="unsupported Synapse environment"):
+        resolve_gateway_url(environment="preview")
 
 
 def test_agent_wallet_connect_requires_real_credential(monkeypatch):

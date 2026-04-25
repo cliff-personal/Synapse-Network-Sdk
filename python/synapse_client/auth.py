@@ -6,6 +6,7 @@ from uuid import uuid4
 
 import requests
 
+from .config import resolve_gateway_url
 from .exceptions import AuthenticationError
 from .models import (
     AgentCredential,
@@ -35,7 +36,8 @@ class SynapseAuth:
         *,
         wallet_address: str,
         signer: SignerFn,
-        gateway_url: str = "http://127.0.0.1:8000",
+        gateway_url: Optional[str] = None,
+        environment: Optional[str] = None,
         timeout_sec: int = 30,
     ) -> None:
         normalized = str(wallet_address or "").strip().lower()
@@ -43,7 +45,7 @@ class SynapseAuth:
             raise ValueError("wallet_address is required")
 
         self.wallet_address = normalized
-        self.gateway_url = gateway_url.rstrip("/")
+        self.gateway_url = resolve_gateway_url(environment=environment, gateway_url=gateway_url)
         self.timeout_sec = timeout_sec
         self._signer = signer
         self._token: str | None = None
@@ -54,7 +56,8 @@ class SynapseAuth:
         cls,
         private_key: str,
         *,
-        gateway_url: str = "http://127.0.0.1:8000",
+        gateway_url: Optional[str] = None,
+        environment: Optional[str] = None,
         timeout_sec: int = 30,
     ) -> "SynapseAuth":
         try:
@@ -78,6 +81,7 @@ class SynapseAuth:
             wallet_address=account.address,
             signer=signer,
             gateway_url=gateway_url,
+            environment=environment,
             timeout_sec=timeout_sec,
         )
 

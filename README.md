@@ -3,30 +3,53 @@
 <p align="center">
   <img src="https://img.shields.io/badge/Python-3.9+-blue.svg" />
   <img src="https://img.shields.io/badge/TypeScript-available-blue.svg" />
+  <img src="https://img.shields.io/badge/Status-Public%20Preview-orange.svg" />
   <img src="https://img.shields.io/badge/License-MIT-green.svg" />
 </p>
 
-Official Python and TypeScript SDKs for the Synapse Network gateway.
+Python and TypeScript SDKs for AI agents and developers building on Synapse Network.
 
-The current SDKs focus on the canonical consumer/provider main flow:
+Synapse lets an agent discover paid services, invoke them through a gateway, and settle the call with an auditable receipt. The SDKs cover the current canonical flow:
 
 1. Authenticate an owner wallet and issue an agent credential.
-2. Discover services through the gateway.
-3. Invoke a selected service with the discovered USDC price.
+2. Discover services through the Synapse Gateway.
+3. Invoke a selected service with the USDC price observed during discovery.
 4. Read the invocation receipt.
 5. Register provider services through the owner/provider control plane.
 
-Legacy quote-first runtime APIs are no longer the public gateway contract. Use discovery/search plus `invoke(..., cost_usdc=...)` instead.
+> Public Preview default: SDK examples use `staging`, backed by `https://api-staging.synapse-network.ai`.
+> The `prod` preset points to `https://api.synapse-network.ai`, but production should only be used after official DNS and `/health` are live.
 
-## Quickstart: Python Consumer
+## Gateway Environments
+
+| Environment | Gateway URL | Intended use |
+|---|---|---|
+| `staging` | `https://api-staging.synapse-network.ai` | Public preview, test assets, integration trials |
+| `local` | `http://127.0.0.1:8000` | Local gateway development |
+| `prod` | `https://api.synapse-network.ai` | Production preset, pending official DNS and health verification |
+
+Resolution rules:
+
+1. Explicit `gateway_url` / `gatewayUrl`
+2. Explicit `environment`
+3. Python only: `SYNAPSE_GATEWAY`
+4. Python only: `SYNAPSE_ENV`
+5. Default: `staging`
+
+The SDK never probes DNS and never falls back between environments automatically. This prevents production credentials or funds from being routed to the wrong gateway.
+
+## Agent Quickstart: Python
+
+```bash
+pip install synapse-client
+export SYNAPSE_ENV=staging
+export SYNAPSE_API_KEY=agt_xxx
+```
 
 ```python
 from synapse_client import SynapseClient
 
-client = SynapseClient(
-    api_key="agt_xxx",
-    gateway_url="http://127.0.0.1:8000",
-)
+client = SynapseClient()
 
 services = client.search("market data", limit=10)
 service = services[0]
@@ -35,25 +58,37 @@ result = client.invoke(
     service.service_id,
     {"prompt": "hello"},
     cost_usdc=float(service.price_usdc),
-    idempotency_key="job-001",
+    idempotency_key="agent-job-001",
 )
 
-print(result.invocation_id, result.status, result.charged_usdc)
+receipt = client.get_invocation(result.invocation_id)
+print(receipt.invocation_id, receipt.status, receipt.charged_usdc)
 ```
 
-Python config resolution:
+To use an explicit environment:
 
-- `api_key`: explicit argument, then `SYNAPSE_API_KEY`.
-- `gateway_url`: explicit argument, then `SYNAPSE_GATEWAY`, then `http://127.0.0.1:8000`.
+```python
+client = SynapseClient(api_key="agt_xxx", environment="staging")
+```
 
-## Quickstart: TypeScript Consumer
+To use a custom gateway:
+
+```python
+client = SynapseClient(api_key="agt_xxx", gateway_url="https://your-gateway.example")
+```
+
+## Agent Quickstart: TypeScript
+
+```bash
+npm install @synapse-network/sdk
+```
 
 ```ts
 import { SynapseClient } from "@synapse-network/sdk";
 
 const client = new SynapseClient({
   credential: "agt_xxx",
-  gatewayUrl: process.env.SYNAPSE_GATEWAY ?? "http://127.0.0.1:8000",
+  environment: "staging",
 });
 
 const services = await client.search("market data", {
@@ -67,32 +102,108 @@ const result = await client.invoke(
   { prompt: "hello" },
   {
     costUsdc: Number(service.pricing?.amount ?? 0),
-    idempotencyKey: "job-001",
+    idempotencyKey: "agent-job-001",
   }
 );
 
-console.log(result.invocationId, result.status, result.chargedUsdc);
+const receipt = await client.getInvocation(result.invocationId);
+console.log(receipt.invocationId, receipt.status, receipt.chargedUsdc);
 ```
 
-TypeScript is explicit-config only: pass `credential` and `gatewayUrl` from your application environment.
+TypeScript does not read environment variables by itself. Read them in your app and pass `environment` or `gatewayUrl` explicitly.
 
-## Provider Flow
+## Human Developer Flow
 
-Provider onboarding is handled through `SynapseAuth`:
+Use `SynapseAuth` when a human developer or backend service needs to issue credentials or register provider services:
 
-1. Authenticate the owner/provider wallet.
-2. Issue or list provider secrets.
-3. Register/list/get provider services.
-4. Treat owner `/api/v1/services` as the onboarding source of truth.
+1. Authenticate an owner wallet.
+2. Issue an agent credential with spending limits.
+3. Hand that credential to an agent runtime.
+4. Register provider services when publishing APIs to the marketplace.
 
-## Documentation
+Python:
 
-- `python/`: Python SDK implementation and examples.
-- `typescript/`: TypeScript SDK implementation and tests.
-- `docs/sdk/README.md`: SDK docs hub.
-- `docs/sdk/capability_inventory.md`: current supported and unsupported gateway capabilities.
+```python
+from synapse_client import SynapseAuth
 
-For the gateway and provider service implementation, see the sibling `Synapse-Network` and `Synapse-Network-Provider` repositories.
+auth = SynapseAuth.from_private_key(
+    "0xYOUR_PRIVATE_KEY",
+    environment="staging",
+)
+issued = auth.issue_credential(name="agent-preview", maxCalls=100, creditLimit=5)
+print(issued.credential.id, issued.token)
+```
+
+TypeScript:
+
+```ts
+import { Wallet } from "ethers";
+import { SynapseAuth } from "@synapse-network/sdk";
+
+const wallet = new Wallet(process.env.OWNER_PRIVATE_KEY!);
+const auth = SynapseAuth.fromWallet(wallet, { environment: "staging" });
+const issued = await auth.issueCredential({
+  name: "agent-preview",
+  maxCalls: 100,
+  creditLimit: 5,
+});
+console.log(issued.credential.id, issued.token);
+```
+
+## Security
+
+- Never commit API keys, JWTs, provider secrets, private keys, wallet mnemonics, or production logs.
+- Treat staging credentials as test-only and production credentials as live funds.
+- Use environment variables, a secret manager, or your runtime's secret store.
+- Do not paste credentials into GitHub issues, pull requests, screenshots, or agent prompts.
+- See [SECURITY.md](./SECURITY.md) for reporting and credential handling guidance.
+
+Release sanity checks:
+
+```bash
+git ls-files | rg '(^|/)\\.env|private|secret|key|pem|wallet|mnemonic|credential' | rg -v '(^|/)\\.env\\.example$'
+rg 'gateway\\.synapse\\.network' .
+```
+
+The first command should not show committed secret-bearing files after the `.env.example` allowlist. The second command should not show new SDK references to the stale gateway domain.
+
+## Current API Boundary
+
+Supported today:
+
+- Consumer discovery/search
+- Price-asserted invoke
+- Invocation receipt lookup
+- Owner auth and credential issue/list/update
+- Balance and deposit intent helpers
+- Provider secret issue/list
+- Provider service register/list/get/status
+
+Not yet wrapped:
+
+- Credential revoke/delete/audit logs
+- Provider secret revoke
+- Service update/delete/ping/health history
+- Usage logs, vouchers, refunds, withdrawals, notifications, community APIs
+
+See [docs/sdk/capability_inventory.md](./docs/sdk/capability_inventory.md) for the detailed inventory.
+
+## Development
+
+```bash
+cd python
+python3 -m venv .venv
+source .venv/bin/activate
+python -m pip install -e ".[dev]"
+PYTHONPATH="$PWD" .venv/bin/python -m pytest synapse_client/test/test_client_unit.py synapse_client/test/test_auth_unit.py -q
+```
+
+```bash
+cd typescript
+npm install
+npm run test:unit
+npm run lint
+```
 
 ## License
 

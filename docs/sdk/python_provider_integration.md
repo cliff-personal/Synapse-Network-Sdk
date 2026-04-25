@@ -34,7 +34,7 @@ from synapse_client import SynapseAuth
 
 auth = SynapseAuth.from_private_key(
     "0xYOUR_PROVIDER_PRIVATE_KEY",
-    gateway_url="http://127.0.0.1:8000",
+    environment="staging",
 )
 
 jwt = auth.get_token()

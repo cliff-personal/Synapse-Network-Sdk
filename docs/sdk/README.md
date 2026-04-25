@@ -29,16 +29,23 @@ Python 旧的 quote-first 方法 `create_quote()`、`create_invocation()`、`inv
 
 ## 配置真相
 
+默认环境是 public preview/staging：
+
+- `local`: `http://127.0.0.1:8000`
+- `staging`: `https://api-staging.synapse-network.ai`
+- `prod`: `https://api.synapse-network.ai`，需等官方 production DNS 和 `/health` 验证后再用于真实资金流
+
 Python:
 
 - `api_key`: 显式参数优先，其次 `SYNAPSE_API_KEY`。
-- `gateway_url`: 显式参数优先，其次 `SYNAPSE_GATEWAY`，最后 `http://127.0.0.1:8000`。
+- `gateway_url`: 显式参数优先，其次 `SYNAPSE_GATEWAY`。
+- `environment`: 显式参数优先，其次 `SYNAPSE_ENV`，最后 `staging`。
 - `AgentWallet.connect()` 不再使用 demo credential fallback；缺少真实 credential 会失败。
 
 TypeScript:
 
-- SDK 构造函数以显式 `credential` / `gatewayUrl` 为准。
-- 应用层可以读取 `process.env.SYNAPSE_GATEWAY` 后传入 SDK。
+- SDK 构造函数以显式 `credential` / `gatewayUrl` / `environment` 为准。
+- 应用层可以读取环境变量后传入 SDK，但 SDK 本身不隐式读取 Node env。
 - SDK 本身不隐式依赖 Node 环境变量，方便浏览器和 Node 共用。
 
 ## 幂等与重试

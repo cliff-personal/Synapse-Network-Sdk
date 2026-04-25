@@ -80,6 +80,18 @@ def test_authenticate_runs_challenge_sign_verify_and_caches(monkeypatch):
     ]
 
 
+def test_auth_defaults_to_staging_gateway(monkeypatch):
+    monkeypatch.delenv("SYNAPSE_GATEWAY", raising=False)
+    monkeypatch.delenv("SYNAPSE_ENV", raising=False)
+
+    auth = SynapseAuth(
+        wallet_address="0xAbC",
+        signer=lambda message: "0xsigned",
+    )
+
+    assert auth.gateway_url == "https://api-staging.synapse-network.ai"
+
+
 def test_issue_credential_and_balance_use_bearer_token(monkeypatch):
     calls = []
 

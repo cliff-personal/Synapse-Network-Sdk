@@ -21,6 +21,7 @@ import {
   ProviderServiceStatus,
 } from "./types";
 import { AuthenticationError } from "./errors";
+import { resolveGatewayUrl } from "./config";
 
 type SignerFn = (message: string) => Promise<string>;
 
@@ -40,7 +41,7 @@ export class SynapseAuth {
   private _tokenExpiresAt: number = 0;
 
   constructor(opts: SynapseAuthConstructorOptions) {
-    this.gatewayUrl = (opts.gatewayUrl ?? "http://127.0.0.1:8000").replace(/\/$/, "");
+    this.gatewayUrl = resolveGatewayUrl({ environment: opts.environment, gatewayUrl: opts.gatewayUrl });
     this.timeoutMs = opts.timeoutMs ?? 30_000;
     this.signer = opts.signer;
     this.walletAddress = opts.walletAddress.toLowerCase();

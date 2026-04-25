@@ -1,7 +1,11 @@
 // ── Auth ────────────────────────────────────────────────────────────────────
 
+export type SynapseEnvironment = "local" | "staging" | "prod";
+
 export interface SynapseAuthOptions {
-  /** Gateway base URL. Default: http://127.0.0.1:8000 */
+  /** Gateway environment preset. Default: staging public preview. */
+  environment?: SynapseEnvironment;
+  /** Gateway base URL. Overrides environment when provided. */
   gatewayUrl?: string;
   /** Timeout per request in milliseconds. Default: 30000 */
   timeoutMs?: number;
@@ -243,7 +247,9 @@ export interface InvocationResult {
 export interface SynapseClientOptions {
   /** Agent credential token (X-Credential header). Required. */
   credential: string;
-  /** Gateway base URL. Default: http://127.0.0.1:8000 */
+  /** Gateway environment preset. Default: staging public preview. */
+  environment?: SynapseEnvironment;
+  /** Gateway base URL. Overrides environment when provided. */
   gatewayUrl?: string;
   /** Timeout per request in ms. Default: 30000 */
   timeoutMs?: number;
