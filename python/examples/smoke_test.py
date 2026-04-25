@@ -16,10 +16,9 @@ from synapse_client.exceptions import (
     DiscoveryError,
     InsufficientFundsError,
     InvokeError,
-    QuoteError,
     SynapseClientError,
 )
-from synapse_client.models import InvocationResponse, QuoteResponse
+from synapse_client.models import InvocationResponse
 
 
 TERMINAL_STATUSES = {"SUCCEEDED", "FAILED_RETRYABLE", "FAILED_FINAL", "SETTLED"}
@@ -56,6 +55,12 @@ def parse_args() -> argparse.Namespace:
         help="Skip discovery and invoke a known service directly.",
     )
     parser.add_argument(
+        "--cost-usdc",
+        type=float,
+        default=None,
+        help="Required with --service-id. Price assertion sent to /api/v1/agent/invoke.",
+    )
+    parser.add_argument(
         "--text",
         default="想要放弃的时候，请给我一句关于坚持的名人名言",
         help="Default text payload for text-based services.",
@@ -68,7 +73,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--request-id",
         default="",
-        help="Request id attached to quote/invoke requests. Auto-generated when omitted.",
+        help="Request id attached to discovery/invoke requests. Auto-generated when omitted.",
     )
     parser.add_argument(
         "--idempotency-key",
@@ -78,12 +83,12 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--skip-invoke",
         action="store_true",
-        help="Only perform discovery and exit without quote/invoke.",
+        help="Only perform discovery and exit without invoke.",
     )
     parser.add_argument(
         "--print-curl",
         action="store_true",
-        help="Print reproducible curl commands for discovery, quote, and invoke requests.",
+        help="Print reproducible curl commands for discovery and invoke requests.",
     )
     return parser.parse_args()
 
@@ -148,7 +153,6 @@ def print_stage_curl(
     args: argparse.Namespace,
     request_id: str,
     discovery_body: dict | None,
-    quote_body: dict | None,
     invoke_body: dict | None,
 ) -> None:
     if not args.print_curl:
@@ -164,19 +168,11 @@ def print_stage_curl(
             request_id=request_id,
             body=discovery_body,
         ))
-    if quote_body is not None:
-        print("quote:")
-        print(format_curl(
-            gateway_url=args.gateway_url,
-            path="/api/v1/agent/quotes",
-            request_id=request_id,
-            body=quote_body,
-        ))
     if invoke_body is not None:
         print("invoke:")
         print(format_curl(
             gateway_url=args.gateway_url,
-            path="/api/v1/agent/invocations",
+            path="/api/v1/agent/invoke",
             request_id=request_id,
             body=invoke_body,
         ))
@@ -204,13 +200,10 @@ def print_failure_diagnosis(
         print("hint: owner treasury or credential credit limit is exhausted; top up balance or widen budget policy.", file=sys.stderr)
         return
     if isinstance(exc, BudgetExceededError):
-        print("hint: quote or invocation is blocked by runtime budget policy, daily cap, or credential credit guard.", file=sys.stderr)
+        print("hint: invocation is blocked by runtime budget policy, daily cap, or credential credit guard.", file=sys.stderr)
         return
     if isinstance(exc, DiscoveryError):
         print("hint: check gateway health, discovery index readiness, and whether any service is published and healthy.", file=sys.stderr)
-        return
-    if isinstance(exc, QuoteError):
-        print("hint: check service availability, payload preview shape, and gateway quote validation logs.", file=sys.stderr)
         return
     if isinstance(exc, InvokeError):
         print("hint: keep request_id/idempotency_key and correlate them with gateway logs or invocation receipts.", file=sys.stderr)
@@ -230,43 +223,19 @@ def build_discovery_body(args: argparse.Namespace) -> dict:
     return body
 
 
-def build_quote_body(service_id: str, payload: dict) -> dict:
+def build_invoke_body(service_id: str, cost_usdc: float, idempotency_key: str, payload: dict) -> dict:
     return {
         "serviceId": service_id,
-        "inputPreview": {
-            "sample": {"body": payload},
-            "payloadSchema": {"body": {}},
-        },
-        "responseMode": "sync",
-    }
-
-
-def build_invoke_body(quote_id: str, idempotency_key: str, payload: dict) -> dict:
-    return {
-        "quoteId": quote_id,
         "idempotencyKey": idempotency_key,
+        "costUsdc": round(float(cost_usdc), 6),
         "payload": {"body": payload},
         "responseMode": "sync",
     }
 
 
-def build_quote_summary(quote: object) -> dict:
-    return {
-        "quoteId": getattr(quote, "quote_id", ""),
-        "serviceId": getattr(quote, "service_id", ""),
-        "priceUsdc": getattr(quote, "price_usdc", 0.0),
-        "priceModel": getattr(quote, "price_model", ""),
-        "expiresAt": getattr(quote, "expires_at", ""),
-        "budgetCheck": getattr(getattr(quote, "budget_check", None), "model_dump", lambda **_: {}) (by_alias=True, exclude_none=True),
-        "invokeConstraints": getattr(getattr(quote, "invoke_constraints", None), "model_dump", lambda **_: {}) (by_alias=True, exclude_none=True),
-    }
-
-
-def determine_failure_stage(quote_body: dict | None, invoke_body: dict | None) -> str:
-    if quote_body is None and invoke_body is None:
-        return "discovery"
+def determine_failure_stage(invoke_body: dict | None) -> str:
     if invoke_body is None:
-        return "quote"
+        return "discovery"
     return "invoke"
 
 
@@ -277,9 +246,12 @@ def resolve_service_id(
     service_id: str,
     request_id: str,
     discovery_body: dict | None,
-) -> tuple[str, int]:
+) -> tuple[str, float, int]:
     if service_id:
-        return service_id, 0
+        if args.cost_usdc is None:
+            print("--cost-usdc is required when --service-id is provided.", file=sys.stderr)
+            return service_id, 0.0, 2
+        return service_id, float(args.cost_usdc), 0
 
     print_section("discovery")
     print_json("Discovery request", discovery_body)
@@ -296,11 +268,13 @@ def resolve_service_id(
 
     if not discovery.results:
         print("No discoverable services matched the current query.", file=sys.stderr)
-        return "", 1
+        return "", 0.0, 1
 
     resolved_service_id = discovery.results[0].service_id
+    price_usdc = float(discovery.results[0].pricing.amount)
     print(f"Selected service: {resolved_service_id}")
-    return resolved_service_id, 0
+    print(f"Selected price: {price_usdc:.6f} USDC")
+    return resolved_service_id, price_usdc, 0
 
 
 def handle_discovery_miss(
@@ -322,42 +296,29 @@ def handle_discovery_miss(
         args=args,
         request_id=request_id,
         discovery_body=discovery_body,
-        quote_body=None,
         invoke_body=None,
     )
     return 1
 
 
-def run_quote_and_invoke(
+def run_price_asserted_invoke(
     *,
     client: SynapseClient,
     service_id: str,
+    cost_usdc: float,
     payload: dict,
     request_id: str,
     idempotency_key: str,
     stage_context: dict[str, dict | None],
-) -> tuple[dict, dict, InvocationResponse]:
-    quote_body = build_quote_body(service_id, payload)
-    stage_context["quote_body"] = quote_body
-    print_section("quote")
-    print_json("Quote request", quote_body)
-    quote: QuoteResponse = client.create_quote(
-        service_id=service_id,
-        input_preview=quote_body["inputPreview"],
-        request_id=request_id,
-    )
-    print(f"Quote id: {quote.quote_id}")
-    print(f"Quote expiry: {quote.expires_at}")
-    print(f"Budget allowed: {quote.budget_check.allowed}")
-    print_json("Quote summary", build_quote_summary(quote))
-
-    invoke_body = build_invoke_body(quote.quote_id, idempotency_key, payload)
+) -> tuple[dict, InvocationResponse]:
+    invoke_body = build_invoke_body(service_id, cost_usdc, idempotency_key, payload)
     stage_context["invoke_body"] = invoke_body
     print_section("invoke")
     print_json("Invoke request", invoke_body)
-    invocation: InvocationResponse = client.create_invocation(
-        quote_id=quote.quote_id,
+    invocation: InvocationResponse = client.invoke(
+        service_id=service_id,
         payload=payload,
+        cost_usdc=cost_usdc,
         request_id=request_id,
         idempotency_key=idempotency_key,
     )
@@ -370,7 +331,7 @@ def run_quote_and_invoke(
         invocation = client.wait_for_invocation(invocation.invocation_id)
         print(f"Final invocation status: {invocation.status}")
 
-    return quote_body, invoke_body, invocation
+    return invoke_body, invocation
 
 
 def main() -> int:
@@ -391,9 +352,8 @@ def main() -> int:
 
     service_id = args.service_id.strip()
     discovery_body = build_discovery_body(args) if not service_id else None
-    quote_body: dict | None = None
     invoke_body: dict | None = None
-    stage_context: dict[str, dict | None] = {"quote_body": None, "invoke_body": None}
+    stage_context: dict[str, dict | None] = {"invoke_body": None}
 
     print_section("smoke test context")
     print(f"Gateway: {args.gateway_url}")
@@ -402,13 +362,15 @@ def main() -> int:
     print(f"Service id override: {service_id or '<discover>'}")
     print_json("Payload", payload)
     try:
-        service_id, discovery_exit_code = resolve_service_id(
+        service_id, cost_usdc, discovery_exit_code = resolve_service_id(
             client=client,
             args=args,
             service_id=service_id,
             request_id=request_id,
             discovery_body=discovery_body,
         )
+        if discovery_exit_code == 2:
+            return 2
         if discovery_exit_code != 0:
             return handle_discovery_miss(
                 args=args,
@@ -422,25 +384,24 @@ def main() -> int:
                 args=args,
                 request_id=request_id,
                 discovery_body=discovery_body,
-                quote_body=None,
                 invoke_body=None,
             )
             return 0
 
-        quote_body, invoke_body, invocation = run_quote_and_invoke(
+        invoke_body, invocation = run_price_asserted_invoke(
             client=client,
             service_id=service_id,
+            cost_usdc=cost_usdc,
             payload=payload,
             request_id=request_id,
             idempotency_key=idempotency_key,
             stage_context=stage_context,
         )
     except SynapseClientError as exc:
-        quote_body = stage_context.get("quote_body")
         invoke_body = stage_context.get("invoke_body")
         print(f"Synapse SDK smoke test failed: {exc}", file=sys.stderr)
         print_failure_diagnosis(
-            stage=determine_failure_stage(quote_body, invoke_body),
+            stage=determine_failure_stage(invoke_body),
             exc=exc,
             request_id=request_id,
             idempotency_key=idempotency_key,
@@ -450,7 +411,6 @@ def main() -> int:
             args=args,
             request_id=request_id,
             discovery_body=discovery_body,
-            quote_body=quote_body,
             invoke_body=invoke_body,
         )
         return 1
@@ -467,7 +427,6 @@ def main() -> int:
             args=args,
             request_id=request_id,
             discovery_body=discovery_body,
-            quote_body=quote_body,
             invoke_body=invoke_body,
         )
         return 1
@@ -476,7 +435,6 @@ def main() -> int:
         args=args,
         request_id=request_id,
         discovery_body=discovery_body,
-        quote_body=quote_body,
         invoke_body=invoke_body,
     )
 

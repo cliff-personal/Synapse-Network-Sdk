@@ -22,10 +22,9 @@
 | 11 | 创建 agent | `issue_credential()` 成功，返回 agent token |
 | 12 | 列举 credential | `list_credentials()` 能找到刚创建的 agent |
 | 13 | 服务发现 | `client.discover()` 返回服务列表，包含刚注册服务 |
-| 14 | 报价 | `client.quote(serviceId)` 返回有效 `quote_id` |
-| 15 | 调用 | `client.invoke()` 返回 `SUCCEEDED/SETTLED` |
-| 16 | Receipt | `client.get_invocation()` 能按 invocation id 取回状态 |
-| 17 | 余额扣减 | 调用后余额小于调用前余额 |
+| 14 | 调用 | `client.invoke(serviceId, payload, cost_usdc=...)` 返回 `SUCCEEDED/SETTLED` |
+| 15 | Receipt | `client.get_invocation()` 能按 invocation id 取回状态 |
+| 16 | 余额扣减 | 调用后余额小于调用前余额 |
 
 ---
 
@@ -84,4 +83,3 @@ PYTHONPATH="$PWD" .venv/bin/python -m pytest synapse_client/test/test_consumer_e
 3. `charged_usdc > 0`
 4. `consumer_available_balance` 在调用后下降
 5. 测试总时长稳定在本地 30 秒内
-

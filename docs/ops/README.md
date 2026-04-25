@@ -11,7 +11,7 @@
 
 它负责：
 
-1. 封装 discovery / quote / invoke / receipt 运行时协议
+1. 封装 discovery / invoke / receipt 运行时协议
 2. 给 Agent 和集成方提供稳定的程序化客户端
 3. 提供 smoke test、单测与打包发布入口
 

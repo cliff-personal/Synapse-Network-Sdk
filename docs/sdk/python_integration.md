@@ -1,39 +1,44 @@
 # Synapse Python SDK Integration Guide
 
-## 1. 当前状态
+## 当前状态
 
-Python SDK 现在已经满足 **自动化接入** 的完整主链要求。
+Python SDK 覆盖当前 gateway 的 consumer/provider canonical main flow。
 
-这次补齐后的能力：
+Consumer runtime 主链固定为：
 
-1. Owner 钱包 challenge / sign / verify 登录
-2. JWT 缓存
-3. 余额读取
-4. 充值登记与确认
-5. Agent credential 颁发与列举
-6. Discover / Quote / Invoke / Receipt
-7. 新钱包冷启动 E2E
-8. API 风格向 TypeScript 对齐
+1. owner 钱包登录
+2. 创建 agent credential
+3. discovery/search
+4. `invoke(service_id, payload, cost_usdc=...)`
+5. receipt 查询
 
-核心入口：
+旧的 quote-first 方法 `create_quote()`、`create_invocation()`、`invoke_service()` 已废弃，不再访问旧 endpoint。调用这些方法会直接提示改用 discovery/search + price-asserted invoke。
 
-1. `python/synapse_client/auth.py`
-2. `python/synapse_client/client.py`
-3. `python/synapse_client/models.py`
-4. `python/synapse_client/test/test_consumer_e2e.py`
-
-## 2. 安装
+## 安装
 
 ```bash
-cd /home/alex/Documents/cliff/Synapse-Network-Sdk/python
+cd /Users/cliff/workspace/agent/Synapse-Network-Sdk/python
 python3.11 -m venv .venv
 source .venv/bin/activate
 python -m pip install -e ".[dev]"
 ```
 
-## 3. 最短接入链路
+## 配置
 
-### 3.1 Owner 钱包登录
+`SynapseClient` 读取顺序：
+
+1. `api_key` 显式参数
+2. `SYNAPSE_API_KEY`
+
+`gateway_url` 读取顺序：
+
+1. `gateway_url` 显式参数
+2. `SYNAPSE_GATEWAY`
+3. `http://127.0.0.1:8000`
+
+`AgentWallet.connect()` 不再使用 `demo_key` fallback。没有真实 credential 时会失败。
+
+## Owner 钱包登录
 
 ```python
 from synapse_client import SynapseAuth
@@ -47,26 +52,17 @@ jwt = auth.get_token()
 print(jwt)
 ```
 
-### 3.2 读取余额
+## 余额、充值与 Credential
 
 ```python
 balance = auth.get_balance()
 print(balance.consumer_available_balance)
-```
 
-### 3.3 链上充值后登记到网关
-
-```python
 intent = auth.register_deposit_intent(tx_hash, 10)
 intent_id = intent.intent.resolved_id
 event_key = intent.intent.resolved_event_key or tx_hash
-
 auth.confirm_deposit(intent_id, event_key)
-```
 
-### 3.4 颁发 Agent Credential
-
-```python
 issued = auth.issue_credential(
     name="consumer-agent-01",
     maxCalls=100,
@@ -77,7 +73,7 @@ issued = auth.issue_credential(
 print(issued.credential.id, issued.token)
 ```
 
-### 3.5 Consumer Runtime 调用
+## Consumer Runtime 调用
 
 ```python
 from synapse_client import SynapseClient
@@ -87,13 +83,13 @@ client = SynapseClient(
     gateway_url="http://127.0.0.1:8000",
 )
 
-services = client.discover(limit=20)
-service_id = services[0].service_id
+services = client.search("market data", limit=20, tags=["finance"])
+service = services[0]
 
-# 一行搞定 — invoke() 内部自动完成 quote → invoke → settle
 result = client.invoke(
-    service_id,
+    service.service_id,
     {"prompt": "hello"},
+    cost_usdc=float(service.price_usdc),
     idempotency_key="job-001",
     poll_timeout_sec=60,
 )
@@ -101,54 +97,46 @@ result = client.invoke(
 print(result.invocation_id, result.status, result.charged_usdc)
 ```
 
-## 4. TypeScript 对齐点
+如果你已经缓存了稳定 `service_id`，仍然建议先读取或保存 discovery 返回的最新价格，再传给 `cost_usdc`。gateway 会用该价格断言保护调用方，避免服务价格变化后静默扣费。
 
-Python SDK 新增了下面这组 TS 风格 alias，减少双语言接入心智切换：
+## 当前 Consumer API
 
-1. `discover()`
-2. `search()`
-3. `quote()`
-4. `invoke()`
-5. `get_invocation()`
+主推方法：
 
-底层兼容旧接口，下面这些名字依然可用：
+1. `search_services()`
+2. `discover_services()`
+3. `discover()`
+4. `search()`
+5. `invoke()`
+6. `get_invocation()`
+7. `get_invocation_receipt()`
 
-1. `discover_services()`
-2. `search_services()`
-3. `create_quote()`
-4. `invoke_service()`
-5. `get_invocation_receipt()`
+已废弃兼容方法：
 
-## 5. 自动化验收
+1. `create_quote()`
+2. `create_invocation()`
+3. `invoke_service()`
+4. `quote()`
 
-```bash
-cd /home/alex/Documents/cliff/Synapse-Network-Sdk/python
-PYTHONPATH="$PWD" .venv/bin/python -m pytest synapse_client/test/test_auth_unit.py synapse_client/test/test_client_unit.py -q
-PYTHONPATH="$PWD" .venv/bin/python -m pytest synapse_client/test/test_consumer_e2e.py -q -s
-```
+## Provider 侧接入
 
-## 6. 结论
+Provider onboarding 已拆成独立文档：
 
-和 TypeScript SDK 对比，Python SDK 在这次改造前 **不满足** 从 owner 钱包登录开始的自动化接入；改造后，已经满足：
+1. `docs/sdk/python_provider_integration.md`
+2. `docs/test/python-provider-onboarding-e2e-plan.md`
 
-1. 创建钱包
-2. 登录
-3. 充值
-4. 创建 agent credential
-5. 服务发现
-6. 服务调用
-7. receipt 查询
-8. 余额验证
-
-## 7. Provider 侧接入
-
-Provider onboarding 已经拆成独立文档，见：
-
-- `docs/sdk/python_provider_integration.md`
-- `docs/test/python-provider-onboarding-e2e-plan.md`
-
-现在 Python SDK 也支持：
+Python SDK 当前支持：
 
 1. provider secret 创建与列举
 2. provider 服务注册
 3. provider 服务状态查询
+
+Provider onboarding 成功标准以 owner `/api/v1/services` 列表为准，不以 public discovery 为准。
+
+## 自动化验收
+
+```bash
+cd /Users/cliff/workspace/agent/Synapse-Network-Sdk/python
+PYTHONPATH="$PWD" .venv/bin/python -m pytest synapse_client/test/test_auth_unit.py synapse_client/test/test_client_unit.py -q
+PYTHONPATH="$PWD" .venv/bin/python -m pytest synapse_client/test/test_consumer_e2e.py -q -s
+```

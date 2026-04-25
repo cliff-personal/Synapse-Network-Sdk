@@ -4,7 +4,7 @@
  * 完整的"新用户冷启动"链路验证：
  *   创建空钱包 → 链上注入 ETH + USDC → 链上充值 →
  *   网关认证 → 充值确认 → Credential 颁发 →
- *   服务发现 → 报价 → 调用 → 收据 → 余额验证
+ *   服务发现 → 单步调用 → 收据 → 余额验证
  *
  * 与 consumer.test.ts 的区别：
  *   - 使用 Wallet.createRandom() 生成全新 EOA（不依赖 Hardhat 预充值账户）
@@ -51,6 +51,7 @@ const MOCK_USDC_ABI_PATH    = path.join(REPO_ROOT, "apps/frontend/src/MockUSDCAB
 const SYNAPSE_CORE_ABI_PATH = path.join(REPO_ROOT, "apps/frontend/src/SynapseCoreABI.json");
 
 const SESSION_ID      = uuidv4().replace(/-/g, "").slice(0, 8);
+const SERVICE_PRICE_USDC = 0.001;
 const SERVICE_NAME    = `nc_e2e_svc_${SESSION_ID}`;
 const CRED_NAME       = `nc-cred-${SESSION_ID}`;
 
@@ -182,7 +183,7 @@ async function registerTestService(
     role: "Provider",
     status: "active",
     isActive: true,
-    pricing: { amount: "0.001", currency: "USD" },
+    pricing: { amount: String(SERVICE_PRICE_USDC), currency: "USDC" },
     summary: "New-Consumer SDK automated e2e integration test service",
     tags: ["nc-sdk", "e2e", "test"],
     auth: { type: "gateway_signed" },
@@ -377,20 +378,9 @@ describe("Synapse TS SDK — New Consumer Cold-Start E2E", () => {
     });
   });
 
-  // ── Test 5: Quote ─────────────────────────────────────────────────────────
+  // ── Test 5: Invoke ────────────────────────────────────────────────────────
 
-  describe("5. Quote", () => {
-    it("should create a quote for the test service", async () => {
-      const q = await client.quote(serviceId);
-      expect(q.quoteId).toBeTruthy();
-      expect(q.quoteId.length).toBeGreaterThan(5);
-      console.log(`  Quote ID: ${q.quoteId}`);
-    });
-  });
-
-  // ── Test 6: Invoke ────────────────────────────────────────────────────────
-
-  describe("6. Invocation (end-to-end settlement)", () => {
+  describe("5. Invocation (end-to-end settlement)", () => {
     let invResult: InvocationResult;
 
     beforeAll(async () => {
@@ -406,6 +396,7 @@ describe("Synapse TS SDK — New Consumer Cold-Start E2E", () => {
         discoveredServiceId,
         { prompt: "new-consumer e2e automated test" },
         {
+          costUsdc: SERVICE_PRICE_USDC,
           idempotencyKey: `nc-e2e-${SESSION_ID}`,
           pollTimeoutMs: 60_000,
           pollIntervalMs: 1_000,
@@ -428,9 +419,9 @@ describe("Synapse TS SDK — New Consumer Cold-Start E2E", () => {
     });
   });
 
-  // ── Test 7: Invocation Receipt ────────────────────────────────────────────
+  // ── Test 6: Invocation Receipt ────────────────────────────────────────────
 
-  describe("7. Invocation Receipt", () => {
+  describe("6. Invocation Receipt", () => {
     let receiptInvocationId: string;
 
     beforeAll(async () => {
@@ -438,6 +429,7 @@ describe("Synapse TS SDK — New Consumer Cold-Start E2E", () => {
         serviceId,
         { prompt: "receipt verification call" },
         {
+          costUsdc: SERVICE_PRICE_USDC,
           idempotencyKey: `nc-receipt-${SESSION_ID}`,
           pollTimeoutMs: 60_000,
         }
@@ -452,17 +444,15 @@ describe("Synapse TS SDK — New Consumer Cold-Start E2E", () => {
     });
   });
 
-  // ── Test 8: Direct known serviceId path ─────────────────────────────────
+  // ── Test 7: Direct known serviceId path ─────────────────────────────────
 
-  describe("8. Direct known serviceId path", () => {
-    it("should invoke the service directly when serviceId is already known", async () => {
-      const quote = await client.quote(serviceId);
-      expect(quote.quoteId).toBeTruthy();
-
+  describe("7. Direct known serviceId path", () => {
+    it("should invoke directly when serviceId and expected price are already known", async () => {
       const result = await client.invoke(
         serviceId,
         { prompt: "direct path from known service id" },
         {
+          costUsdc: SERVICE_PRICE_USDC,
           idempotencyKey: `nc-direct-${SESSION_ID}`,
           pollTimeoutMs: 60_000,
         }
@@ -473,9 +463,9 @@ describe("Synapse TS SDK — New Consumer Cold-Start E2E", () => {
     }, 90_000);
   });
 
-  // ── Test 9: Post-settlement Balance ──────────────────────────────────────
+  // ── Test 8: Post-settlement Balance ──────────────────────────────────────
 
-  describe("9. Post-Settlement Balance", () => {
+  describe("8. Post-Settlement Balance", () => {
     it("should show reduced consumer balance after invocations", async () => {
       const balance   = await freshAuth.getBalance();
       const available = Number(

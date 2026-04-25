@@ -233,7 +233,7 @@ def test_python_sdk_consumer_cold_start_e2e(mock_provider_server):
             "role": "Provider",
             "status": "active",
             "isActive": True,
-            "pricing": {"amount": "0.001", "currency": "USD"},
+            "pricing": {"amount": "0.001", "currency": "USDC"},
             "summary": "Python SDK automated e2e integration test service",
             "tags": ["py-sdk", "e2e", "test"],
             "auth": {"type": "gateway_signed"},
@@ -289,17 +289,17 @@ def test_python_sdk_consumer_cold_start_e2e(mock_provider_server):
     ids = [service.service_id for service in services.services]
     assert ids
     assert service_id in ids
-
-    quote = client.create_quote(service_id)
-    assert quote.quote_id
+    discovered_service = next(service for service in services.services if service.service_id == service_id)
+    assert discovered_service.price_usdc is not None
 
     balance_before_invoke = float(fresh_auth.get_balance().consumer_available_balance or 0)
 
-    invocation = client.invoke_service(
+    invocation = client.invoke(
         service_id,
         payload={"prompt": "python-sdk e2e automated test"},
+        cost_usdc=float(discovered_service.price_usdc),
         idempotency_key=f"py-sdk-e2e-{SESSION_ID}",
-        max_wait_sec=60,
+        poll_timeout_sec=60,
     )
     assert invocation.invocation_id
     assert invocation.status in {"SUCCEEDED", "SETTLED"}

@@ -1,179 +1,89 @@
 # Synapse SDK Docs Hub
 
-本目录现在是 SDK 侧的总入口，覆盖 TypeScript、Python、测试与 bugfix。
+本目录是 SDK 侧的真实能力入口，覆盖 Python、TypeScript、consumer runtime、provider onboarding 与测试计划。
 
-## 1. 文档入口
+## 文档入口
 
-1. [TypeScript Integration Guide](./typescript_integration.md)
-2. [TypeScript Provider Integration Guide](./typescript_provider_integration.md)
-3. [Python Integration Guide](./python_integration.md)
-4. [Python Provider Integration Guide](./python_provider_integration.md)
-5. [Python Local Development](../ops/SDK_Python_Local_Development.md)
-6. [TypeScript Consumer E2E Plan](../test/consumer-e2e-plan.md)
-7. [TypeScript Provider Onboarding E2E Plan](../test/typescript-provider-onboarding-e2e-plan.md)
-8. [Python Consumer Cold-Start E2E Plan](../test/python-consumer-cold-start-e2e-plan.md)
-9. [Python Provider Onboarding E2E Plan](../test/python-provider-onboarding-e2e-plan.md)
-10. [TypeScript Bug Log](../bugfix/typeScript/bugs.md)
-11. [Python Bug Log](../bugfix/python/bugs.md)
+1. [SDK Capability Inventory](./capability_inventory.md)
+2. [TypeScript Integration Guide](./typescript_integration.md)
+3. [TypeScript Provider Integration Guide](./typescript_provider_integration.md)
+4. [Python Integration Guide](./python_integration.md)
+5. [Python Provider Integration Guide](./python_provider_integration.md)
+6. [Python Local Development](../ops/SDK_Python_Local_Development.md)
+7. [TypeScript Consumer E2E Plan](../test/consumer-e2e-plan.md)
+8. [TypeScript Provider Onboarding E2E Plan](../test/typescript-provider-onboarding-e2e-plan.md)
+9. [Python Consumer Cold-Start E2E Plan](../test/python-consumer-cold-start-e2e-plan.md)
+10. [Python Provider Onboarding E2E Plan](../test/python-provider-onboarding-e2e-plan.md)
 
-## 2. 当前结论
+## 当前结论
 
-### TypeScript SDK
+SDK 当前覆盖的是 consumer/provider canonical main flow：
 
-已经满足完整自动化接入，包含：
+1. owner auth / credential issue
+2. agent discovery/search
+3. `POST /api/v1/agent/invoke`
+4. `GET /api/v1/agent/invocations/{id}`
+5. provider secret 与 provider service 注册/查询
 
-1. consumer 冷启动 E2E
-2. provider secret 创建
-3. provider 服务注册
-4. provider 服务状态查询
+Python 旧的 quote-first 方法 `create_quote()`、`create_invocation()`、`invoke_service()` 已经废弃。它们不会再访问旧 endpoint，而是直接提示改用 discovery/search + `invoke(..., cost_usdc=...)`。
 
-### Python SDK
+## 配置真相
 
-在这次改造前，不满足 owner onboarding 自动化接入；  
-在这次改造后，已经满足：
+Python:
 
-1. 钱包登录
-2. 充值登记
-3. Agent credential 创建
-4. 服务发现
-5. 服务调用
-6. receipt 查询
-7. 余额验证
-8. Provider secret 创建
-9. Provider 服务注册
-10. Provider 服务状态查询
+- `api_key`: 显式参数优先，其次 `SYNAPSE_API_KEY`。
+- `gateway_url`: 显式参数优先，其次 `SYNAPSE_GATEWAY`，最后 `http://127.0.0.1:8000`。
+- `AgentWallet.connect()` 不再使用 demo credential fallback；缺少真实 credential 会失败。
 
-## 3. 当前验证结果
+TypeScript:
 
-这次已经实跑通过：
+- SDK 构造函数以显式 `credential` / `gatewayUrl` 为准。
+- 应用层可以读取 `process.env.SYNAPSE_GATEWAY` 后传入 SDK。
+- SDK 本身不隐式依赖 Node 环境变量，方便浏览器和 Node 共用。
 
-```bash
-cd /home/alex/Documents/cliff/Synapse-Network-Sdk/python
-PYTHONPATH="$PWD" .venv/bin/python -m pytest synapse_client/test/test_auth_unit.py synapse_client/test/test_client_unit.py -q
-PYTHONPATH="$PWD" .venv/bin/python -m pytest synapse_client/test/test_consumer_e2e.py -q -s
-```
+## 幂等与重试
 
-```bash
-cd /home/alex/Documents/cliff/Synapse-Network-Sdk/python
-.venv/bin/python -m build
-```
+运行时调用建议固定传：
 
-如果 `python -m build` 报模块不存在，先安装：
+1. `request_id` / request header，用于串联 gateway 日志。
+2. `idempotency_key` / `idempotencyKey`，用于避免重复扣费或重复执行。
+3. `cost_usdc` / `costUsdc`，来自最新 discovery price。若价格变化，gateway 会拒绝本次调用，调用方应重新 discovery。
 
-```bash
-.venv/bin/python -m pip install build
-```
+## 常见故障
 
-## 6. 运维关注点
+### `api_key is required`
 
-### 6.1 入口配置
-
-SDK 运行时主要受两个配置影响：
-
-1. `SYNAPSE_API_KEY`
-2. `gateway_url` 或 `SYNAPSE_GATEWAY` 语义上的网关地址
-
-当前 `SynapseClient` 构造函数会自动读取：
-
-- `SYNAPSE_API_KEY`
-
-但 `gateway_url` 目前仍是显式参数优先，默认值为：
-
-```text
-http://127.0.0.1:8000
-```
-
-这意味着：
-
-1. 本地联调时不传 `gateway_url` 通常没问题
-2. 生产或 staging 场景必须显式传正确地址，不要默认依赖 localhost
-
-### 6.2 幂等与重试
-
-运维上要重点关注两个字段：
-
-1. `request_id`
-2. `idempotency_key`
-
-建议：
-
-1. 每次 quote / invoke 都挂稳定 `request_id`，便于串联 gateway 日志
-2. 每次业务动作生成稳定 `idempotency_key`，避免重复扣费或重复执行
-
-### 6.3 真实联调失败时先查哪里
-
-如果 SDK 集成 demo 失败，优先按下面顺序排查：
-
-1. Gateway 是否启动
-2. API key 是否有效
-3. discoverable 服务是否真的健康
-4. 引用的 `service_id` 是否来自最新 discovery 结果
-5. 凭据预算或余额是否足够
-
-常见命令：
-
-```bash
-bash /home/alex/Documents/cliff/Synapse-Network/scripts/local/restart_gateway.sh
-```
-
-然后重新跑 SDK demo。
-
-## 7. 常见故障对照表
-
-### 7.1 出现 `ImageMagick import` 输出
-
-原因：你在用 `sh` 执行 Python 文件。
-
-处理：改成运行 SDK 单测、`examples/smoke_test.py`，或者用 Python 导入包，不要执行 `client.py`。
-
-### 7.2 `api_key is required`
-
-原因：没有传 `api_key`，也没有设置 `SYNAPSE_API_KEY`。
-
-处理：
+没有传 `api_key`，也没有设置 `SYNAPSE_API_KEY`。
 
 ```bash
 export SYNAPSE_API_KEY='agt_xxx_your_real_key'
 ```
 
-### 7.3 discovery 返回 0 个结果
+### discovery 返回 0 个结果
 
-原因通常不是 SDK 坏了，而是后端没有 discoverable 服务。
+通常不是 SDK 坏了，而是当前 gateway 没有 discoverable 服务。
 
 优先检查：
 
-1. 服务是否 `active`
+1. provider service 是否 `active`
 2. target 是否健康
-3. discovery query / tags 是否匹配
+3. discovery `query` / `tags` 是否匹配
+4. provider onboarding 是否已进入 owner `/api/v1/services`
 
-### 7.4 `402` 或预算相关异常
+### `402` 或预算相关异常
 
-SDK 会把 `402` 映射成：
+SDK 会把 `402` 映射到余额、预算或 credential credit limit 相关异常。此时应检查账户余额、credential budget、daily cap，而不是盲目重试 SDK。
 
-1. `InsufficientFundsError`
-2. `BudgetExceededError`
-
-这说明要查账户余额、credential 预算、daily cap，而不是继续重试 SDK。
-
-## 8. 推荐维护原则
-
-1. 不要把 `client.py` 做成 CLI 入口；它的职责是稳定 SDK 模块。
-2. live 示例执行统一放在 `examples/`，不要混进单测目录。
-3. 单测只 mock HTTP，不依赖真实 gateway。
-4. live smoke test 必须是手工 opt-in，避免 CI 误连真实环境。
-5. 文档、异常映射、模型字段、测试断言必须一起演进。
-
-## 9. 最短操作路径
-
-如果你只想快速确认 `synapse_client` 当前是否工作，按这个顺序：
+## 最短验证路径
 
 ```bash
-cd /home/alex/Documents/cliff/Synapse-Network-Sdk/python
+cd /Users/cliff/workspace/agent/Synapse-Network-Sdk/python
 PYTHONPATH="$PWD" .venv/bin/python -m pytest synapse_client/test/test_client_unit.py -q
 export SYNAPSE_API_KEY='agt_xxx_your_real_key'
 PYTHONPATH="$PWD" .venv/bin/python examples/smoke_test.py --query '名人名言'
 ```
 
-第一步验证 SDK 代码本身。
-
-第二步验证 SDK 与本地 Synapse gateway 的真实联调。
+```bash
+cd /Users/cliff/workspace/agent/Synapse-Network-Sdk/typescript
+npm run test:unit
+```

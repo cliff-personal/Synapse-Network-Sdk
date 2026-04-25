@@ -13,31 +13,41 @@ from .exceptions import (
     InvokeError,
     PriceMismatchError,
     QuoteError,
+    SynapseClientError,
     TimeoutError,
 )
 from .models import (
     DiscoveryResponse,
     InvocationResponse,
-    QuoteResponse,
     RuntimePayload,
 )
 
 
 TERMINAL_STATUSES = {"SUCCEEDED", "FAILED_RETRYABLE", "FAILED_FINAL", "SETTLED"}
+DEPRECATED_QUOTE_FLOW_MESSAGE = (
+    "The current Synapse gateway uses price-asserted single-call invoke. "
+    "Use discover()/search() to read the live service price, then call "
+    "invoke(service_id, payload, cost_usdc=...)."
+)
 
 
 class SynapseClient:
-    """Official Python client for Synapse agent discovery, quote, invoke, and receipt APIs."""
+    """Official Python client for Synapse agent discovery, invoke, and receipt APIs."""
 
     def __init__(
         self,
         api_key: Optional[str] = None,
-        gateway_url: str = "http://127.0.0.1:8000",
+        gateway_url: Optional[str] = None,
         timeout_sec: int = 30,
     ):
         # Resolve api_key from arguments or environment variable
         self.api_key = (api_key or os.getenv("SYNAPSE_API_KEY", "")).strip()
-        self.gateway_url = gateway_url.rstrip("/")
+        resolved_gateway_url = (
+            gateway_url
+            or os.getenv("SYNAPSE_GATEWAY", "")
+            or "http://127.0.0.1:8000"
+        )
+        self.gateway_url = resolved_gateway_url.rstrip("/")
         self.timeout_sec = timeout_sec
 
         if not self.api_key:
@@ -203,40 +213,8 @@ class SynapseClient:
         payload: Optional[Dict[str, Any]] = None,
         request_id: Optional[str] = None,
     ) -> "QuoteResponse":
-        """Request a price quote for a service before invoking it.
-
-        ``input_preview`` is the structured preview dict expected by the gateway;
-        if omitted, it is built automatically from ``payload`` (or left empty).
-        """
-        if not service_id or not service_id.strip():
-            raise ValueError("service_id is required")
-
-        effective_preview = input_preview or {
-            "sample": {"body": payload or {}},
-            "payloadSchema": {"body": {}},
-        }
-        body = {
-            "serviceId": service_id.strip(),
-            "inputPreview": effective_preview,
-            "responseMode": "sync",
-        }
-        response = requests.post(
-            f"{self.gateway_url}/api/v1/agent/quotes",
-            headers=self._headers(request_id=request_id),
-            json=body,
-            timeout=self.timeout_sec,
-        )
-        if not response.ok:
-            error_code = self._error_code(response)
-            message = self._error_message(response, "quote request failed")
-            if response.status_code == 402:
-                if error_code in {"BUDGET_EXHAUSTED", "CREDENTIAL_CREDIT_LIMIT_EXCEEDED"}:
-                    raise InsufficientFundsError(message)
-                raise BudgetExceededError(message)
-            if response.status_code == 401:
-                raise AuthenticationError(message)
-            raise QuoteError(message)
-        return QuoteResponse(**self._response_payload(response))
+        """Deprecated: the current gateway no longer exposes quote as a public SDK step."""
+        raise QuoteError(DEPRECATED_QUOTE_FLOW_MESSAGE)
 
     # TS-style alias
     def quote(
@@ -265,33 +243,8 @@ class SynapseClient:
         request_id: Optional[str] = None,
         poll_timeout_sec: int = 90,
     ) -> InvocationResponse:
-        """Invoke a service using a pre-obtained quote ID.
-
-        This is the second step of the two-step quote → invoke flow.
-        Use ``invoke_service()`` for the combined one-call flow.
-        """
-        if not quote_id or not quote_id.strip():
-            raise ValueError("quote_id is required")
-
-        invocation_key = (idempotency_key or f"invoke-{uuid4().hex}").strip()
-        body = {
-            "quoteId": quote_id.strip(),
-            "idempotencyKey": invocation_key,
-            "payload": {"body": payload or {}},
-            "responseMode": response_mode,
-        }
-        response = requests.post(
-            f"{self.gateway_url}/api/v1/agent/invocations",
-            headers=self._headers(request_id=request_id),
-            json=body,
-            timeout=self.timeout_sec,
-        )
-        self._raise_for_error(response, InvokeError("service invocation failed"))
-        invocation = InvocationResponse(**self._response_payload(response))
-
-        if invocation.status in TERMINAL_STATUSES:
-            return invocation
-        return self.wait_for_invocation(invocation.invocation_id, max_wait_sec=poll_timeout_sec)
+        """Deprecated: the current gateway no longer accepts quoteId-based invocation."""
+        raise InvokeError(DEPRECATED_QUOTE_FLOW_MESSAGE)
 
     def invoke_service(
         self,
@@ -302,22 +255,8 @@ class SynapseClient:
         max_wait_sec: int = 90,
         request_id: Optional[str] = None,
     ) -> InvocationResponse:
-        """High-level combined flow: quote → invoke → wait.
-
-        Automatically creates a quote, then submits an invocation, and polls
-        until a terminal status is reached.  Use this instead of calling
-        create_quote() + create_invocation() separately when you don't need
-        the intermediate QuoteResponse.
-        """
-        invocation_key = (idempotency_key or f"invoke-{uuid4().hex}").strip()
-        q = self.create_quote(service_id, payload=payload, request_id=request_id)
-        return self.create_invocation(
-            q.quote_id,
-            payload=payload,
-            idempotency_key=invocation_key,
-            request_id=request_id,
-            poll_timeout_sec=max_wait_sec,
-        )
+        """Deprecated alias for the removed quote-first invocation flow."""
+        raise SynapseClientError(DEPRECATED_QUOTE_FLOW_MESSAGE)
 
     def get_invocation_receipt(self, invocation_id: str) -> InvocationResponse:
         """Fetch the latest state for an invocation."""
@@ -421,10 +360,10 @@ class AgentWallet(SynapseClient):
         cls,
         budget: float = 5.0,
         api_key: Optional[str] = None,
-        gateway_url: str = "http://127.0.0.1:8000",
+        gateway_url: Optional[str] = None,
     ) -> "AgentWallet":
         """Factory method — create and validate an AgentWallet in one call."""
-        api_key = api_key or os.getenv("SYNAPSE_API_KEY", "demo_key")
+        api_key = api_key or os.getenv("SYNAPSE_API_KEY", "")
         return cls(budget=budget, api_key=api_key, gateway_url=gateway_url)
 
     @property

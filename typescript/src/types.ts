@@ -193,6 +193,7 @@ export interface DiscoverOptions {
   limit?: number;
   offset?: number;
   tags?: string[];
+  sort?: "best_match" | "lowest_price" | "fastest" | "highest_reliability";
 }
 
 // ── Invocation ───────────────────────────────────────────────────────────────

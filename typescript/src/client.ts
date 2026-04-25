@@ -41,17 +41,8 @@ export class SynapseClient {
 
   /** Discover registered services on the platform. */
   async discover(opts: DiscoverOptions = {}): Promise<ServiceRecord[]> {
-    const params = new URLSearchParams();
-    if (opts.limit != null) params.set("limit", String(opts.limit));
-    if (opts.offset != null) params.set("offset", String(opts.offset));
-    if (opts.tags?.length) params.set("tags", opts.tags.join(","));
-
-    const qs = params.toString();
-    const url = `${this.gatewayUrl}/api/v1/services/discover${qs ? `?${qs}` : ""}`;
-
     try {
-      const resp = await this._fetch<{ services?: ServiceRecord[]; items?: ServiceRecord[] }>(url);
-      return resp.services ?? resp.items ?? (Array.isArray(resp) ? resp : []);
+      return await this.search("", opts);
     } catch (err) {
       throw new DiscoveryError(String(err instanceof Error ? err.message : err));
     }
@@ -59,16 +50,20 @@ export class SynapseClient {
 
   /** Search for services by text query. */
   async search(query: string, opts: DiscoverOptions = {}): Promise<ServiceRecord[]> {
+    const pageSize = Math.max(1, opts.limit ?? 20);
+    const offset = Math.max(0, opts.offset ?? 0);
+    const page = Math.floor(offset / pageSize) + 1;
     try {
       const resp = await this._fetch<{ services?: ServiceRecord[]; results?: ServiceRecord[] }>(
         `${this.gatewayUrl}/api/v1/agent/discovery/search`,
         {
           method: "POST",
           body: JSON.stringify({
-            query,
-            tags: opts.tags,
-            limit: opts.limit ?? 20,
-            offset: opts.offset ?? 0,
+            query: query.trim() || undefined,
+            tags: opts.tags ?? [],
+            page,
+            pageSize,
+            sort: opts.sort ?? "best_match",
           }),
         }
       );

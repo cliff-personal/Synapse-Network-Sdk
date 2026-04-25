@@ -2,7 +2,7 @@
  * Synapse TypeScript SDK — Consumer E2E Test
  *
  * Tests the full consumer pipeline end-to-end against a live local gateway:
- *   Auth → Credential → Discover → Quote → Invoke → Receipt
+ *   Auth → Credential → Discover → Invoke → Receipt
  *
  * Prerequisites:
  *   1. Hardhat node running:   npx hardhat node  (port 8545)
@@ -39,6 +39,7 @@ const MOCK_USDC_ABI_PATH   = path.join(REPO_ROOT, "apps/frontend/src/MockUSDCABI
 const SYNAPSE_CORE_ABI_PATH = path.join(REPO_ROOT, "apps/frontend/src/SynapseCoreABI.json");
 
 const DEPOSIT_USDC = 10;
+const SERVICE_PRICE_USDC = 0.001;
 const SESSION_ID = uuidv4().replace(/-/g, "").slice(0, 8);
 const SERVICE_TOOL_NAME = `ts_sdk_e2e_${SESSION_ID}`;
 const CRED_NAME = `ts-sdk-cred-${SESSION_ID}`;
@@ -133,7 +134,7 @@ async function registerTestService(
     role: "Provider",
     status: "active",
     isActive: true,
-    pricing: { amount: "0.001", currency: "USD" },
+    pricing: { amount: String(SERVICE_PRICE_USDC), currency: "USDC" },
     summary: "TypeScript SDK automated e2e integration test service",
     tags: ["ts-sdk", "e2e", "test"],
     auth: { type: "gateway_signed" },
@@ -306,19 +307,9 @@ describe("Synapse TypeScript SDK — Consumer E2E Pipeline", () => {
     });
   });
 
-  // ── Test 5: Quote ──────────────────────────────────────────────────────────
+  // ── Test 5: Invoke ────────────────────────────────────────────────────────
 
-  describe("5. Quote", () => {
-    it("should create a quote for the test service", async () => {
-      const q = await client.quote(serviceId);
-      expect(q.quoteId).toBeTruthy();
-      expect(q.quoteId.length).toBeGreaterThan(5);
-    });
-  });
-
-  // ── Test 6: Invoke ────────────────────────────────────────────────────────
-
-  describe("6. Invocation (end-to-end settlement)", () => {
+  describe("5. Invocation (end-to-end settlement)", () => {
     let invocationResult: InvocationResult;
 
     beforeAll(async () => {
@@ -332,6 +323,7 @@ describe("Synapse TypeScript SDK — Consumer E2E Pipeline", () => {
         discoveredServiceId,
         { prompt: "ts-sdk e2e automated test" },
         {
+          costUsdc: SERVICE_PRICE_USDC,
           idempotencyKey: `ts-sdk-e2e-${SESSION_ID}`,
           pollTimeoutMs: 60_000,
           pollIntervalMs: 1_000,
@@ -352,14 +344,15 @@ describe("Synapse TypeScript SDK — Consumer E2E Pipeline", () => {
     });
   });
 
-  // ── Test 7: Get Invocation Receipt ────────────────────────────────────────
+  // ── Test 6: Get Invocation Receipt ────────────────────────────────────────
 
-  describe("7. Invocation Receipt", () => {
+  describe("6. Invocation Receipt", () => {
     let savedInvocationId: string;
 
     beforeAll(async () => {
       // Run a second invocation to test receipt retrieval
       const result = await client.invoke(serviceId, { prompt: "receipt check" }, {
+        costUsdc: SERVICE_PRICE_USDC,
         idempotencyKey: `ts-sdk-receipt-${SESSION_ID}`,
         pollTimeoutMs: 60_000,
       });
@@ -373,15 +366,13 @@ describe("Synapse TypeScript SDK — Consumer E2E Pipeline", () => {
     });
   });
 
-  describe("8. Direct known serviceId call", () => {
-    it("should quote and invoke directly with a known serviceId", async () => {
-      const quote = await client.quote(serviceId);
-      expect(quote.quoteId).toBeTruthy();
-
+  describe("7. Direct known serviceId call", () => {
+    it("should invoke directly with a known serviceId and expected price", async () => {
       const result = await client.invoke(
         serviceId,
         { prompt: "direct known service id path" },
         {
+          costUsdc: SERVICE_PRICE_USDC,
           idempotencyKey: `ts-sdk-direct-${SESSION_ID}`,
           pollTimeoutMs: 60_000,
         }
@@ -392,9 +383,9 @@ describe("Synapse TypeScript SDK — Consumer E2E Pipeline", () => {
     }, 90_000);
   });
 
-  // ── Test 9: Balance after invoke ──────────────────────────────────────────
+  // ── Test 8: Balance after invoke ──────────────────────────────────────────
 
-  describe("9. Balance After Settlement", () => {
+  describe("8. Balance After Settlement", () => {
     it("should show reduced consumer balance after invocations", async () => {
       const balance = await ownerAuth.getBalance();
       const available = Number(balance.consumerAvailableBalance ?? balance.ownerBalance ?? 0);

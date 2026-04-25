@@ -160,7 +160,12 @@ test("500 from invoke throws InvokeError", async () => {
 // ── discover() ────────────────────────────────────────────────────────────────
 
 test("discover() returns service array from response.services", async () => {
-  (globalThis as unknown as Record<string, unknown>).fetch = jest.fn(async () => ({
+  let capturedUrl = "";
+  let capturedBody: Record<string, unknown> = {};
+  (globalThis as unknown as Record<string, unknown>).fetch = jest.fn(async (url: string, init?: RequestInit) => {
+    capturedUrl = url;
+    capturedBody = JSON.parse((init?.body as string) ?? "{}");
+    return {
     ok: true,
     status: 200,
     text: async () =>
@@ -169,12 +174,43 @@ test("discover() returns service array from response.services", async () => {
           { serviceId: "svc_a", serviceName: "Service A", summary: "test", status: "online" },
         ],
       }),
-  } as Response));
+  } as Response;
+  });
 
   const client = new SynapseClient({ credential: "agt_test" });
-  const svcs = await client.discover();
+  const svcs = await client.discover({ limit: 10, offset: 20, tags: ["llm"], sort: "lowest_price" });
   expect(svcs).toHaveLength(1);
   expect(svcs[0].serviceId).toBe("svc_a");
+  expect(capturedUrl).toContain("/api/v1/agent/discovery/search");
+  expect(capturedBody).toEqual({
+    tags: ["llm"],
+    page: 3,
+    pageSize: 10,
+    sort: "lowest_price",
+  });
+});
+
+test("search() sends current gateway discovery request shape", async () => {
+  let capturedBody: Record<string, unknown> = {};
+  (globalThis as unknown as Record<string, unknown>).fetch = jest.fn(async (_url: string, init?: RequestInit) => {
+    capturedBody = JSON.parse((init?.body as string) ?? "{}");
+    return {
+      ok: true,
+      status: 200,
+      text: async () => JSON.stringify({ results: [] }),
+    } as Response;
+  });
+
+  const client = new SynapseClient({ credential: "agt_test" });
+  await client.search("quotes", { limit: 5, offset: 10, tags: ["text"] });
+
+  expect(capturedBody).toEqual({
+    query: "quotes",
+    tags: ["text"],
+    page: 3,
+    pageSize: 5,
+    sort: "best_match",
+  });
 });
 
 // ── PRICE_MISMATCH ────────────────────────────────────────────────────────────

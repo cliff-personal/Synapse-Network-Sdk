@@ -42,7 +42,9 @@ PYTHONPATH="$PWD" .venv/bin/python examples/smoke_test.py --query "名人名言"
 ```bash
 cd /home/alex/Documents/cliff/Synapse-Network-Sdk/python
 export SYNAPSE_API_KEY="agt_xxxxx..."
-PYTHONPATH="$PWD" .venv/bin/python examples/smoke_test.py --service-id svc_quotes_famous_top3
+PYTHONPATH="$PWD" .venv/bin/python examples/smoke_test.py \
+  --service-id svc_quotes_famous_top3 \
+  --cost-usdc 0.001
 ```
 
 ## 端到端本地联调
