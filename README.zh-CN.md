@@ -2,6 +2,10 @@
   <a href="./README.md">English</a> · <strong>简体中文</strong>
 </p>
 
+<p align="center">
+  <img src="./assets/synapse-network-logo.svg" alt="SynapseNetwork logo" width="440" />
+</p>
+
 # SynapseNetwork SDK
 
 <p align="center">

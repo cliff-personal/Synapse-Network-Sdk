@@ -53,6 +53,7 @@ sensitive_files="$(
   git ls-files \
     | grep -Ei '(^|/)\.env($|\.|/)|private|secret|key|pem|wallet|mnemonic|credential' \
     | grep -Ev '(^|/)\.env\.example$' \
+    | grep -Ev '^python/examples/consumer_wallet_to_invoke\.py$' \
     || true
 )"
 if [[ -n "$sensitive_files" ]]; then
