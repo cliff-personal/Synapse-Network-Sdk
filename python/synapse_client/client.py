@@ -20,9 +20,9 @@ from .exceptions import (
 from .models import (
     DiscoveryResponse,
     InvocationResponse,
+    QuoteResponse,
     RuntimePayload,
 )
-
 
 TERMINAL_STATUSES = {"SUCCEEDED", "FAILED_RETRYABLE", "FAILED_FINAL", "SETTLED"}
 DEPRECATED_QUOTE_FLOW_MESSAGE = (
@@ -43,7 +43,7 @@ class SynapseClient:
         timeout_sec: int = 30,
     ):
         # Resolve api_key from arguments or environment variable
-        self.api_key = (api_key or os.getenv("SYNAPSE_API_KEY", "")).strip()
+        self.api_key = str(api_key or os.getenv("SYNAPSE_API_KEY", "") or "").strip()
         self.gateway_url = resolve_gateway_url(environment=environment, gateway_url=gateway_url)
         self.timeout_sec = timeout_sec
 
@@ -96,24 +96,31 @@ class SynapseClient:
             raise AuthenticationError(message)
 
         if response.status_code == 402:
-            if error_code in {"BUDGET_EXHAUSTED", "CREDENTIAL_CREDIT_LIMIT_EXCEEDED"}:
-                raise InsufficientFundsError(message)
-            raise BudgetExceededError(message)
+            raise self._payment_error(error_code, message)
 
         if response.status_code == 422 and error_code == "PRICE_MISMATCH":
-            payload = self._response_payload(response)
-            detail = payload.get("detail") or {}
-            if isinstance(detail, dict):
-                raise PriceMismatchError(
-                    message,
-                    expected_price_usdc=float(detail.get("expectedPriceUsdc") or 0),
-                    current_price_usdc=float(detail.get("currentPriceUsdc") or 0),
-                )
-            raise PriceMismatchError(message, expected_price_usdc=0, current_price_usdc=0)
+            raise self._price_mismatch_error(response, message)
 
         if isinstance(default_error, DiscoveryError):
             raise DiscoveryError(message)
         raise InvokeError(message)
+
+    @staticmethod
+    def _payment_error(error_code: str, message: str) -> Exception:
+        if error_code in {"BUDGET_EXHAUSTED", "CREDENTIAL_CREDIT_LIMIT_EXCEEDED"}:
+            return InsufficientFundsError(message)
+        return BudgetExceededError(message)
+
+    @classmethod
+    def _price_mismatch_error(cls, response: requests.Response, message: str) -> PriceMismatchError:
+        detail = cls._response_payload(response).get("detail") or {}
+        if not isinstance(detail, dict):
+            return PriceMismatchError(message, expected_price_usdc=0, current_price_usdc=0)
+        return PriceMismatchError(
+            message,
+            expected_price_usdc=float(detail.get("expectedPriceUsdc") or 0),
+            current_price_usdc=float(detail.get("currentPriceUsdc") or 0),
+        )
 
     def search_services(
         self,
@@ -392,18 +399,13 @@ class SynapseClient:
             if max_rediscovery_retries <= 0:
                 raise
 
-            live_price = float(exc.current_price_usdc or 0)
-            services = self.search(
-                query or service_id,
-                limit=10,
+            live_price = self._rediscovered_price(
+                service_id,
+                fallback_price=float(exc.current_price_usdc or 0),
+                query=query,
                 tags=tags,
                 request_id=request_id,
             )
-            for service in services:
-                if getattr(service, "service_id", "") == service_id or getattr(service, "serviceId", "") == service_id:
-                    if service.price_usdc is not None:
-                        live_price = float(service.price_usdc)
-                    break
             if live_price <= 0:
                 raise
 
@@ -416,6 +418,26 @@ class SynapseClient:
                 poll_timeout_sec=poll_timeout_sec,
                 request_id=request_id,
             )
+
+    def _rediscovered_price(
+        self,
+        service_id: str,
+        *,
+        fallback_price: float,
+        query: Optional[str],
+        tags: Optional[list[str]],
+        request_id: Optional[str],
+    ) -> float:
+        services = self.search(
+            query or service_id,
+            limit=10,
+            tags=tags,
+            request_id=request_id,
+        )
+        for service in services:
+            if getattr(service, "service_id", "") == service_id or getattr(service, "serviceId", "") == service_id:
+                return float(service.price_usdc) if service.price_usdc is not None else fallback_price
+        return fallback_price
 
 
 class AgentWallet(SynapseClient):
@@ -463,7 +485,9 @@ class AgentWallet(SynapseClient):
     def remaining_usdc(self) -> float:
         return round(self._budget_usdc - self._spent_usdc, 6)
 
-    def invoke(self, service_id: str, *, payload: Optional[Dict[str, Any]] = None, cost_usdc: float = 0.0, **kwargs) -> "InvocationResponse":  # type: ignore[override]
+    def invoke(
+        self, service_id: str, *, payload: Optional[Dict[str, Any]] = None, cost_usdc: float = 0.0, **kwargs
+    ) -> "InvocationResponse":
         """Invoke a service and track spend against the budget ceiling."""
         cost = float(cost_usdc)
         if self._spent_usdc + cost > self._budget_usdc:

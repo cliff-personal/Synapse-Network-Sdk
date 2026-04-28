@@ -34,6 +34,7 @@ README 语言结构：
 - docs/sdk/README.md - English SDK documentation hub
 - docs/sdk/README.zh-CN.md - Simplified Chinese SDK documentation hub
 - docs/sdk/capability_inventory.md - current Python and TypeScript SDK capability truth
+- docs/quality-gates.md - executable PR quality gate thresholds and refactor rules
 - https://staging.synapse-network.ai/docs/sdk/python - public preview Python SDK runbook
 - https://staging.synapse-network.ai/docs/sdk/typescript - public preview TypeScript SDK runbook
 - scripts/ci/pr_checks.sh - local PR quality gate used by GitHub Actions
@@ -50,6 +51,7 @@ README 语言结构：
 - docs/sdk/README.md - 英文 SDK 文档 hub
 - docs/sdk/README.zh-CN.md - 简体中文 SDK 文档 hub
 - docs/sdk/capability_inventory.md - Python 和 TypeScript SDK 当前能力真相
+- docs/quality-gates.md - 可执行 PR 质量门禁阈值和重构规则
 - scripts/ci/pr_checks.sh - GitHub Actions 复用的本地 PR 质量门禁
 
 ## Main Areas
@@ -71,6 +73,7 @@ README 语言结构：
 - Python checks: `bash scripts/ci/python_checks.sh`
 - TypeScript checks: `bash scripts/ci/typescript_checks.sh`
 - Repo hygiene: `bash scripts/ci/repo_hygiene_checks.sh`
+- Security checks: `bash scripts/ci/security_checks.sh`
 
 ## Boundaries
 

@@ -11,6 +11,7 @@
     "SECURITY.md",
     "docs/sdk/README.md",
     "docs/sdk/capability_inventory.md",
+    "docs/quality-gates.md",
     "scripts/ci/pr_checks.sh"
   ],
   "domains": [
@@ -179,6 +180,9 @@
         "scripts/ci/python_checks.sh",
         "scripts/ci/typescript_checks.sh",
         "scripts/ci/repo_hygiene_checks.sh",
+        "scripts/ci/security_checks.sh",
+        "scripts/ci/source_quality_checks.py",
+        "docs/quality-gates.md",
         "typescript/package.json"
       ],
       "supporting_files": [
@@ -189,7 +193,8 @@
         "bash scripts/ci/pr_checks.sh"
       ],
       "notes": [
-        "Local scripts and GitHub Actions must share the same entrypoint."
+        "Local scripts and GitHub Actions must share the same entrypoint.",
+        "Source files over 500 lines, high complexity, and duplicate code above threshold must fail PR CI."
       ]
     },
     {

@@ -13,7 +13,6 @@ pytest.importorskip("eth_account")
 
 from eth_account import Account
 
-
 GATEWAY_URL = "http://127.0.0.1:8000"
 MOCK_PROVIDER_PORT = 9499
 SESSION_ID = uuid4().hex[:8]

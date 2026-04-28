@@ -23,6 +23,7 @@ import {
   TimeoutError,
   PriceMismatchError,
 } from "./errors";
+import { fetchJson, HttpErrorContext } from "./http";
 
 export class SynapseClient {
   private readonly credential: string;
@@ -51,26 +52,14 @@ export class SynapseClient {
 
   /** Search for services by text query. */
   async search(query: string, opts: DiscoverOptions = {}): Promise<ServiceRecord[]> {
-    const pageSize = Math.max(1, opts.limit ?? 20);
-    const offset = Math.max(0, opts.offset ?? 0);
-    const page = Math.floor(offset / pageSize) + 1;
     try {
       const resp = await this._fetch<{ services?: ServiceRecord[]; results?: ServiceRecord[] }>(
         `${this.gatewayUrl}/api/v1/agent/discovery/search`,
-        {
-          method: "POST",
-          body: JSON.stringify({
-            query: query.trim() || undefined,
-            tags: opts.tags ?? [],
-            page,
-            pageSize,
-            sort: opts.sort ?? "best_match",
-          }),
-        }
+        discoveryRequest(query, opts)
       );
-      return resp.services ?? resp.results ?? (Array.isArray(resp) ? resp : []);
+      return discoveryServices(resp);
     } catch (err) {
-      throw new DiscoveryError(String(err instanceof Error ? err.message : err));
+      throw discoveryError(err);
     }
   }
 
@@ -81,7 +70,7 @@ export class SynapseClient {
     try {
       const resp = await fetch(`${this.gatewayUrl}/health`, { signal: controller.signal });
       const text = await resp.text();
-      const data = text ? JSON.parse(text) as Record<string, unknown> : {};
+      const data = text ? (JSON.parse(text) as Record<string, unknown>) : {};
       if (!resp.ok) throw new Error(`HTTP ${resp.status}: ${text}`);
       return data;
     } finally {
@@ -121,39 +110,15 @@ export class SynapseClient {
     payload: Record<string, unknown> = {},
     opts: InvokeOptions
   ): Promise<InvocationResult> {
-    const idempotencyKey = opts.idempotencyKey ?? uuidv4();
-    const requestHeaders: Record<string, string> = {};
-    if (opts.requestId) requestHeaders["X-Request-Id"] = opts.requestId;
-
-    let resp: Record<string, unknown>;
     try {
-      resp = await this._fetch<Record<string, unknown>>(
+      const resp = await this._fetch<Record<string, unknown>>(
         `${this.gatewayUrl}/api/v1/agent/invoke`,
-        {
-          method: "POST",
-          extraHeaders: requestHeaders,
-          body: JSON.stringify({
-            serviceId,
-            idempotencyKey,
-            costUsdc: opts.costUsdc,
-            payload: { body: payload },
-            responseMode: opts.responseMode ?? "sync",
-          }),
-        }
+        invokeRequest(serviceId, payload, opts)
       );
+      return this.completeInvocation(resp, opts);
     } catch (err) {
-      if (
-        err instanceof AuthenticationError ||
-        err instanceof InsufficientFundsError ||
-        err instanceof PriceMismatchError
-      ) throw err;
-      throw new InvokeError(String(err instanceof Error ? err.message : err));
+      throw invokeError(err);
     }
-
-    const result = this._parseInvocationResponse(resp);
-    if (TERMINAL_STATUSES.has(result.status)) return result;
-    if (opts.pollTimeoutMs === 0) return result;
-    return this.waitForInvocation(result.invocationId, opts);
   }
 
   /**
@@ -175,11 +140,7 @@ export class SynapseClient {
         throw err;
       }
 
-      let livePrice = err.currentPriceUsdc;
-      const services = await this.search(opts.query ?? serviceId, { limit: 10, tags: opts.tags });
-      const matched = services.find((service) => (service.serviceId ?? service.id) === serviceId);
-      const discoveredPrice = matched ? this.extractServicePrice(matched) : null;
-      if (discoveredPrice != null) livePrice = discoveredPrice;
+      const livePrice = await this.rediscoveredPrice(serviceId, err.currentPriceUsdc, opts);
       if (!livePrice || livePrice <= 0) throw err;
 
       return this.invoke(serviceId, payload, {
@@ -222,39 +183,8 @@ export class SynapseClient {
 
   // ── Internal helpers ───────────────────────────────────────────────────────
 
-  private extractServicePrice(service: ServiceRecord): number | null {
-    const pricing = service.pricing;
-    if (typeof pricing === "string" || typeof pricing === "number") {
-      const parsed = Number(pricing);
-      return Number.isFinite(parsed) ? parsed : null;
-    }
-    if (pricing && typeof pricing === "object") {
-      const parsed = Number((pricing as { amount?: unknown }).amount);
-      return Number.isFinite(parsed) ? parsed : null;
-    }
-    return null;
-  }
-
   private _parseInvocationResponse(resp: Record<string, unknown>): InvocationResult {
-    const invocationId =
-      (resp["invocationId"] as string) ||
-      (resp["id"] as string) ||
-      (resp["invocation_id"] as string) ||
-      "";
-    const status =
-      ((resp["status"] as string) || "PENDING") as InvocationStatus;
-    const chargedUsdc = Number(resp["chargedUsdc"] ?? resp["charged_usdc"] ?? 0);
-
-    return {
-      invocationId,
-      status,
-      chargedUsdc,
-      result: resp["result"] ?? null,
-      error: (resp["error"] as Record<string, unknown>) ?? null,
-      receipt: (resp["receipt"] as Record<string, unknown>) ?? null,
-      quoteId: (resp["quoteId"] as string) ?? undefined,
-      ...resp,
-    };
+    return parseInvocationResponse(resp);
   }
 
   private async _fetch<T>(
@@ -265,52 +195,158 @@ export class SynapseClient {
       extraHeaders?: Record<string, string>;
     } = {}
   ): Promise<T> {
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), this.timeoutMs);
-
     const headers: Record<string, string> = {
       "Content-Type": "application/json",
       "X-Credential": this.credential,
       ...(init.extraHeaders ?? {}),
     };
+    return fetchJson<T>(
+      url,
+      { method: init.method, body: init.body, headers, timeoutMs: this.timeoutMs },
+      clientHttpError
+    );
+  }
 
-    try {
-      const resp = await fetch(url, {
-        method: init.method ?? "GET",
-        body: init.body,
-        headers,
-        signal: controller.signal,
-      });
-      const text = await resp.text();
-      let data: unknown;
-      try { data = JSON.parse(text); } catch { data = { raw: text }; }
+  private async rediscoveredPrice(
+    serviceId: string,
+    fallbackPrice: number | null,
+    opts: InvokeOptions & { query?: string; tags?: string[] }
+  ): Promise<number | null> {
+    const services = await this.search(opts.query ?? serviceId, { limit: 10, tags: opts.tags });
+    const matched = services.find((service) => serviceKey(service) === serviceId);
+    return matched ? (extractServicePrice(matched) ?? fallbackPrice) : fallbackPrice;
+  }
 
-      if (!resp.ok) {
-        const d = data as Record<string, unknown>;
-        const detail = d?.["detail"];
-        const msg = typeof detail === "string" ? detail
-          : typeof detail === "object" && detail !== null ? JSON.stringify(detail)
-          : text;
-        const detailObj = typeof detail === "object" && detail !== null ? detail as Record<string, unknown> : null;
-
-        if (resp.status === 401) throw new AuthenticationError(`401: ${msg}`);
-        if (resp.status === 402) throw new InsufficientFundsError(`402: ${msg}`);
-        if (resp.status === 422 && detailObj?.["code"] === "PRICE_MISMATCH") {
-          throw new PriceMismatchError(
-            String(detailObj["message"] ?? msg),
-            Number(detailObj["expectedPriceUsdc"] ?? 0),
-            Number(detailObj["currentPriceUsdc"] ?? 0)
-          );
-        }
-        throw new Error(`HTTP ${resp.status}: ${msg}`);
-      }
-      return data as T;
-    } finally {
-      clearTimeout(timer);
-    }
+  private completeInvocation(
+    resp: Record<string, unknown>,
+    opts: InvokeOptions
+  ): Promise<InvocationResult> | InvocationResult {
+    const result = this._parseInvocationResponse(resp);
+    if (TERMINAL_STATUSES.has(result.status)) return result;
+    if (opts.pollTimeoutMs === 0) return result;
+    return this.waitForInvocation(result.invocationId, opts);
   }
 }
 
 function _sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function discoveryServices(
+  resp: { services?: ServiceRecord[]; results?: ServiceRecord[] } | ServiceRecord[]
+): ServiceRecord[] {
+  if (Array.isArray(resp)) return resp;
+  return resp.services ?? resp.results ?? [];
+}
+
+function discoveryRequest(query: string, opts: DiscoverOptions) {
+  const pageSize = Math.max(1, opts.limit ?? 20);
+  const offset = Math.max(0, opts.offset ?? 0);
+  return {
+    method: "POST",
+    body: JSON.stringify({
+      query: query.trim() || undefined,
+      tags: opts.tags ?? [],
+      page: Math.floor(offset / pageSize) + 1,
+      pageSize,
+      sort: opts.sort ?? "best_match",
+    }),
+  };
+}
+
+function discoveryError(err: unknown): DiscoveryError {
+  return new DiscoveryError(String(err instanceof Error ? err.message : err));
+}
+
+function invokeRequest(serviceId: string, payload: Record<string, unknown>, opts: InvokeOptions) {
+  return {
+    method: "POST",
+    extraHeaders: requestHeaders(opts.requestId),
+    body: JSON.stringify({
+      serviceId,
+      idempotencyKey: opts.idempotencyKey ?? uuidv4(),
+      costUsdc: opts.costUsdc,
+      payload: { body: payload },
+      responseMode: opts.responseMode ?? "sync",
+    }),
+  };
+}
+
+function requestHeaders(requestId: string | undefined): Record<string, string> {
+  return requestId ? { "X-Request-Id": requestId } : {};
+}
+
+function isInvokePassthroughError(err: unknown): boolean {
+  return (
+    err instanceof AuthenticationError || err instanceof InsufficientFundsError || err instanceof PriceMismatchError
+  );
+}
+
+function invokeError(err: unknown): Error {
+  return isInvokePassthroughError(err)
+    ? (err as Error)
+    : new InvokeError(String(err instanceof Error ? err.message : err));
+}
+
+function serviceKey(service: ServiceRecord): string | undefined {
+  return service.serviceId ?? service.id;
+}
+
+function extractServicePrice(service: ServiceRecord): number | null {
+  const pricing = service.pricing;
+  if (typeof pricing === "string" || typeof pricing === "number") return finiteNumber(pricing);
+  if (pricing && typeof pricing === "object") return finiteNumber((pricing as { amount?: unknown }).amount);
+  return null;
+}
+
+function finiteNumber(value: unknown): number | null {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+function parseInvocationResponse(resp: Record<string, unknown>): InvocationResult {
+  return {
+    invocationId: firstString([resp["invocationId"], resp["id"], resp["invocation_id"]]) ?? "",
+    status: (firstString([resp["status"]]) ?? "PENDING") as InvocationStatus,
+    chargedUsdc: Number(firstPresent([resp["chargedUsdc"], resp["charged_usdc"], 0])),
+    result: firstPresent([resp["result"], null]),
+    error: firstPresent([resp["error"], null]) as Record<string, unknown> | null,
+    receipt: firstPresent([resp["receipt"], null]) as Record<string, unknown> | null,
+    quoteId: firstString([resp["quoteId"]]) ?? undefined,
+    ...resp,
+  };
+}
+
+function firstString(values: unknown[]): string | null {
+  const found = values.find((value) => typeof value === "string" && value.length > 0);
+  return (found as string | undefined) ?? null;
+}
+
+function firstPresent(values: unknown[]): unknown {
+  const found = values.find((value) => value !== null && value !== undefined);
+  return found === undefined ? values.at(-1) : found;
+}
+
+function clientHttpError(context: HttpErrorContext): Error | null {
+  if (context.status === 401) return new AuthenticationError(`401: ${context.message}`);
+  if (context.status === 402) return new InsufficientFundsError(`402: ${context.message}`);
+  if (isPriceMismatchContext(context)) return priceMismatchError(context);
+  return null;
+}
+
+function isPriceMismatchContext(context: HttpErrorContext): boolean {
+  return context.status === 422 && detailObject(context.detail)?.["code"] === "PRICE_MISMATCH";
+}
+
+function priceMismatchError(context: HttpErrorContext): PriceMismatchError {
+  const detail = detailObject(context.detail) ?? {};
+  return new PriceMismatchError(
+    String(detail["message"] ?? context.message),
+    Number(detail["expectedPriceUsdc"] ?? 0),
+    Number(detail["currentPriceUsdc"] ?? 0)
+  );
+}
+
+function detailObject(detail: unknown): Record<string, unknown> | null {
+  return typeof detail === "object" && detail !== null ? (detail as Record<string, unknown>) : null;
 }

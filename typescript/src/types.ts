@@ -202,13 +202,7 @@ export interface DiscoverOptions {
 
 // ── Invocation ───────────────────────────────────────────────────────────────
 
-export type InvocationStatus =
-  | "PENDING"
-  | "PROCESSING"
-  | "SUCCEEDED"
-  | "SETTLED"
-  | "FAILED_RETRYABLE"
-  | "FAILED_FINAL";
+export type InvocationStatus = "PENDING" | "PROCESSING" | "SUCCEEDED" | "SETTLED" | "FAILED_RETRYABLE" | "FAILED_FINAL";
 
 export const TERMINAL_STATUSES = new Set<InvocationStatus>([
   "SUCCEEDED",

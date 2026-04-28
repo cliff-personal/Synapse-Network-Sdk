@@ -30,12 +30,12 @@ const MOCK_PROVIDER_PORT = 9199;
 
 // Hardhat default keys (localhost only)
 const DEPLOYER_KEY = "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80";
-const OWNER_KEY    = "0x59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d";
+const OWNER_KEY = "0x59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d";
 const PROVIDER_KEY = "0x5de4111afa1a4b94908f83103eb1f1706367c2e68ea870594801966b8ea0ec4f";
 
 const REPO_ROOT = path.resolve(__dirname, "../../../../");
 const CONTRACT_CONFIG_PATH = path.join(REPO_ROOT, "apps/frontend/src/contract-config.json");
-const MOCK_USDC_ABI_PATH   = path.join(REPO_ROOT, "apps/frontend/src/MockUSDCABI.json");
+const MOCK_USDC_ABI_PATH = path.join(REPO_ROOT, "apps/frontend/src/MockUSDCABI.json");
 const SYNAPSE_CORE_ABI_PATH = path.join(REPO_ROOT, "apps/frontend/src/SynapseCoreABI.json");
 
 const DEPOSIT_USDC = 10;
@@ -81,7 +81,11 @@ async function doFetch(url: string, init: RequestInit = {}): Promise<Record<stri
   const resp = await fetch(url, { ...init, headers: { "Content-Type": "application/json", ...(init.headers ?? {}) } });
   const text = await resp.text();
   let data: unknown;
-  try { data = JSON.parse(text); } catch { data = { raw: text }; }
+  try {
+    data = JSON.parse(text);
+  } catch {
+    data = { raw: text };
+  }
   if (!resp.ok) throw new Error(`HTTP ${resp.status} ${url}: ${text.slice(0, 200)}`);
   return data as Record<string, unknown>;
 }
@@ -181,7 +185,6 @@ async function registerTestService(
 // ── Test Suite ────────────────────────────────────────────────────────────────
 
 describe("Synapse TypeScript SDK — Consumer E2E Pipeline", () => {
-
   // ── Suite Setup ────────────────────────────────────────────────────────────
 
   beforeAll(async () => {
@@ -190,7 +193,7 @@ describe("Synapse TypeScript SDK — Consumer E2E Pipeline", () => {
 
     // 2. Setup ethers wallets
     const rpcProvider = new JsonRpcProvider(RPC_URL);
-    const ownerWallet    = new Wallet(OWNER_KEY, rpcProvider);
+    const ownerWallet = new Wallet(OWNER_KEY, rpcProvider);
     const providerWallet = new Wallet(PROVIDER_KEY, rpcProvider);
     const deployerWallet = new Wallet(DEPLOYER_KEY, rpcProvider);
 
@@ -298,11 +301,10 @@ describe("Synapse TypeScript SDK — Consumer E2E Pipeline", () => {
       const services = await client.discover({ limit: 50 });
       const ids = services.map((s) => s.serviceId ?? s.id ?? s.agentToolName ?? "");
       expect(ids).toContain(serviceId);
-      discoveredServiceId = services.find((s) =>
-        [s.serviceId, s.id, s.agentToolName].includes(serviceId)
-      )?.serviceId
-        ?? services.find((s) => [s.serviceId, s.id, s.agentToolName].includes(serviceId))?.id
-        ?? serviceId;
+      discoveredServiceId =
+        services.find((s) => [s.serviceId, s.id, s.agentToolName].includes(serviceId))?.serviceId ??
+        services.find((s) => [s.serviceId, s.id, s.agentToolName].includes(serviceId))?.id ??
+        serviceId;
       expect(discoveredServiceId).toBe(serviceId);
     });
   });
@@ -351,11 +353,15 @@ describe("Synapse TypeScript SDK — Consumer E2E Pipeline", () => {
 
     beforeAll(async () => {
       // Run a second invocation to test receipt retrieval
-      const result = await client.invoke(serviceId, { prompt: "receipt check" }, {
-        costUsdc: SERVICE_PRICE_USDC,
-        idempotencyKey: `ts-sdk-receipt-${SESSION_ID}`,
-        pollTimeoutMs: 60_000,
-      });
+      const result = await client.invoke(
+        serviceId,
+        { prompt: "receipt check" },
+        {
+          costUsdc: SERVICE_PRICE_USDC,
+          idempotencyKey: `ts-sdk-receipt-${SESSION_ID}`,
+          pollTimeoutMs: 60_000,
+        }
+      );
       savedInvocationId = result.invocationId;
     }, 90_000);
 

@@ -18,7 +18,6 @@ pytest.importorskip("web3")
 from eth_account import Account
 from web3 import Web3
 
-
 GATEWAY_URL = "http://127.0.0.1:8000"
 RPC_URL = "http://127.0.0.1:8545"
 DEPOSIT_USDC = 10
@@ -85,7 +84,7 @@ def _fund_and_deposit(w3: Web3, fresh_account, deployer_account, amount_usdc: in
     core = w3.eth.contract(address=Web3.to_checksum_address(config["SynapseCore"]), abi=synapse_core_abi)
 
     decimals = int(usdc.functions.decimals().call())
-    amount_wei = int(amount_usdc * (10 ** decimals))
+    amount_wei = int(amount_usdc * (10**decimals))
 
     deployer_nonce = w3.eth.get_transaction_count(deployer_account.address, "pending")
     _send_transaction(
@@ -371,9 +370,7 @@ def test_python_sdk_credential_management_e2e():
     # ── 2. list_active_credentials returns the new credential ─────────────────
     active_creds = fresh_auth.list_active_credentials()
     active_names = [c.name for c in active_creds]
-    assert mgmt_cred_name in active_names, (
-        f"'{mgmt_cred_name}' not in active_only list: {active_names}"
-    )
+    assert mgmt_cred_name in active_names, f"'{mgmt_cred_name}' not in active_only list: {active_names}"
     for c in active_creds:
         assert c.status == "active", f"non-active in active_only result: {c}"
 
@@ -389,19 +386,13 @@ def test_python_sdk_credential_management_e2e():
     new_name = f"{mgmt_cred_name}-updated"
     update_result = fresh_auth.update_credential(cred_id, name=new_name, maxCalls=600)
     assert update_result.status == "success"
-    assert update_result.credential.name == new_name, (
-        f"name not updated: {update_result.credential.name}"
-    )
-    assert update_result.credential.max_calls == 600, (
-        f"maxCalls not updated: {update_result.credential.max_calls}"
-    )
+    assert update_result.credential.name == new_name, f"name not updated: {update_result.credential.name}"
+    assert update_result.credential.max_calls == 600, f"maxCalls not updated: {update_result.credential.max_calls}"
 
     # ── 5. active_only list reflects the rename ────────────────────────────────
     active_after_update = fresh_auth.list_active_credentials()
     names_after = [c.name for c in active_after_update]
-    assert new_name in names_after, (
-        f"renamed credential not in active_only list: {names_after}"
-    )
+    assert new_name in names_after, f"renamed credential not in active_only list: {names_after}"
 
     # ── 6. ensure_credential is idempotent — same name = rotate for token ─────
     token_a = fresh_auth.ensure_credential(new_name, maxCalls=600, creditLimit=3.0)
@@ -417,6 +408,4 @@ def test_python_sdk_credential_management_e2e():
     # Verify it's now in active list
     active_final = fresh_auth.list_active_credentials()
     final_names = [c.name for c in active_final]
-    assert brand_new_name in final_names, (
-        f"ensure_credential-created credential not found: {final_names}"
-    )
+    assert brand_new_name in final_names, f"ensure_credential-created credential not found: {final_names}"

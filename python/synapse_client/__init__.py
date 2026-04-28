@@ -1,7 +1,6 @@
 from .auth import SynapseAuth
 from .client import AgentWallet, SynapseClient
 from .config import DEFAULT_ENVIRONMENT, GATEWAY_URLS, resolve_gateway_url
-from .provider import SynapseProvider
 from .exceptions import (
     AuthenticationError,
     BudgetExceededError,
@@ -33,6 +32,7 @@ from .models import (
     TokenResponse,
     UpdateCredentialResult,
 )
+from .provider import SynapseProvider
 
 __all__ = [
     "AgentWallet",
@@ -56,6 +56,7 @@ __all__ = [
     "DiscoveryResponse",
     "InvocationResponse",
     "ChallengeResponse",
+    "CredentialStatusResult",
     "TokenResponse",
     "AgentCredential",
     "IssueCredentialResult",
@@ -67,4 +68,5 @@ __all__ = [
     "BalanceSummary",
     "DepositIntentResult",
     "DepositConfirmResult",
+    "UpdateCredentialResult",
 ]

@@ -338,7 +338,9 @@ class SynapseResponse(SDKModel):
     quote_id: Optional[str] = Field(default=None, alias="quoteId")
     invocation_id: Optional[str] = Field(default=None, alias="invocationId")
     status: str = "SUCCEEDED"
-    tx_hash: Optional[str] = Field(default=None, description="Reserved for compatibility with older direct invoke flows.")
+    tx_hash: Optional[str] = Field(
+        default=None, description="Reserved for compatibility with older direct invoke flows."
+    )
     fee_deducted: float = Field(default=0.0, alias="feeDeducted")
     receipt: Dict[str, Any] = Field(default_factory=dict)
     raw_response: Dict[str, Any] = Field(default_factory=dict, alias="rawResponse")

@@ -94,8 +94,6 @@ describe("Synapse TS SDK — Provider Onboarding E2E", () => {
     const status = await providerAuth.getProviderServiceStatus(providerServiceId);
     expect(status.serviceId).toBe(providerServiceId);
     expect(["active", "draft", "paused"]).toContain(status.lifecycleStatus);
-    expect(["healthy", "unknown", "degraded"]).toContain(
-      String(status.health.overallStatus ?? "unknown")
-    );
+    expect(["healthy", "unknown", "degraded"]).toContain(String(status.health.overallStatus ?? "unknown"));
   });
 });

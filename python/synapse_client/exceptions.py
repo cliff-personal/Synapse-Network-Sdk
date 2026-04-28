@@ -42,4 +42,3 @@ class PriceMismatchError(SynapseClientError):
         super().__init__(message)
         self.expected_price_usdc = expected_price_usdc
         self.current_price_usdc = current_price_usdc
-

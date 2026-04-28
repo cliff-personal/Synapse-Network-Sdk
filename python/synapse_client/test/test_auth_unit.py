@@ -21,25 +21,31 @@ def test_authenticate_runs_challenge_sign_verify_and_caches(monkeypatch):
     calls = []
 
     def fake_request(method, url, headers, json, timeout):
-        calls.append({
-            "method": method,
-            "url": url,
-            "headers": headers,
-            "json": json,
-            "timeout": timeout,
-        })
+        calls.append(
+            {
+                "method": method,
+                "url": url,
+                "headers": headers,
+                "json": json,
+                "timeout": timeout,
+            }
+        )
         if url.endswith("/api/v1/auth/challenge?address=0xabc"):
-            return DummyResponse(json_data={
+            return DummyResponse(
+                json_data={
+                    "success": True,
+                    "challenge": "sign-me",
+                    "domain": "a2a-pay-network",
+                }
+            )
+        return DummyResponse(
+            json_data={
                 "success": True,
-                "challenge": "sign-me",
-                "domain": "a2a-pay-network",
-            })
-        return DummyResponse(json_data={
-            "success": True,
-            "access_token": "jwt-token",
-            "token_type": "bearer",
-            "expires_in": 3600,
-        })
+                "access_token": "jwt-token",
+                "token_type": "bearer",
+                "expires_in": 3600,
+            }
+        )
 
     monkeypatch.setattr("synapse_client.auth.requests.request", fake_request)
 
@@ -96,44 +102,54 @@ def test_issue_credential_and_balance_use_bearer_token(monkeypatch):
     calls = []
 
     def fake_request(method, url, headers, json, timeout):
-        calls.append({
-            "method": method,
-            "url": url,
-            "headers": headers,
-            "json": json,
-            "timeout": timeout,
-        })
+        calls.append(
+            {
+                "method": method,
+                "url": url,
+                "headers": headers,
+                "json": json,
+                "timeout": timeout,
+            }
+        )
         if url.endswith("/api/v1/auth/challenge?address=0xabc"):
-            return DummyResponse(json_data={
-                "success": True,
-                "challenge": "sign-me",
-                "domain": "a2a-pay-network",
-            })
+            return DummyResponse(
+                json_data={
+                    "success": True,
+                    "challenge": "sign-me",
+                    "domain": "a2a-pay-network",
+                }
+            )
         if url.endswith("/api/v1/auth/verify"):
-            return DummyResponse(json_data={
-                "success": True,
-                "access_token": "jwt-token",
-                "token_type": "bearer",
-                "expires_in": 3600,
-            })
+            return DummyResponse(
+                json_data={
+                    "success": True,
+                    "access_token": "jwt-token",
+                    "token_type": "bearer",
+                    "expires_in": 3600,
+                }
+            )
         if url.endswith("/api/v1/credentials/agent/issue"):
-            return DummyResponse(json_data={
-                "credential": {
-                    "id": "cred-123",
-                    "token": "agt-123",
-                    "name": "bot-1",
-                    "status": "active",
+            return DummyResponse(
+                json_data={
+                    "credential": {
+                        "id": "cred-123",
+                        "token": "agt-123",
+                        "name": "bot-1",
+                        "status": "active",
+                    },
+                }
+            )
+        return DummyResponse(
+            json_data={
+                "status": "success",
+                "balance": {
+                    "ownerBalance": "9.99",
+                    "consumerAvailableBalance": "9.98",
+                    "providerReceivable": "0",
+                    "platformFeeAccrued": "0.01",
                 },
-            })
-        return DummyResponse(json_data={
-            "status": "success",
-            "balance": {
-                "ownerBalance": "9.99",
-                "consumerAvailableBalance": "9.98",
-                "providerReceivable": "0",
-                "platformFeeAccrued": "0.01",
-            },
-        })
+            }
+        )
 
     monkeypatch.setattr("synapse_client.auth.requests.request", fake_request)
 
@@ -158,27 +174,35 @@ def test_register_and_confirm_deposit(monkeypatch):
     calls = []
 
     def fake_request(method, url, headers, json, timeout):
-        calls.append({
-            "method": method,
-            "url": url,
-            "headers": headers,
-            "json": json,
-            "timeout": timeout,
-        })
+        calls.append(
+            {
+                "method": method,
+                "url": url,
+                "headers": headers,
+                "json": json,
+                "timeout": timeout,
+            }
+        )
         if url.endswith("/api/v1/auth/challenge?address=0xabc"):
             return DummyResponse(json_data={"success": True, "challenge": "sign-me", "domain": "a2a-pay-network"})
         if url.endswith("/api/v1/auth/verify"):
-            return DummyResponse(json_data={"success": True, "access_token": "jwt-token", "token_type": "bearer", "expires_in": 3600})
+            return DummyResponse(
+                json_data={"success": True, "access_token": "jwt-token", "token_type": "bearer", "expires_in": 3600}
+            )
         if url.endswith("/api/v1/balance/deposit/intent"):
-            return DummyResponse(json_data={
+            return DummyResponse(
+                json_data={
+                    "status": "success",
+                    "tx_hash": "0xabc",
+                    "intent": {"id": "intent-1", "eventKey": "evt-1", "txHash": "0xabc"},
+                }
+            )
+        return DummyResponse(
+            json_data={
                 "status": "success",
-                "tx_hash": "0xabc",
-                "intent": {"id": "intent-1", "eventKey": "evt-1", "txHash": "0xabc"},
-            })
-        return DummyResponse(json_data={
-            "status": "success",
-            "intent": {"id": "intent-1", "eventKey": "evt-1"},
-        })
+                "intent": {"id": "intent-1", "eventKey": "evt-1"},
+            }
+        )
 
     monkeypatch.setattr("synapse_client.auth.requests.request", fake_request)
 
@@ -217,49 +241,57 @@ def test_issue_provider_secret_and_list_provider_secrets(monkeypatch):
     calls = []
 
     def fake_request(method, url, headers, json, timeout):
-        calls.append({
-            "method": method,
-            "url": url,
-            "headers": headers,
-            "json": json,
-            "timeout": timeout,
-        })
+        calls.append(
+            {
+                "method": method,
+                "url": url,
+                "headers": headers,
+                "json": json,
+                "timeout": timeout,
+            }
+        )
         if url.endswith("/api/v1/auth/challenge?address=0xabc"):
             return DummyResponse(json_data={"success": True, "challenge": "sign-me", "domain": "a2a-pay-network"})
         if url.endswith("/api/v1/auth/verify"):
-            return DummyResponse(json_data={"success": True, "access_token": "jwt-token", "token_type": "bearer", "expires_in": 3600})
+            return DummyResponse(
+                json_data={"success": True, "access_token": "jwt-token", "token_type": "bearer", "expires_in": 3600}
+            )
         if url.endswith("/api/v1/secrets/provider/issue"):
-            return DummyResponse(json_data={
-                "status": "success",
-                "secret": {
-                    "id": "psk_123",
-                    "name": "provider-key",
-                    "ownerAddress": "0xabc",
-                    "secretKey": "agt_provider_123",
-                    "maskedKey": "agt_provider...",
-                    "status": "active",
-                    "rpm": 180,
-                    "creditLimit": 25.0,
-                    "resetInterval": "monthly",
-                    "createdAt": "2026-04-03T10:00:00Z",
-                },
-            })
-        return DummyResponse(json_data={
-            "status": "success",
-            "secrets": [
-                {
-                    "id": "psk_123",
-                    "name": "provider-key",
-                    "ownerAddress": "0xabc",
-                    "maskedKey": "agt_provider...",
-                    "status": "active",
-                    "rpm": 180,
-                    "creditLimit": 25.0,
-                    "resetInterval": "monthly",
-                    "createdAt": "2026-04-03T10:00:00Z",
+            return DummyResponse(
+                json_data={
+                    "status": "success",
+                    "secret": {
+                        "id": "psk_123",
+                        "name": "provider-key",
+                        "ownerAddress": "0xabc",
+                        "secretKey": "agt_provider_123",
+                        "maskedKey": "agt_provider...",
+                        "status": "active",
+                        "rpm": 180,
+                        "creditLimit": 25.0,
+                        "resetInterval": "monthly",
+                        "createdAt": "2026-04-03T10:00:00Z",
+                    },
                 }
-            ],
-        })
+            )
+        return DummyResponse(
+            json_data={
+                "status": "success",
+                "secrets": [
+                    {
+                        "id": "psk_123",
+                        "name": "provider-key",
+                        "ownerAddress": "0xabc",
+                        "maskedKey": "agt_provider...",
+                        "status": "active",
+                        "rpm": 180,
+                        "creditLimit": 25.0,
+                        "resetInterval": "monthly",
+                        "createdAt": "2026-04-03T10:00:00Z",
+                    }
+                ],
+            }
+        )
 
     monkeypatch.setattr("synapse_client.auth.requests.request", fake_request)
 
@@ -278,51 +310,79 @@ def test_register_provider_service_derives_defaults_and_reads_status(monkeypatch
     calls = []
 
     def fake_request(method, url, headers, json, timeout):
-        calls.append({
-            "method": method,
-            "url": url,
-            "headers": headers,
-            "json": json,
-            "timeout": timeout,
-        })
+        calls.append(
+            {
+                "method": method,
+                "url": url,
+                "headers": headers,
+                "json": json,
+                "timeout": timeout,
+            }
+        )
         if url.endswith("/api/v1/auth/challenge?address=0xabc"):
             return DummyResponse(json_data={"success": True, "challenge": "sign-me", "domain": "a2a-pay-network"})
         if url.endswith("/api/v1/auth/verify"):
-            return DummyResponse(json_data={"success": True, "access_token": "jwt-token", "token_type": "bearer", "expires_in": 3600})
+            return DummyResponse(
+                json_data={"success": True, "access_token": "jwt-token", "token_type": "bearer", "expires_in": 3600}
+            )
         if url.endswith("/api/v1/services") and method == "POST":
-            return DummyResponse(json_data={
-                "status": "success",
-                "serviceId": "sea_invoice_ocr",
-                "service": {
+            return DummyResponse(
+                json_data={
+                    "status": "success",
                     "serviceId": "sea_invoice_ocr",
-                    "ownerAddress": "0xabc",
-                    "serviceName": "SEA Invoice OCR",
-                    "summary": "Extract invoice fields.",
-                    "status": "active",
-                    "isActive": True,
-                    "pricing": {"amount": "0.008", "currency": "USDC"},
-                    "health": {"overallStatus": "healthy", "healthyTargets": 1, "totalTargets": 1, "runtimeAvailable": True},
-                    "runtimeAvailable": True,
-                    "invoke": {"method": "POST", "targets": [{"url": "https://provider.example.com/invoke"}], "request": {}, "response": {}},
-                },
-            })
-        return DummyResponse(json_data={
-            "status": "success",
-            "services": [
-                {
-                    "serviceId": "sea_invoice_ocr",
-                    "ownerAddress": "0xabc",
-                    "serviceName": "SEA Invoice OCR",
-                    "summary": "Extract invoice fields.",
-                    "status": "active",
-                    "isActive": True,
-                    "pricing": {"amount": "0.008", "currency": "USDC"},
-                    "health": {"overallStatus": "healthy", "healthyTargets": 1, "totalTargets": 1, "runtimeAvailable": True},
-                    "runtimeAvailable": True,
-                    "invoke": {"method": "POST", "targets": [{"url": "https://provider.example.com/invoke"}], "request": {}, "response": {}},
+                    "service": {
+                        "serviceId": "sea_invoice_ocr",
+                        "ownerAddress": "0xabc",
+                        "serviceName": "SEA Invoice OCR",
+                        "summary": "Extract invoice fields.",
+                        "status": "active",
+                        "isActive": True,
+                        "pricing": {"amount": "0.008", "currency": "USDC"},
+                        "health": {
+                            "overallStatus": "healthy",
+                            "healthyTargets": 1,
+                            "totalTargets": 1,
+                            "runtimeAvailable": True,
+                        },
+                        "runtimeAvailable": True,
+                        "invoke": {
+                            "method": "POST",
+                            "targets": [{"url": "https://provider.example.com/invoke"}],
+                            "request": {},
+                            "response": {},
+                        },
+                    },
                 }
-            ],
-        })
+            )
+        return DummyResponse(
+            json_data={
+                "status": "success",
+                "services": [
+                    {
+                        "serviceId": "sea_invoice_ocr",
+                        "ownerAddress": "0xabc",
+                        "serviceName": "SEA Invoice OCR",
+                        "summary": "Extract invoice fields.",
+                        "status": "active",
+                        "isActive": True,
+                        "pricing": {"amount": "0.008", "currency": "USDC"},
+                        "health": {
+                            "overallStatus": "healthy",
+                            "healthyTargets": 1,
+                            "totalTargets": 1,
+                            "runtimeAvailable": True,
+                        },
+                        "runtimeAvailable": True,
+                        "invoke": {
+                            "method": "POST",
+                            "targets": [{"url": "https://provider.example.com/invoke"}],
+                            "request": {},
+                            "response": {},
+                        },
+                    }
+                ],
+            }
+        )
 
     monkeypatch.setattr("synapse_client.auth.requests.request", fake_request)
 
@@ -353,7 +413,9 @@ def test_credential_lifecycle_and_owner_observability_helpers(monkeypatch):
         if url.endswith("/api/v1/auth/challenge?address=0xabc"):
             return DummyResponse(json_data={"success": True, "challenge": "sign-me", "domain": "a2a-pay-network"})
         if url.endswith("/api/v1/auth/verify"):
-            return DummyResponse(json_data={"success": True, "access_token": "jwt-token", "token_type": "bearer", "expires_in": 3600})
+            return DummyResponse(
+                json_data={"success": True, "access_token": "jwt-token", "token_type": "bearer", "expires_in": 3600}
+            )
         return DummyResponse(json_data={"status": "success", "credentialId": "cred_1"})
 
     monkeypatch.setattr("synapse_client.auth.requests.request", fake_request)
@@ -391,7 +453,9 @@ def test_provider_lifecycle_and_finance_helpers(monkeypatch):
         if url.endswith("/api/v1/auth/challenge?address=0xabc"):
             return DummyResponse(json_data={"success": True, "challenge": "sign-me", "domain": "a2a-pay-network"})
         if url.endswith("/api/v1/auth/verify"):
-            return DummyResponse(json_data={"success": True, "access_token": "jwt-token", "token_type": "bearer", "expires_in": 3600})
+            return DummyResponse(
+                json_data={"success": True, "access_token": "jwt-token", "token_type": "bearer", "expires_in": 3600}
+            )
         return DummyResponse(json_data={"status": "success"})
 
     monkeypatch.setattr("synapse_client.auth.requests.request", fake_request)

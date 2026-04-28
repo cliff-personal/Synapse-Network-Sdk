@@ -115,7 +115,11 @@ def test_discover_services_passes_intent_and_parses_response(monkeypatch):
                         "invoke": {"method": "POST", "request": {}, "response": {}},
                         "quoteTemplate": {
                             "serviceId": "svc_quotes_famous_top3",
-                            "inputPreview": {"contentType": "application/json", "payloadSchema": {"body": {}}, "sample": {"body": {}}},
+                            "inputPreview": {
+                                "contentType": "application/json",
+                                "payloadSchema": {"body": {}},
+                                "sample": {"body": {}},
+                            },
                             "responseMode": "sync",
                         },
                     }
@@ -247,14 +251,21 @@ def test_alias_methods_delegate_to_runtime_client(monkeypatch):
     ("status_code", "json_data", "error_type", "match"),
     [
         (401, {"detail": {"code": "CREDENTIAL_INVALID", "message": "bad key"}}, AuthenticationError, "bad key"),
-        (402, {"detail": {"code": "BUDGET_EXHAUSTED", "message": "budget empty"}}, InsufficientFundsError, "budget empty"),
+        (
+            402,
+            {"detail": {"code": "BUDGET_EXHAUSTED", "message": "budget empty"}},
+            InsufficientFundsError,
+            "budget empty",
+        ),
         (500, {}, InvokeError, "upstream exploded"),
     ],
 )
 def test_invoke_maps_error_status_codes(monkeypatch, status_code, json_data, error_type, match):
     monkeypatch.setattr(
         "synapse_client.client.requests.post",
-        lambda url, headers, json, timeout: DummyResponse(status_code=status_code, json_data=json_data, text="upstream exploded", ok=False),
+        lambda url, headers, json, timeout: DummyResponse(
+            status_code=status_code, json_data=json_data, text="upstream exploded", ok=False
+        ),
     )
     client = SynapseClient(api_key="agt_test")
     with pytest.raises(error_type, match=match):
@@ -271,9 +282,7 @@ def test_invoke_with_cost_usdc_calls_agent_invoke_endpoint(monkeypatch):
 
     def fake_post(url, headers, json, timeout):
         calls.append({"url": url, "json": json})
-        return DummyResponse(
-            json_data={"invocationId": "inv_cost", "status": "SUCCEEDED", "chargedUsdc": 0.05}
-        )
+        return DummyResponse(json_data={"invocationId": "inv_cost", "status": "SUCCEEDED", "chargedUsdc": 0.05})
 
     monkeypatch.setattr("synapse_client.client.requests.post", fake_post)
     client = SynapseClient(api_key="agt_test")
@@ -291,9 +300,7 @@ def test_invoke_with_cost_usdc_sends_payload_body(monkeypatch):
 
     def fake_post(url, headers, json, timeout):
         captured.append(json)
-        return DummyResponse(
-            json_data={"invocationId": "inv_b", "status": "SUCCEEDED", "chargedUsdc": 0.10}
-        )
+        return DummyResponse(json_data={"invocationId": "inv_b", "status": "SUCCEEDED", "chargedUsdc": 0.10})
 
     monkeypatch.setattr("synapse_client.client.requests.post", fake_post)
     client = SynapseClient(api_key="agt_test")
@@ -333,7 +340,10 @@ def test_invoke_with_rediscovery_retries_once_on_price_mismatch(monkeypatch):
 
     def fake_post(url, headers, json, timeout):
         post_calls.append({"url": url, "json": json})
-        if url.endswith("/api/v1/agent/invoke") and len([c for c in post_calls if c["url"].endswith("/api/v1/agent/invoke")]) == 1:
+        if (
+            url.endswith("/api/v1/agent/invoke")
+            and len([c for c in post_calls if c["url"].endswith("/api/v1/agent/invoke")]) == 1
+        ):
             return DummyResponse(
                 status_code=422,
                 ok=False,

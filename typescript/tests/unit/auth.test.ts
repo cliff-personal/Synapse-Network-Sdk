@@ -5,20 +5,17 @@ type MockResponse = { status?: number; body: unknown };
 function mockFetch(responses: MockResponse[]) {
   const calls: Array<{ url: string; init?: RequestInit }> = [];
   let index = 0;
-  (globalThis as unknown as Record<string, unknown>).fetch = jest.fn(
-    async (url: string, init?: RequestInit) => {
-      calls.push({ url, init });
-      const response = responses[Math.min(index, responses.length - 1)];
-      index += 1;
-      const status = response.status ?? 200;
-      return {
-        ok: status >= 200 && status < 300,
-        status,
-        text: async () =>
-          typeof response.body === "string" ? response.body : JSON.stringify(response.body),
-      } as Response;
-    }
-  );
+  (globalThis as unknown as Record<string, unknown>).fetch = jest.fn(async (url: string, init?: RequestInit) => {
+    calls.push({ url, init });
+    const response = responses[Math.min(index, responses.length - 1)];
+    index += 1;
+    const status = response.status ?? 200;
+    return {
+      ok: status >= 200 && status < 300,
+      status,
+      text: async () => (typeof response.body === "string" ? response.body : JSON.stringify(response.body)),
+    } as Response;
+  });
   return calls;
 }
 
@@ -81,10 +78,7 @@ test("authenticate maps unsuccessful challenge and verify responses to Authentic
   mockFetch([{ body: { success: false, error: "bad challenge" } }]);
   await expect(authForTests().authenticate()).rejects.toThrow(AuthenticationError);
 
-  mockFetch([
-    { body: { success: true, challenge: "sign this" } },
-    { body: { success: false, error: "bad verify" } },
-  ]);
+  mockFetch([{ body: { success: true, challenge: "sign this" } }, { body: { success: false, error: "bad verify" } }]);
   await expect(authForTests().authenticate()).rejects.toThrow(AuthenticationError);
 });
 
@@ -190,38 +184,46 @@ test("balance, deposit, confirm, and spending limit APIs send expected payloads"
 });
 
 test("registerProviderService validates input and builds provider service contract", async () => {
-  await expect(authForTests().registerProviderService({
-    serviceName: "",
-    endpointUrl: "http://provider.local/invoke",
-    descriptionForModel: "Summarize text",
-    basePriceUsdc: 0.01,
-  })).rejects.toThrow("serviceName is required");
-  await expect(authForTests().registerProviderService({
-    serviceName: "Summarizer",
-    endpointUrl: "",
-    descriptionForModel: "Summarize text",
-    basePriceUsdc: 0.01,
-  })).rejects.toThrow("endpointUrl is required");
-  await expect(authForTests().registerProviderService({
-    serviceName: "Summarizer",
-    endpointUrl: "http://provider.local/invoke",
-    descriptionForModel: "",
-    basePriceUsdc: 0.01,
-  })).rejects.toThrow("descriptionForModel is required");
+  await expect(
+    authForTests().registerProviderService({
+      serviceName: "",
+      endpointUrl: "http://provider.local/invoke",
+      descriptionForModel: "Summarize text",
+      basePriceUsdc: 0.01,
+    })
+  ).rejects.toThrow("serviceName is required");
+  await expect(
+    authForTests().registerProviderService({
+      serviceName: "Summarizer",
+      endpointUrl: "",
+      descriptionForModel: "Summarize text",
+      basePriceUsdc: 0.01,
+    })
+  ).rejects.toThrow("endpointUrl is required");
+  await expect(
+    authForTests().registerProviderService({
+      serviceName: "Summarizer",
+      endpointUrl: "http://provider.local/invoke",
+      descriptionForModel: "",
+      basePriceUsdc: 0.01,
+    })
+  ).rejects.toThrow("descriptionForModel is required");
 
   const calls = mockFetch([
     ...authHandshakeResponses(),
     { body: { status: "created", service: { serviceId: "summarizer", status: "active" } } },
   ]);
 
-  await expect(authForTests().registerProviderService({
-    serviceName: "Summarizer Pro",
-    endpointUrl: "http://provider.local/invoke",
-    descriptionForModel: "Summarize text",
-    basePriceUsdc: 0.05,
-    tags: ["text"],
-    providerDisplayName: "Provider Inc",
-  })).resolves.toMatchObject({
+  await expect(
+    authForTests().registerProviderService({
+      serviceName: "Summarizer Pro",
+      endpointUrl: "http://provider.local/invoke",
+      descriptionForModel: "Summarize text",
+      basePriceUsdc: 0.05,
+      tags: ["text"],
+      providerDisplayName: "Provider Inc",
+    })
+  ).resolves.toMatchObject({
     status: "created",
     serviceId: "summarizer",
   });
@@ -231,6 +233,69 @@ test("registerProviderService validates input and builds provider service contra
   expect(body.pricing).toEqual({ amount: "0.05", currency: "USDC" });
   expect(body.providerProfile).toEqual({ displayName: "Provider Inc" });
   expect(body.payoutAccount.payoutAddress).toBe("0xabcdef");
+});
+
+test("registerProviderService preserves explicit provider manifest options", async () => {
+  const calls = mockFetch([
+    ...authHandshakeResponses(),
+    { body: { status: "created", serviceId: "svc_custom", service: { id: "record_1" } } },
+  ]);
+
+  await expect(
+    authForTests().registerProviderService({
+      serviceId: "svc_custom",
+      serviceName: "Custom Provider",
+      endpointUrl: "https://provider.example/invoke",
+      descriptionForModel: "Run the custom provider.",
+      basePriceUsdc: "0.25",
+      providerDisplayName: "Custom Team",
+      payoutAddress: "0x123",
+      chainId: 84532,
+      settlementCurrency: "USDC",
+      tags: ["custom", "paid"],
+      status: "paused",
+      isActive: false,
+      inputSchema: { type: "object", properties: { q: { type: "string" } }, required: ["q"] },
+      outputSchema: { type: "object", properties: { answer: { type: "string" } } },
+      endpointMethod: "PUT",
+      healthPath: "/ready",
+      healthMethod: "POST",
+      healthTimeoutMs: 5_000,
+      requestTimeoutMs: 30_000,
+      governanceNote: "accepted in test",
+    })
+  ).resolves.toMatchObject({ serviceId: "svc_custom" });
+
+  const body = JSON.parse((calls[2].init?.body as string) ?? "{}");
+  expect(body).toMatchObject({
+    serviceId: "svc_custom",
+    status: "paused",
+    isActive: false,
+    tags: ["custom", "paid"],
+    invoke: {
+      method: "PUT",
+      targets: [{ url: "https://provider.example/invoke" }],
+      timeoutMs: 30_000,
+    },
+    healthCheck: {
+      path: "/ready",
+      method: "POST",
+      timeoutMs: 5_000,
+    },
+    providerProfile: { displayName: "Custom Team" },
+    payoutAccount: {
+      payoutAddress: "0x123",
+      chainId: 84532,
+      settlementCurrency: "USDC",
+    },
+    governance: {
+      termsAccepted: true,
+      riskAcknowledged: true,
+      note: "accepted in test",
+    },
+  });
+  expect(body.invoke.request.body.required).toEqual(["q"]);
+  expect(body.invoke.response.body.properties.answer.type).toBe("string");
 });
 
 test("provider service lookup and status derive from listed services", async () => {
