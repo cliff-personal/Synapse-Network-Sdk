@@ -38,6 +38,7 @@ echo "[ci:python] running Python unit tests with 80% coverage gate"
   --cov-fail-under=80
 
 echo "[ci:python] running Python complexity gate"
+"$PYTHON_BIN" scripts/ci/source_quality_checks_test.py
 "$PYTHON_BIN" scripts/ci/source_quality_checks.py
 radon_output="$("$PYTHON_BIN" -m radon cc python/synapse_client -n C -s --exclude "*/test/*")"
 if [[ -n "$radon_output" ]]; then

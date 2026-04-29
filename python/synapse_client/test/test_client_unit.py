@@ -457,7 +457,7 @@ def test_gateway_health_and_empty_discovery_diagnostics(monkeypatch):
 
     client = SynapseClient(api_key="agt_test", gateway_url="http://127.0.0.1:8000")
 
-    assert client.check_gateway_health()["status"] == "ok"
+    assert client.check_gateway_health().status == "ok"
     diagnostics = client.explain_discovery_empty_result(query="quotes", tags=["text"])
-    assert diagnostics["query"] == "quotes"
-    assert "suggestions" in diagnostics
+    assert diagnostics.query == "quotes"
+    assert diagnostics.suggestions

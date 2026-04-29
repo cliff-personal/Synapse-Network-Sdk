@@ -23,6 +23,8 @@ SynapseNetwork lets an agent discover services, invoke them through a gateway, a
 2. Create a `SynapseClient`.
 3. Search, invoke, and read the receipt.
 
+This README is the 5-minute SDK quickstart path for public preview. It gives agents one primary agent demo flow: choose Python or TypeScript, use `staging`, search for a service, invoke it, then verify the receipt.
+
 > Public Preview default: SDK examples use `staging`, backed by `https://api-staging.synapse-network.ai`.
 > The `prod` preset points to `https://api.synapse-network.ai`, but production should only be used after official DNS and `/health` are live.
 

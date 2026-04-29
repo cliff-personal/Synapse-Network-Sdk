@@ -18,7 +18,9 @@ from .exceptions import (
     TimeoutError,
 )
 from .models import (
+    DiscoveryEmptyExplanation,
     DiscoveryResponse,
+    GatewayHealthResult,
     InvocationResponse,
     QuoteResponse,
     RuntimePayload,
@@ -278,21 +280,21 @@ class SynapseClient:
     def get_invocation(self, invocation_id: str) -> InvocationResponse:
         return self.get_invocation_receipt(invocation_id)
 
-    def check_gateway_health(self) -> Dict[str, Any]:
+    def check_gateway_health(self) -> GatewayHealthResult:
         """Check the public gateway health endpoint without consuming agent budget."""
         response = requests.get(
             f"{self.gateway_url}/health",
             timeout=self.timeout_sec,
         )
         self._raise_for_error(response, InvokeError("gateway health check failed"))
-        return self._response_payload(response)
+        return GatewayHealthResult(**self._response_payload(response))
 
     @staticmethod
     def explain_discovery_empty_result(
         *,
         query: Optional[str] = None,
         tags: Optional[list[str]] = None,
-    ) -> Dict[str, Any]:
+    ) -> DiscoveryEmptyExplanation:
         """Return agent-friendly diagnostics for an empty discovery result."""
         reasons = [
             "No provider service matched the current discovery filters.",
@@ -304,12 +306,12 @@ class SynapseClient:
             "Confirm SYNAPSE_ENV / gateway_url matches the provider registration environment.",
             "Ask the provider owner to verify service status and health history.",
         ]
-        return {
-            "query": query or "",
-            "tags": tags or [],
-            "possibleReasons": reasons,
-            "suggestions": suggestions,
-        }
+        return DiscoveryEmptyExplanation(
+            query=query or "",
+            tags=tags or [],
+            possibleReasons=reasons,
+            suggestions=suggestions,
+        )
 
     def wait_for_invocation(
         self,

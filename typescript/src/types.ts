@@ -237,6 +237,19 @@ export interface ServiceRecord {
   [key: string]: unknown;
 }
 
+export interface GatewayHealthResult {
+  status: string;
+  version?: string;
+  [key: string]: unknown;
+}
+
+export interface DiscoveryEmptyExplanation {
+  query: string;
+  tags: string[];
+  possibleReasons: string[];
+  suggestions: string[];
+}
+
 export interface TokenMeteredServiceRecord extends ServiceRecord {
   serviceKind: "llm";
   priceModel: "token_metered";

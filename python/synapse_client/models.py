@@ -317,6 +317,18 @@ class DiscoveryResponse(SDKModel):
         return self.results
 
 
+class GatewayHealthResult(SDKModel):
+    status: str = "unknown"
+    version: Optional[str] = None
+
+
+class DiscoveryEmptyExplanation(SDKModel):
+    query: str = ""
+    tags: List[str] = Field(default_factory=list)
+    possible_reasons: List[str] = Field(default_factory=list, alias="possibleReasons")
+    suggestions: List[str] = Field(default_factory=list)
+
+
 class BudgetCheck(SDKModel):
     allowed: bool = True
     remaining_budget_usdc: Optional[float] = Field(default=None, alias="remainingBudgetUsdc")

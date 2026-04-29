@@ -26,13 +26,18 @@ PYTHON_TYPED_RETURN_FILES = {
     PYTHON_SOURCE / "_auth_credentials.py",
     PYTHON_SOURCE / "_auth_finance.py",
     PYTHON_SOURCE / "_auth_provider_control.py",
+    PYTHON_SOURCE / "client.py",
     PYTHON_SOURCE / "provider.py",
 }
 TYPESCRIPT_TYPED_RETURN_FILES = {
     TYPESCRIPT_SOURCE / "auth.ts",
     TYPESCRIPT_SOURCE / "auth_provider_control.ts",
+    TYPESCRIPT_SOURCE / "client.ts",
     TYPESCRIPT_SOURCE / "provider.ts",
 }
+RAW_RETURN_NAMES = {"dict", "Dict", "Mapping", "MutableMapping"}
+ALLOWED_RETURN_NAME_PREFIXES = ("_", "parse_", "serialize_", "build_", "request_", "response_", "model_")
+ALLOWED_RETURN_NAME_SUFFIXES = ("_body", "_payload", "_patch", "_schema", "_schemas", "_manifest", "_headers")
 
 
 def iter_files(root: Path, suffix: str) -> list[Path]:
@@ -98,32 +103,54 @@ def check_public_sdk_return_models() -> list[str]:
 
 def check_python_public_return_models() -> list[str]:
     failures: list[str] = []
-    forbidden = {"Dict[str, Any]", "dict", "typing.Dict[str, Any]"}
     for path in sorted(PYTHON_TYPED_RETURN_FILES):
         tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
         for node in ast.walk(tree):
             if not isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
                 continue
-            if node.name.startswith("_") or node.returns is None:
+            if is_allowed_raw_return_name(node.name) or node.returns is None:
                 continue
             annotation = ast.unparse(node.returns)
-            if annotation in forbidden:
+            if annotation_contains_raw_map(node.returns):
                 failures.append(
                     f"{relative(path)}:{node.lineno} {node.name} returns raw {annotation}; use a SDK model"
                 )
     return failures
 
 
+def is_allowed_raw_return_name(name: str) -> bool:
+    return name.startswith(ALLOWED_RETURN_NAME_PREFIXES) or name.endswith(ALLOWED_RETURN_NAME_SUFFIXES)
+
+
+def annotation_contains_raw_map(node: ast.AST | None) -> bool:
+    if node is None:
+        return False
+    if isinstance(node, ast.Name):
+        return node.id in RAW_RETURN_NAMES
+    if isinstance(node, ast.Attribute):
+        return node.attr in RAW_RETURN_NAMES
+    if isinstance(node, ast.Subscript):
+        return annotation_contains_raw_map(node.value) or annotation_contains_raw_map(node.slice)
+    if isinstance(node, ast.BinOp) and isinstance(node.op, ast.BitOr):
+        return annotation_contains_raw_map(node.left) or annotation_contains_raw_map(node.right)
+    if isinstance(node, ast.Tuple):
+        return any(annotation_contains_raw_map(element) for element in node.elts)
+    if isinstance(node, ast.Constant) and isinstance(node.value, str):
+        text = node.value.replace(" ", "")
+        return any(text == name or text.startswith(f"{name}[") for name in RAW_RETURN_NAMES)
+    return False
+
+
 def check_typescript_public_return_models() -> list[str]:
     failures: list[str] = []
     patterns = [
         re.compile(
-            r"^\s*export\s+async\s+function\s+([A-Za-z]\w*)\s*\([^{};]*?\)\s*:"
-            r"\s*Promise<Record<string, unknown>>",
+            r"^\s*export\s+(?:async\s+)?function\s+([A-Za-z]\w*)\s*\([^{};]*?\)\s*:"
+            r"\s*(?:Promise<\s*)?Record<string, unknown>",
             re.MULTILINE | re.DOTALL,
         ),
         re.compile(
-            r"^\s*(?:async\s+)?([A-Za-z]\w*)\s*\([^{};]*?\)\s*:\s*Promise<Record<string, unknown>>",
+            r"^\s*(?:async\s+)?([A-Za-z]\w*)\s*\([^{};]*?\)\s*:\s*(?:Promise<\s*)?Record<string, unknown>",
             re.MULTILINE | re.DOTALL,
         ),
     ]
@@ -133,7 +160,7 @@ def check_typescript_public_return_models() -> list[str]:
             for match in pattern.finditer(text):
                 lineno = text.count("\n", 0, match.start()) + 1
                 name = match.group(1)
-                if name in {"constructor"}:
+                if name in {"constructor"} or name.startswith("_"):
                     continue
                 failures.append(
                     f"{relative(path)}:{lineno} {name} returns raw Record; use a named SDK result type"

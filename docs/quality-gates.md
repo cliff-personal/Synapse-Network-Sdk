@@ -26,7 +26,7 @@ This repository uses `bash scripts/ci/pr_checks.sh` as the single PR quality gat
 - Python coverage must be at least `80%`.
 - TypeScript global lines, branches, functions, and statements coverage must each be at least `80%`.
 - Duplicate code across `python/synapse_client` and `typescript/src` must stay at or below `3%` with a `50` token minimum clone size.
-- Public `SynapseAuth` and `SynapseProvider` methods must return named SDK models/interfaces, never raw Python `dict` or TypeScript `Record<string, unknown>`. Internal HTTP payloads, schemas, and patch inputs may remain map-shaped.
+- Public `SynapseClient`, `SynapseAuth`, and `SynapseProvider` methods must return named SDK models/interfaces, never raw Python `dict` or TypeScript `Record<string, unknown>`. Internal HTTP payloads, schemas, and patch inputs may remain map-shaped.
 
 ## Refactor Rules
 
@@ -34,7 +34,7 @@ This repository uses `bash scripts/ci/pr_checks.sh` as the single PR quality gat
 - If logic appears in three places, extract a shared helper or module.
 - If a function exceeds `40` Python effective lines, `60` TypeScript lines, or the complexity threshold, split pure decisions from I/O and orchestration.
 - Bug fixes need regression tests. New observable behavior needs unit tests.
-- New owner/provider SDK methods need a named result model/interface before they are exposed publicly.
+- New consumer/owner/provider SDK methods need a named result model/interface before they are exposed publicly.
 - Public SDK API changes must update docs and `docs/sdk/capability_inventory.md` when the implementation state changes.
 
 ## GitHub Enforcement

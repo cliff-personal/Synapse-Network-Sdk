@@ -14,6 +14,8 @@ import {
   LlmInvokeOptions,
   InvocationResult,
   InvocationStatus,
+  GatewayHealthResult,
+  DiscoveryEmptyExplanation,
   TERMINAL_STATUSES,
 } from "./types";
 import {
@@ -65,7 +67,7 @@ export class SynapseClient {
   }
 
   /** Check the public gateway health endpoint without consuming agent budget. */
-  async checkGatewayHealth(): Promise<Record<string, unknown>> {
+  async checkGatewayHealth(): Promise<GatewayHealthResult> {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), this.timeoutMs);
     try {
@@ -73,14 +75,14 @@ export class SynapseClient {
       const text = await resp.text();
       const data = text ? (JSON.parse(text) as Record<string, unknown>) : {};
       if (!resp.ok) throw new Error(`HTTP ${resp.status}: ${text}`);
-      return data;
+      return data as GatewayHealthResult;
     } finally {
       clearTimeout(timer);
     }
   }
 
   /** Return agent-friendly diagnostics for an empty discovery result. */
-  explainDiscoveryEmptyResult(opts: { query?: string; tags?: string[] } = {}): Record<string, unknown> {
+  explainDiscoveryEmptyResult(opts: { query?: string; tags?: string[] } = {}): DiscoveryEmptyExplanation {
     return {
       query: opts.query ?? "",
       tags: opts.tags ?? [],

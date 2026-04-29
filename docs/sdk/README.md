@@ -55,6 +55,8 @@ The top README prioritizes the shortest TTFC path:
 2. Generate Agent Key.
 3. Agent runtime uses `SynapseClient` for discovery / invoke / receipt.
 
+For public preview, treat the top README as the 5-minute SDK agent demo: Python and TypeScript both default to `staging`, then walk through discovery/search, invoke, receipt verification, and first-run troubleshooting.
+
 Programmatic credential issuance is an advanced owner flow:
 
 1. Owner wallet signs in.
@@ -126,6 +128,8 @@ Check:
 ### `402` or budget errors
 
 The SDK maps `402` to balance, budget, or credential credit limit errors. Check account balance, credential budget, and daily cap rather than blindly retrying.
+
+Plain-language marker for quickstart checks: 402 or budget errors mean the agent request reached billing guardrails and should be fixed by funding, credits, or credential budget changes before retrying.
 
 ## Shortest Verification Path
 
