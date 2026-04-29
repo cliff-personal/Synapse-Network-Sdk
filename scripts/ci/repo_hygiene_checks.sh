@@ -55,6 +55,7 @@ sensitive_files="$(
     | grep -Ev '(^|/)\.env\.example$' \
     | grep -Ev '^python/examples/consumer_wallet_to_invoke\.py$' \
     | grep -Ev '^python/synapse_client/_auth_credentials\.py$' \
+    | grep -Ev '^python/synapse_client/wallet\.py$' \
     | grep -Ev '^typescript/src/auth_credentials\.ts$' \
     || true
 )"
