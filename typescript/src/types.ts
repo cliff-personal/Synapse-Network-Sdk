@@ -24,6 +24,19 @@ export interface TokenResponse {
   expires_in: number;
 }
 
+export interface AuthLogoutResult {
+  status?: string;
+  success?: boolean;
+  [key: string]: unknown;
+}
+
+export interface OwnerProfile {
+  profile?: Record<string, unknown>;
+  ownerAddress?: string;
+  walletAddress?: string;
+  [key: string]: unknown;
+}
+
 // ── Credentials ─────────────────────────────────────────────────────────────
 
 export interface IssueCredentialOptions {
@@ -53,6 +66,53 @@ export interface IssueCredentialResult {
   credential: AgentCredential;
   /** The agent token used as X-Credential header value */
   token: string;
+}
+
+export interface CredentialRevokeResult {
+  status?: string;
+  credentialId?: string;
+  credential?: AgentCredential;
+  [key: string]: unknown;
+}
+
+export interface CredentialRotateResult {
+  status?: string;
+  credentialId?: string;
+  token?: string;
+  credential?: AgentCredential;
+  [key: string]: unknown;
+}
+
+export interface CredentialDeleteResult {
+  status?: string;
+  credentialId?: string;
+  [key: string]: unknown;
+}
+
+export interface CredentialQuotaUpdateResult {
+  status?: string;
+  credentialId?: string;
+  credential?: AgentCredential;
+  [key: string]: unknown;
+}
+
+export interface CredentialStatusResult {
+  status?: string;
+  credentialId?: string;
+  valid?: boolean;
+  credentialStatus?: string;
+  isExpired?: boolean;
+  callsExhausted?: boolean;
+  expiresAt?: number;
+  callsUsed?: number;
+  maxCalls?: number;
+  creditLimit?: number;
+  [key: string]: unknown;
+}
+
+export interface CredentialAuditLogList {
+  logs?: Array<Record<string, unknown>>;
+  [key: string]: unknown;
 }
 
 export interface ProviderSecret {
@@ -103,7 +163,60 @@ export interface DepositIntentResult {
   };
 }
 
+export interface DepositConfirmResult {
+  status: string;
+  intent?: {
+    id?: string;
+    intentId?: string;
+    depositIntentId?: string;
+    eventKey?: string;
+    event_key?: string;
+    txHash?: string;
+    [key: string]: unknown;
+  };
+  [key: string]: unknown;
+}
+
+export interface VoucherRedeemResult {
+  status?: string;
+  voucherCode?: string;
+  [key: string]: unknown;
+}
+
+export interface UsageLogList {
+  logs?: Array<Record<string, unknown>>;
+  [key: string]: unknown;
+}
+
+export interface FinanceAuditLogList {
+  logs?: Array<Record<string, unknown>>;
+  [key: string]: unknown;
+}
+
+export interface RiskOverview {
+  risk?: unknown;
+  [key: string]: unknown;
+}
+
 // ── Services ─────────────────────────────────────────────────────────────────
+
+export type ServiceKind = "api" | "llm";
+
+export type PriceModel = "fixed" | "per_call" | "per_success_call" | "token_metered";
+
+export interface FixedPricing {
+  amount?: string;
+  currency?: string;
+}
+
+export interface LlmPricing {
+  priceModel: "token_metered";
+  inputPricePer1MTokensUsdc: string;
+  outputPricePer1MTokensUsdc: string;
+  defaultMaxOutputTokens?: number;
+  holdBufferMultiplier?: string | number;
+  maxAutoHoldUsdc?: string;
+}
 
 export interface ServiceRecord {
   serviceId?: string;
@@ -111,10 +224,25 @@ export interface ServiceRecord {
   agentToolName?: string;
   serviceName?: string;
   status?: string;
-  pricing?: { amount?: string; currency?: string } | string;
+  serviceKind?: ServiceKind | string;
+  priceModel?: PriceModel | string;
+  pricing?: FixedPricing | LlmPricing | string;
+  inputPricePer1MTokensUsdc?: string;
+  outputPricePer1MTokensUsdc?: string;
+  defaultMaxOutputTokens?: number;
+  holdBufferMultiplier?: string | number;
+  maxAutoHoldUsdc?: string;
   summary?: string;
   tags?: string[];
   [key: string]: unknown;
+}
+
+export interface TokenMeteredServiceRecord extends ServiceRecord {
+  serviceKind: "llm";
+  priceModel: "token_metered";
+  pricing?: LlmPricing;
+  inputPricePer1MTokensUsdc: string;
+  outputPricePer1MTokensUsdc: string;
 }
 
 export interface ProviderProfileRecord {
@@ -160,8 +288,15 @@ export interface ProviderServiceRecord extends ServiceRecord {
 export interface RegisterProviderServiceOptions {
   serviceName: string;
   endpointUrl: string;
-  basePriceUsdc: string | number;
+  basePriceUsdc?: string | number;
   descriptionForModel: string;
+  serviceKind?: ServiceKind;
+  priceModel?: PriceModel;
+  inputPricePer1MTokensUsdc?: string | number;
+  outputPricePer1MTokensUsdc?: string | number;
+  defaultMaxOutputTokens?: number;
+  holdBufferMultiplier?: string | number;
+  maxAutoHoldUsdc?: string | number;
   serviceId?: string;
   providerDisplayName?: string;
   payoutAddress?: string;
@@ -193,6 +328,70 @@ export interface ProviderServiceStatus {
   health: ServiceHealthRecord;
 }
 
+export interface ProviderSecretDeleteResult {
+  status?: string;
+  secretId?: string;
+  [key: string]: unknown;
+}
+
+export interface ProviderRegistrationGuide {
+  steps?: unknown[];
+  requirements?: Record<string, unknown>;
+  [key: string]: unknown;
+}
+
+export interface ServiceManifestDraft {
+  data?: Record<string, unknown>;
+  manifest?: Record<string, unknown>;
+  [key: string]: unknown;
+}
+
+export interface ProviderServiceUpdateResult {
+  status?: string;
+  service?: ProviderServiceRecord;
+  [key: string]: unknown;
+}
+
+export interface ProviderServiceDeleteResult {
+  status?: string;
+  serviceId?: string;
+  [key: string]: unknown;
+}
+
+export interface ProviderServicePingResult {
+  status?: string;
+  health?: Record<string, unknown>;
+  [key: string]: unknown;
+}
+
+export interface ProviderServiceHealthHistory {
+  history?: Array<Record<string, unknown>>;
+  [key: string]: unknown;
+}
+
+export interface ProviderEarningsSummary {
+  total?: string | number;
+  [key: string]: unknown;
+}
+
+export interface ProviderWithdrawalCapability {
+  available?: boolean;
+  [key: string]: unknown;
+}
+
+export interface ProviderWithdrawalIntentResult {
+  status?: string;
+  intentId?: string;
+  amountUsdc?: string | number;
+  intent?: Record<string, unknown>;
+  [key: string]: unknown;
+}
+
+export interface ProviderWithdrawalList {
+  withdrawals?: Array<Record<string, unknown>>;
+  [key: string]: unknown;
+}
+
 export interface DiscoverOptions {
   limit?: number;
   offset?: number;
@@ -202,13 +401,7 @@ export interface DiscoverOptions {
 
 // ── Invocation ───────────────────────────────────────────────────────────────
 
-export type InvocationStatus =
-  | "PENDING"
-  | "PROCESSING"
-  | "SUCCEEDED"
-  | "SETTLED"
-  | "FAILED_RETRYABLE"
-  | "FAILED_FINAL";
+export type InvocationStatus = "PENDING" | "PROCESSING" | "SUCCEEDED" | "SETTLED" | "FAILED_RETRYABLE" | "FAILED_FINAL";
 
 export const TERMINAL_STATUSES = new Set<InvocationStatus>([
   "SUCCEEDED",
@@ -231,11 +424,47 @@ export interface InvokeOptions {
   costUsdc: number;
 }
 
+export interface LlmInvokeOptions {
+  idempotencyKey?: string;
+  responseMode?: "sync";
+  requestId?: string;
+  pollTimeoutMs?: number;
+  pollIntervalMs?: number;
+  /**
+   * Optional caller-side maximum spend cap. If omitted, Gateway performs
+   * automatic pre-authorization based on prompt length and max_tokens.
+   */
+  maxCostUsdc?: number | string;
+}
+
+export interface LlmUsage {
+  inputTokens?: number;
+  outputTokens?: number;
+  totalTokens?: number;
+  prompt_tokens?: number;
+  completion_tokens?: number;
+  total_tokens?: number;
+  [key: string]: unknown;
+}
+
+export interface SynapseBillingMetadata {
+  priceModel?: "token_metered" | string;
+  holdUsdc?: string;
+  chargedUsdc?: string;
+  releasedUsdc?: string;
+  providerRevenueUsdc?: string;
+  platformFeeUsdc?: string;
+  preAuthMode?: "auto" | "explicit" | string;
+  [key: string]: unknown;
+}
+
 export interface InvocationResult {
   invocationId: string;
   status: InvocationStatus;
   chargedUsdc: number;
   result?: unknown;
+  usage?: LlmUsage;
+  synapse?: SynapseBillingMetadata;
   error?: { message?: string; code?: string } | null;
   receipt?: Record<string, unknown> | null;
   quoteId?: string;

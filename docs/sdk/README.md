@@ -31,7 +31,11 @@ The SDK currently has three explicit public surfaces:
 
 Provider remains an owner-scoped supply-side role. `SynapseProvider` improves discoverability but does not introduce a second provider root identity.
 
-Python quote-first methods `create_quote()`, `create_invocation()`, and `invoke_service()` are deprecated. They no longer call old endpoints and instead tell users to use discovery/search + `invoke(..., cost_usdc=...)`.
+Owner/provider helper returns are typed SDK objects. Do not document or add public `SynapseAuth` / `SynapseProvider` methods that return raw Python `dict` or TypeScript `Record<string, unknown>`; add a named result model/interface instead.
+
+Python quote-first methods `create_quote()`, `create_invocation()`, and `invoke_service()` are deprecated. They no longer call old endpoints and instead tell users to use discovery/search + `invoke(..., cost_usdc=...)` for fixed-price APIs.
+
+LLM services use `serviceKind=llm` + `priceModel=token_metered`. Runtime code should call `invoke_llm()` / `invokeLlm()` and read `usage` plus `synapse` billing metadata. Do not pass `cost_usdc` / `costUsdc` for LLM calls; pass optional `max_cost_usdc` / `maxCostUsdc` or let Gateway compute the automatic hold. Streaming is disabled in V1.
 
 ## Staging Docs
 
@@ -95,7 +99,8 @@ Runtime calls should include:
 
 1. `request_id` / request header for gateway log correlation.
 2. `idempotency_key` / `idempotencyKey` to avoid duplicate charges or duplicate execution.
-3. `cost_usdc` / `costUsdc` from latest discovery price. If price changes, the gateway rejects the call and the caller should rediscover.
+3. For fixed-price APIs, pass `cost_usdc` / `costUsdc` from latest discovery price. If price changes, the gateway rejects the call and the caller should rediscover.
+4. For token-metered LLM services, call `invoke_llm()` / `invokeLlm()` with optional `max_cost_usdc` / `maxCostUsdc`; final Provider `usage` drives the actual charge.
 
 ## Common Failures
 

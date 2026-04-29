@@ -19,13 +19,7 @@
  * Run: cd sdk/typescript && npm run test:new-consumer
  */
 
-import {
-  Wallet,
-  JsonRpcProvider,
-  Contract,
-  parseUnits,
-  parseEther,
-} from "ethers";
+import { Wallet, JsonRpcProvider, Contract, parseUnits, parseEther } from "ethers";
 import { v4 as uuidv4 } from "uuid";
 import * as fs from "fs";
 import * as path from "path";
@@ -36,34 +30,34 @@ import { InvocationResult } from "../../src/types";
 
 // ── Config ────────────────────────────────────────────────────────────────────
 
-const GATEWAY_URL    = process.env.SYNAPSE_GATEWAY ?? "http://127.0.0.1:8000";
-const RPC_URL        = process.env.RPC_URL         ?? "http://127.0.0.1:8545";
-const DEPOSIT_USDC   = Number(process.env.DEPOSIT_USDC ?? "10");
+const GATEWAY_URL = process.env.SYNAPSE_GATEWAY ?? "http://127.0.0.1:8000";
+const RPC_URL = process.env.RPC_URL ?? "http://127.0.0.1:8545";
+const DEPOSIT_USDC = Number(process.env.DEPOSIT_USDC ?? "10");
 const MOCK_PROVIDER_PORT = 9299;
 
 // Hardhat default keys
 const DEPLOYER_KEY = "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80";
 const PROVIDER_KEY = "0x5de4111afa1a4b94908f83103eb1f1706367c2e68ea870594801966b8ea0ec4f";
 
-const REPO_ROOT             = path.resolve(__dirname, "../../../../");
-const CONTRACT_CONFIG_PATH  = path.join(REPO_ROOT, "apps/frontend/src/contract-config.json");
-const MOCK_USDC_ABI_PATH    = path.join(REPO_ROOT, "apps/frontend/src/MockUSDCABI.json");
+const REPO_ROOT = path.resolve(__dirname, "../../../../");
+const CONTRACT_CONFIG_PATH = path.join(REPO_ROOT, "apps/frontend/src/contract-config.json");
+const MOCK_USDC_ABI_PATH = path.join(REPO_ROOT, "apps/frontend/src/MockUSDCABI.json");
 const SYNAPSE_CORE_ABI_PATH = path.join(REPO_ROOT, "apps/frontend/src/SynapseCoreABI.json");
 
-const SESSION_ID      = uuidv4().replace(/-/g, "").slice(0, 8);
+const SESSION_ID = uuidv4().replace(/-/g, "").slice(0, 8);
 const SERVICE_PRICE_USDC = 0.001;
-const SERVICE_NAME    = `nc_e2e_svc_${SESSION_ID}`;
-const CRED_NAME       = `nc-cred-${SESSION_ID}`;
+const SERVICE_NAME = `nc_e2e_svc_${SESSION_ID}`;
+const CRED_NAME = `nc-cred-${SESSION_ID}`;
 
 // ── Shared state ──────────────────────────────────────────────────────────────
 
-let freshAuth:   SynapseAuth;
+let freshAuth: SynapseAuth;
 let providerAuth: SynapseAuth;
-let client:      SynapseClient;
-let agentToken:  string;
-let serviceId:   string;
+let client: SynapseClient;
+let agentToken: string;
+let serviceId: string;
 let discoveredServiceId: string;
-let mockServer:  http.Server;
+let mockServer: http.Server;
 let balanceBeforeInvocations: number;
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -103,7 +97,11 @@ async function doFetch(
   });
   const text = await resp.text();
   let data: unknown;
-  try { data = JSON.parse(text); } catch { data = { raw: text }; }
+  try {
+    data = JSON.parse(text);
+  } catch {
+    data = { raw: text };
+  }
   if (!resp.ok) throw new Error(`HTTP ${resp.status} ${url}: ${text.slice(0, 300)}`);
   return data as Record<string, unknown>;
 }
@@ -118,14 +116,14 @@ async function fundAndDeposit(
   deployerWallet: Wallet,
   amountUsdc: number
 ): Promise<string> {
-  const config    = loadContracts();
-  const usdcAbi   = JSON.parse(fs.readFileSync(MOCK_USDC_ABI_PATH,    "utf8"));
-  const coreAbi   = JSON.parse(fs.readFileSync(SYNAPSE_CORE_ABI_PATH, "utf8"));
+  const config = loadContracts();
+  const usdcAbi = JSON.parse(fs.readFileSync(MOCK_USDC_ABI_PATH, "utf8"));
+  const coreAbi = JSON.parse(fs.readFileSync(SYNAPSE_CORE_ABI_PATH, "utf8"));
 
-  const usdc = new Contract(config.MockUSDC,    usdcAbi, deployerWallet);
+  const usdc = new Contract(config.MockUSDC, usdcAbi, deployerWallet);
   const core = new Contract(config.SynapseCore, coreAbi, freshWallet);
 
-  const decimals  = Number(await usdc.decimals());
+  const decimals = Number(await usdc.decimals());
   const amountWei = parseUnits(String(amountUsdc), decimals);
 
   // Fetch deployer's current pending nonce ONCE and manage manually to
@@ -147,7 +145,7 @@ async function fundAndDeposit(
   await mintTx.wait();
 
   // (c) Verify USDC balance
-  const usdcBal = await (usdc as Contract).balanceOf(freshWallet.address) as bigint;
+  const usdcBal = (await (usdc as Contract).balanceOf(freshWallet.address)) as bigint;
   console.log(`  → USDC balance: ${usdcBal.toString()} (raw)`);
   if (usdcBal === 0n) throw new Error("Mint failed — USDC balance is still 0");
 
@@ -158,9 +156,9 @@ async function fundAndDeposit(
 
   // (d) Approve SynapseCore
   console.log(`  → Approving SynapseCore for ${amountUsdc} USDC`);
-  const approveTx = await (usdc.connect(freshWallet) as Contract).approve(
-    config.SynapseCore, amountWei, { nonce: freshNonce++ }
-  );
+  const approveTx = await (usdc.connect(freshWallet) as Contract).approve(config.SynapseCore, amountWei, {
+    nonce: freshNonce++,
+  });
   await approveTx.wait();
 
   // (e) On-chain deposit
@@ -190,7 +188,7 @@ async function registerTestService(
     invoke: {
       method: "POST",
       targets: [{ url: mockServiceUrl }],
-      request:  { body: { type: "object", properties: { prompt: { type: "string" } } } },
+      request: { body: { type: "object", properties: { prompt: { type: "string" } } } },
       response: { body: { type: "object", properties: { result: { type: "string" } } } },
     },
     healthCheck: {
@@ -218,10 +216,10 @@ async function registerTestService(
 
   const svcId =
     (resp["serviceId"] as string) ||
-    (resp["id"]        as string) ||
+    (resp["id"] as string) ||
     (resp["service_id"] as string) ||
     ((resp["service"] as Record<string, unknown>)?.["serviceId"] as string) ||
-    ((resp["service"] as Record<string, unknown>)?.["id"]        as string) ||
+    ((resp["service"] as Record<string, unknown>)?.["id"] as string) ||
     SERVICE_NAME;
 
   return svcId;
@@ -230,7 +228,6 @@ async function registerTestService(
 // ── Test Suite ────────────────────────────────────────────────────────────────
 
 describe("Synapse TS SDK — New Consumer Cold-Start E2E", () => {
-
   // ── beforeAll: chain setup + service registration ──────────────────────────
 
   beforeAll(async () => {
@@ -241,18 +238,18 @@ describe("Synapse TS SDK — New Consumer Cold-Start E2E", () => {
     console.log(`[setup] Mock provider: ${mockServiceUrl}`);
 
     // 2. Ethers setup
-    const rpcProvider    = new JsonRpcProvider(RPC_URL);
+    const rpcProvider = new JsonRpcProvider(RPC_URL);
     const deployerWallet = new Wallet(DEPLOYER_KEY, rpcProvider);
     const providerWallet = new Wallet(PROVIDER_KEY, rpcProvider);
     // createRandom() returns HDNodeWallet in ethers v6; extract privateKey → Wallet
-    const freshPrivKey   = Wallet.createRandom().privateKey;
-    const freshWallet    = new Wallet(freshPrivKey, rpcProvider);
+    const freshPrivKey = Wallet.createRandom().privateKey;
+    const freshWallet = new Wallet(freshPrivKey, rpcProvider);
 
     console.log(`[setup] Fresh wallet: ${freshWallet.address}`);
     console.log(`[setup] Provider:     ${providerWallet.address}`);
 
     // 3. Create SynapseAuth for fresh wallet
-    freshAuth    = SynapseAuth.fromWallet(freshWallet,    { gatewayUrl: GATEWAY_URL });
+    freshAuth = SynapseAuth.fromWallet(freshWallet, { gatewayUrl: GATEWAY_URL });
     providerAuth = SynapseAuth.fromWallet(providerWallet, { gatewayUrl: GATEWAY_URL });
 
     // 4. Fund fresh wallet + on-chain deposit
@@ -268,12 +265,8 @@ describe("Synapse TS SDK — New Consumer Cold-Start E2E", () => {
     expect(intentResp.status).toBe("success");
 
     const intentObj = intentResp.intent as Record<string, unknown>;
-    const intentId  = String(
-      intentObj["id"] || intentObj["intentId"] || intentObj["depositIntentId"] || ""
-    ).trim();
-    const eventKey  = String(
-      intentObj["eventKey"] || intentObj["event_key"] || txHash
-    ).trim();
+    const intentId = String(intentObj["id"] || intentObj["intentId"] || intentObj["depositIntentId"] || "").trim();
+    const eventKey = String(intentObj["eventKey"] || intentObj["event_key"] || txHash).trim();
 
     expect(intentId).toBeTruthy();
     console.log(`[setup] Intent ID: ${intentId}, eventKey: ${eventKey}`);
@@ -319,7 +312,7 @@ describe("Synapse TS SDK — New Consumer Cold-Start E2E", () => {
 
   describe("2. Balance After Deposit", () => {
     it("should show consumerAvailableBalance >= DEPOSIT_USDC after on-chain deposit", async () => {
-      const balance   = await freshAuth.getBalance();
+      const balance = await freshAuth.getBalance();
       const available = Number(balance.consumerAvailableBalance ?? balance.ownerBalance ?? 0);
       console.log(`  Balance: ${JSON.stringify(balance)}`);
       expect(available).toBeGreaterThanOrEqual(DEPOSIT_USDC * 0.99); // allow minor rounding
@@ -363,16 +356,12 @@ describe("Synapse TS SDK — New Consumer Cold-Start E2E", () => {
 
     it("should find the registered test service", async () => {
       const services = await client.discover({ limit: 50 });
-      const ids = services.map(
-        (s) => s.serviceId ?? s.id ?? s.agentToolName ?? ""
-      );
+      const ids = services.map((s) => s.serviceId ?? s.id ?? s.agentToolName ?? "");
       console.log(`  Discovered IDs (first 5): ${ids.slice(0, 5).join(", ")}`);
       expect(ids).toContain(serviceId);
       discoveredServiceId =
-        services.find((s) => [s.serviceId, s.id, s.agentToolName].includes(serviceId))
-          ?.serviceId ??
-        services.find((s) => [s.serviceId, s.id, s.agentToolName].includes(serviceId))
-          ?.id ??
+        services.find((s) => [s.serviceId, s.id, s.agentToolName].includes(serviceId))?.serviceId ??
+        services.find((s) => [s.serviceId, s.id, s.agentToolName].includes(serviceId))?.id ??
         serviceId;
       expect(discoveredServiceId).toBe(serviceId);
     });
@@ -385,9 +374,7 @@ describe("Synapse TS SDK — New Consumer Cold-Start E2E", () => {
 
     beforeAll(async () => {
       const bal = await freshAuth.getBalance();
-      balanceBeforeInvocations = Number(
-        bal.consumerAvailableBalance ?? bal.ownerBalance ?? 0
-      );
+      balanceBeforeInvocations = Number(bal.consumerAvailableBalance ?? bal.ownerBalance ?? 0);
       console.log(`  Balance before invocations: ${balanceBeforeInvocations}`);
     });
 
@@ -467,10 +454,8 @@ describe("Synapse TS SDK — New Consumer Cold-Start E2E", () => {
 
   describe("8. Post-Settlement Balance", () => {
     it("should show reduced consumer balance after invocations", async () => {
-      const balance   = await freshAuth.getBalance();
-      const available = Number(
-        balance.consumerAvailableBalance ?? balance.ownerBalance ?? 0
-      );
+      const balance = await freshAuth.getBalance();
+      const available = Number(balance.consumerAvailableBalance ?? balance.ownerBalance ?? 0);
       console.log(`  Balance after invocations: ${available} (was ${balanceBeforeInvocations})`);
       expect(available).toBeLessThan(balanceBeforeInvocations);
       expect(available).toBeGreaterThanOrEqual(0);

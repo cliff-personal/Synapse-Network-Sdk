@@ -9,7 +9,8 @@ Consumer runtime 主链固定为：
 1. owner 钱包登录
 2. 创建 agent credential
 3. discovery/search
-4. `invoke(service_id, payload, cost_usdc=...)`
+4. fixed API: `invoke(service_id, payload, cost_usdc=...)`
+5. LLM service: `invoke_llm(service_id, payload, max_cost_usdc=...)`
 5. receipt 查询
 
 旧的 quote-first 方法 `create_quote()`、`create_invocation()`、`invoke_service()` 已废弃，不再访问旧 endpoint。调用这些方法会直接提示改用 discovery/search + price-asserted invoke。
@@ -130,6 +131,33 @@ print(result.invocation_id, result.status, result.charged_usdc)
 
 如果你已经缓存了稳定 `service_id`，仍然建议先读取或保存 discovery 返回的最新价格，再传给 `cost_usdc`。gateway 会用该价格断言保护调用方，避免服务价格变化后静默扣费。
 
+## LLM token-metered invoke
+
+按 token 计费的 LLM 服务使用 `serviceKind=llm` 和
+`priceModel=token_metered`。SDK helper 不发送 `cost_usdc`；Gateway 使用可选
+`max_cost_usdc` 作为上限，或自动根据 prompt 字符数与 `max_tokens` 冻结额度，
+最后只按 Provider 返回的 final `usage` 扣费。
+
+```python
+result = client.invoke_llm(
+    "svc_deepseek_chat",
+    {
+        "model": "deepseek-chat",
+        "messages": [{"role": "user", "content": "Summarize this document."}],
+        "max_tokens": 512,
+        # "stream": True 会在 Synapse V1 被拒绝
+    },
+    max_cost_usdc="0.010000",  # optional
+    idempotency_key="llm-job-001",
+)
+
+print(result.usage.input_tokens, result.usage.output_tokens)
+print(result.synapse.charged_usdc, result.synapse.released_usdc)
+```
+
+超时、连接断开、SSE 响应或缺少 final `usage` 时完整释放冻结金额，不扣费。V1
+绝不使用预估 hold 作为最终扣费依据。
+
 ## Python Examples
 
 示例脚本位于 `python/examples`：
@@ -168,8 +196,9 @@ PYTHONPATH="$PWD" .venv/bin/python examples/consumer_wallet_to_invoke.py \
 3. `discover()`
 4. `search()`
 5. `invoke()`
-6. `get_invocation()`
-7. `get_invocation_receipt()`
+6. `invoke_llm()`
+7. `get_invocation()`
+8. `get_invocation_receipt()`
 
 已废弃兼容方法：
 
@@ -192,6 +221,8 @@ Python SDK 当前通过 `auth.provider()` / `SynapseProvider` 支持：
 3. provider 服务注册、列举、读取、更新、删除
 4. provider 服务 ping、状态查询、health history
 5. provider earnings 与 withdrawals helper
+
+Owner/provider helper 返回命名 `SDKModel` 对象；例如 usage logs 返回 `UsageLogList`，registration guide 返回 `ProviderRegistrationGuide`，withdrawal intent 返回 `ProviderWithdrawalIntentResult`。公开 API 不返回 raw `dict`。
 
 Provider onboarding 成功标准以 owner `/api/v1/services` 列表为准，不以 public discovery 为准。
 

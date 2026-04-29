@@ -54,6 +54,9 @@ sensitive_files="$(
     | grep -Ei '(^|/)\.env($|\.|/)|private|secret|key|pem|wallet|mnemonic|credential' \
     | grep -Ev '(^|/)\.env\.example$' \
     | grep -Ev '^python/examples/consumer_wallet_to_invoke\.py$' \
+    | grep -Ev '^python/synapse_client/_auth_credentials\.py$' \
+    | grep -Ev '^python/synapse_client/wallet\.py$' \
+    | grep -Ev '^typescript/src/auth_credentials\.ts$' \
     || true
 )"
 if [[ -n "$sensitive_files" ]]; then

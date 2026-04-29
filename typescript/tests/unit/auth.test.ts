@@ -1,24 +1,47 @@
-import { SynapseAuth, SynapseClient, SynapseProvider, AuthenticationError, resolveGatewayUrl } from "../../src";
+import {
+  SynapseAuth,
+  SynapseClient,
+  SynapseProvider,
+  AuthenticationError,
+  resolveGatewayUrl,
+  type CredentialDeleteResult,
+  type CredentialQuotaUpdateResult,
+  type CredentialRevokeResult,
+  type CredentialRotateResult,
+  type FinanceAuditLogList,
+  type OwnerProfile,
+  type ProviderEarningsSummary,
+  type ProviderRegistrationGuide,
+  type ProviderSecretDeleteResult,
+  type ProviderServiceDeleteResult,
+  type ProviderServiceHealthHistory,
+  type ProviderServicePingResult,
+  type ProviderServiceUpdateResult,
+  type ProviderWithdrawalCapability,
+  type ProviderWithdrawalIntentResult,
+  type ProviderWithdrawalList,
+  type RiskOverview,
+  type ServiceManifestDraft,
+  type UsageLogList,
+  type VoucherRedeemResult,
+} from "../../src";
 
 type MockResponse = { status?: number; body: unknown };
 
 function mockFetch(responses: MockResponse[]) {
   const calls: Array<{ url: string; init?: RequestInit }> = [];
   let index = 0;
-  (globalThis as unknown as Record<string, unknown>).fetch = jest.fn(
-    async (url: string, init?: RequestInit) => {
-      calls.push({ url, init });
-      const response = responses[Math.min(index, responses.length - 1)];
-      index += 1;
-      const status = response.status ?? 200;
-      return {
-        ok: status >= 200 && status < 300,
-        status,
-        text: async () =>
-          typeof response.body === "string" ? response.body : JSON.stringify(response.body),
-      } as Response;
-    }
-  );
+  (globalThis as unknown as Record<string, unknown>).fetch = jest.fn(async (url: string, init?: RequestInit) => {
+    calls.push({ url, init });
+    const response = responses[Math.min(index, responses.length - 1)];
+    index += 1;
+    const status = response.status ?? 200;
+    return {
+      ok: status >= 200 && status < 300,
+      status,
+      text: async () => (typeof response.body === "string" ? response.body : JSON.stringify(response.body)),
+    } as Response;
+  });
   return calls;
 }
 
@@ -81,10 +104,7 @@ test("authenticate maps unsuccessful challenge and verify responses to Authentic
   mockFetch([{ body: { success: false, error: "bad challenge" } }]);
   await expect(authForTests().authenticate()).rejects.toThrow(AuthenticationError);
 
-  mockFetch([
-    { body: { success: true, challenge: "sign this" } },
-    { body: { success: false, error: "bad verify" } },
-  ]);
+  mockFetch([{ body: { success: true, challenge: "sign this" } }, { body: { success: false, error: "bad verify" } }]);
   await expect(authForTests().authenticate()).rejects.toThrow(AuthenticationError);
 });
 
@@ -190,38 +210,46 @@ test("balance, deposit, confirm, and spending limit APIs send expected payloads"
 });
 
 test("registerProviderService validates input and builds provider service contract", async () => {
-  await expect(authForTests().registerProviderService({
-    serviceName: "",
-    endpointUrl: "http://provider.local/invoke",
-    descriptionForModel: "Summarize text",
-    basePriceUsdc: 0.01,
-  })).rejects.toThrow("serviceName is required");
-  await expect(authForTests().registerProviderService({
-    serviceName: "Summarizer",
-    endpointUrl: "",
-    descriptionForModel: "Summarize text",
-    basePriceUsdc: 0.01,
-  })).rejects.toThrow("endpointUrl is required");
-  await expect(authForTests().registerProviderService({
-    serviceName: "Summarizer",
-    endpointUrl: "http://provider.local/invoke",
-    descriptionForModel: "",
-    basePriceUsdc: 0.01,
-  })).rejects.toThrow("descriptionForModel is required");
+  await expect(
+    authForTests().registerProviderService({
+      serviceName: "",
+      endpointUrl: "http://provider.local/invoke",
+      descriptionForModel: "Summarize text",
+      basePriceUsdc: 0.01,
+    })
+  ).rejects.toThrow("serviceName is required");
+  await expect(
+    authForTests().registerProviderService({
+      serviceName: "Summarizer",
+      endpointUrl: "",
+      descriptionForModel: "Summarize text",
+      basePriceUsdc: 0.01,
+    })
+  ).rejects.toThrow("endpointUrl is required");
+  await expect(
+    authForTests().registerProviderService({
+      serviceName: "Summarizer",
+      endpointUrl: "http://provider.local/invoke",
+      descriptionForModel: "",
+      basePriceUsdc: 0.01,
+    })
+  ).rejects.toThrow("descriptionForModel is required");
 
   const calls = mockFetch([
     ...authHandshakeResponses(),
     { body: { status: "created", service: { serviceId: "summarizer", status: "active" } } },
   ]);
 
-  await expect(authForTests().registerProviderService({
-    serviceName: "Summarizer Pro",
-    endpointUrl: "http://provider.local/invoke",
-    descriptionForModel: "Summarize text",
-    basePriceUsdc: 0.05,
-    tags: ["text"],
-    providerDisplayName: "Provider Inc",
-  })).resolves.toMatchObject({
+  await expect(
+    authForTests().registerProviderService({
+      serviceName: "Summarizer Pro",
+      endpointUrl: "http://provider.local/invoke",
+      descriptionForModel: "Summarize text",
+      basePriceUsdc: 0.05,
+      tags: ["text"],
+      providerDisplayName: "Provider Inc",
+    })
+  ).resolves.toMatchObject({
     status: "created",
     serviceId: "summarizer",
   });
@@ -231,6 +259,105 @@ test("registerProviderService validates input and builds provider service contra
   expect(body.pricing).toEqual({ amount: "0.05", currency: "USDC" });
   expect(body.providerProfile).toEqual({ displayName: "Provider Inc" });
   expect(body.payoutAccount.payoutAddress).toBe("0xabcdef");
+});
+
+test("registerProviderService preserves explicit provider manifest options", async () => {
+  const calls = mockFetch([
+    ...authHandshakeResponses(),
+    { body: { status: "created", serviceId: "svc_custom", service: { id: "record_1" } } },
+  ]);
+
+  await expect(
+    authForTests().registerProviderService({
+      serviceId: "svc_custom",
+      serviceName: "Custom Provider",
+      endpointUrl: "https://provider.example/invoke",
+      descriptionForModel: "Run the custom provider.",
+      basePriceUsdc: "0.25",
+      providerDisplayName: "Custom Team",
+      payoutAddress: "0x123",
+      chainId: 84532,
+      settlementCurrency: "USDC",
+      tags: ["custom", "paid"],
+      status: "paused",
+      isActive: false,
+      inputSchema: { type: "object", properties: { q: { type: "string" } }, required: ["q"] },
+      outputSchema: { type: "object", properties: { answer: { type: "string" } } },
+      endpointMethod: "PUT",
+      healthPath: "/ready",
+      healthMethod: "POST",
+      healthTimeoutMs: 5_000,
+      requestTimeoutMs: 30_000,
+      governanceNote: "accepted in test",
+    })
+  ).resolves.toMatchObject({ serviceId: "svc_custom" });
+
+  const body = JSON.parse((calls[2].init?.body as string) ?? "{}");
+  expect(body).toMatchObject({
+    serviceId: "svc_custom",
+    status: "paused",
+    isActive: false,
+    tags: ["custom", "paid"],
+    invoke: {
+      method: "PUT",
+      targets: [{ url: "https://provider.example/invoke" }],
+      timeoutMs: 30_000,
+    },
+    healthCheck: {
+      path: "/ready",
+      method: "POST",
+      timeoutMs: 5_000,
+    },
+    providerProfile: { displayName: "Custom Team" },
+    payoutAccount: {
+      payoutAddress: "0x123",
+      chainId: 84532,
+      settlementCurrency: "USDC",
+    },
+    governance: {
+      termsAccepted: true,
+      riskAcknowledged: true,
+      note: "accepted in test",
+    },
+  });
+  expect(body.invoke.request.body.required).toEqual(["q"]);
+  expect(body.invoke.response.body.properties.answer.type).toBe("string");
+});
+
+test("registerProviderService builds token-metered LLM service manifest", async () => {
+  const calls = mockFetch([
+    ...authHandshakeResponses(),
+    { body: { status: "created", serviceId: "svc_deepseek_chat", service: { id: "record_llm" } } },
+  ]);
+
+  await expect(
+    authForTests().registerProviderService({
+      serviceId: "svc_deepseek_chat",
+      serviceName: "DeepSeek Chat",
+      endpointUrl: "https://provider.example/llm",
+      descriptionForModel: "OpenAI-compatible DeepSeek Chat endpoint.",
+      serviceKind: "llm",
+      priceModel: "token_metered",
+      inputPricePer1MTokensUsdc: "0.140000",
+      outputPricePer1MTokensUsdc: "0.280000",
+      defaultMaxOutputTokens: 2048,
+      maxAutoHoldUsdc: "0.050000",
+      requestTimeoutMs: 120_000,
+    })
+  ).resolves.toMatchObject({ serviceId: "svc_deepseek_chat" });
+
+  const body = JSON.parse((calls[2].init?.body as string) ?? "{}");
+  expect(body.serviceKind).toBe("llm");
+  expect(body.priceModel).toBe("token_metered");
+  expect(body.pricing).toMatchObject({
+    priceModel: "token_metered",
+    inputPricePer1MTokensUsdc: "0.140000",
+    outputPricePer1MTokensUsdc: "0.280000",
+    defaultMaxOutputTokens: 2048,
+    maxAutoHoldUsdc: "0.050000",
+  });
+  expect(body.pricing.pricePerToken).toBeUndefined();
+  expect(body.invoke.timeoutMs).toBe(120_000);
 });
 
 test("provider service lookup and status derive from listed services", async () => {
@@ -288,15 +415,24 @@ test("credential lifecycle and owner observability helpers call current gateway 
   ]);
   const auth = authForTests();
 
-  await auth.revokeCredential("cred_1");
-  await auth.rotateCredential("cred_1");
-  await auth.updateCredentialQuota("cred_1", { creditLimit: 5, rpm: 60 });
-  await auth.deleteCredential("cred_1");
+  const revoked: CredentialRevokeResult = await auth.revokeCredential("cred_1");
+  const rotated: CredentialRotateResult = await auth.rotateCredential("cred_1");
+  const quota: CredentialQuotaUpdateResult = await auth.updateCredentialQuota("cred_1", { creditLimit: 5, rpm: 60 });
+  const deleted: CredentialDeleteResult = await auth.deleteCredential("cred_1");
   await auth.getCredentialAuditLogs({ limit: 25 });
-  await auth.getOwnerProfile();
-  await auth.getUsageLogs({ limit: 10 });
-  await auth.getFinanceAuditLogs({ limit: 7 });
-  await auth.getRiskOverview();
+  const profile: OwnerProfile = await auth.getOwnerProfile();
+  const usage: UsageLogList = await auth.getUsageLogs({ limit: 10 });
+  const financeAudit: FinanceAuditLogList = await auth.getFinanceAuditLogs({ limit: 7 });
+  const risk: RiskOverview = await auth.getRiskOverview();
+
+  expect(revoked.status).toBe("success");
+  expect(rotated.status).toBe("success");
+  expect(quota.status).toBe("success");
+  expect(deleted.status).toBe("success");
+  expect(profile.profile).toEqual({ ownerAddress: "0xabcdef" });
+  expect(usage.logs).toEqual([]);
+  expect(financeAudit.logs).toEqual([]);
+  expect(risk.risk).toBe("low");
 
   expect(calls[2].url).toContain("/api/v1/credentials/agent/cred_1/revoke");
   expect(calls[3].url).toContain("/api/v1/credentials/agent/cred_1/rotate");
@@ -350,18 +486,37 @@ test("provider lifecycle and finance helpers call current gateway routes", async
   ]);
   const auth = authForTests();
 
-  await auth.deleteProviderSecret("psk_1");
-  await auth.getRegistrationGuide();
-  await auth.parseCurlToServiceManifest("curl https://provider.example/health");
-  await auth.updateProviderService("svc_rec_1", { summary: "updated" });
-  await auth.deleteProviderService("svc_rec_1");
-  await auth.pingProviderService("svc_rec_1");
-  await auth.getProviderServiceHealthHistory("svc_rec_1", { limitPerTarget: 12 });
-  await auth.getProviderEarningsSummary();
-  await auth.getProviderWithdrawalCapability();
-  await auth.createProviderWithdrawalIntent(10, { idempotencyKey: "provider-withdraw-fixed" });
-  await auth.listProviderWithdrawals({ limit: 5 });
-  await auth.redeemVoucher("ABC123DEF456", "voucher-fixed-1234");
+  const secretDeleted: ProviderSecretDeleteResult = await auth.deleteProviderSecret("psk_1");
+  const guide: ProviderRegistrationGuide = await auth.getRegistrationGuide();
+  const manifest: ServiceManifestDraft = await auth.parseCurlToServiceManifest("curl https://provider.example/health");
+  const serviceUpdated: ProviderServiceUpdateResult = await auth.updateProviderService("svc_rec_1", {
+    summary: "updated",
+  });
+  const serviceDeleted: ProviderServiceDeleteResult = await auth.deleteProviderService("svc_rec_1");
+  const ping: ProviderServicePingResult = await auth.pingProviderService("svc_rec_1");
+  const health: ProviderServiceHealthHistory = await auth.getProviderServiceHealthHistory("svc_rec_1", {
+    limitPerTarget: 12,
+  });
+  const earnings: ProviderEarningsSummary = await auth.getProviderEarningsSummary();
+  const capability: ProviderWithdrawalCapability = await auth.getProviderWithdrawalCapability();
+  const withdrawalIntent: ProviderWithdrawalIntentResult = await auth.createProviderWithdrawalIntent(10, {
+    idempotencyKey: "provider-withdraw-fixed",
+  });
+  const withdrawals: ProviderWithdrawalList = await auth.listProviderWithdrawals({ limit: 5 });
+  const voucher: VoucherRedeemResult = await auth.redeemVoucher("ABC123DEF456", "voucher-fixed-1234");
+
+  expect(secretDeleted.status).toBe("success");
+  expect(guide.steps).toEqual([]);
+  expect(manifest.data).toEqual({ serviceId: "svc_1" });
+  expect(serviceUpdated.status).toBe("success");
+  expect(serviceDeleted.status).toBe("success");
+  expect(ping.status).toBe("success");
+  expect(health.history).toEqual([]);
+  expect(earnings.total).toBe("12.34");
+  expect(capability.available).toBe(true);
+  expect(withdrawalIntent.intentId).toBe("wd_1");
+  expect(withdrawals.withdrawals).toEqual([]);
+  expect(voucher.status).toBe("redeemed");
 
   expect(calls[2].url).toContain("/api/v1/secrets/provider/psk_1");
   expect(calls[3].url).toContain("/api/v1/services/registration-guide");

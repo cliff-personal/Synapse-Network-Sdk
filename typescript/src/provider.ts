@@ -2,11 +2,22 @@ import type { SynapseAuth } from "./auth";
 import type {
   IssueCredentialOptions,
   IssueProviderSecretResult,
+  ProviderEarningsSummary,
+  ProviderRegistrationGuide,
   ProviderSecret,
+  ProviderSecretDeleteResult,
   RegisterProviderServiceOptions,
   RegisterProviderServiceResult,
   ProviderServiceRecord,
+  ProviderServiceDeleteResult,
+  ProviderServiceHealthHistory,
+  ProviderServicePingResult,
   ProviderServiceStatus,
+  ProviderServiceUpdateResult,
+  ProviderWithdrawalCapability,
+  ProviderWithdrawalIntentResult,
+  ProviderWithdrawalList,
+  ServiceManifestDraft,
 } from "./types";
 
 /**
@@ -27,20 +38,30 @@ export class SynapseProvider {
     return this.auth.listProviderSecrets();
   }
 
-  deleteSecret(secretId: string): Promise<Record<string, unknown>> {
+  deleteSecret(secretId: string): Promise<ProviderSecretDeleteResult> {
     return this.auth.deleteProviderSecret(secretId);
   }
 
-  getRegistrationGuide(): Promise<Record<string, unknown>> {
+  getRegistrationGuide(): Promise<ProviderRegistrationGuide> {
     return this.auth.getRegistrationGuide();
   }
 
-  parseCurlToServiceManifest(curlCommand: string): Promise<Record<string, unknown>> {
+  parseCurlToServiceManifest(curlCommand: string): Promise<ServiceManifestDraft> {
     return this.auth.parseCurlToServiceManifest(curlCommand);
   }
 
   registerService(opts: RegisterProviderServiceOptions): Promise<RegisterProviderServiceResult> {
     return this.auth.registerProviderService(opts);
+  }
+
+  registerLlmService(
+    opts: Omit<RegisterProviderServiceOptions, "serviceKind" | "priceModel" | "basePriceUsdc">
+  ): Promise<RegisterProviderServiceResult> {
+    return this.auth.registerProviderService({
+      ...opts,
+      serviceKind: "llm",
+      priceModel: "token_metered",
+    });
   }
 
   listServices(): Promise<ProviderServiceRecord[]> {
@@ -55,41 +76,41 @@ export class SynapseProvider {
     return this.auth.getProviderServiceStatus(serviceId);
   }
 
-  updateService(serviceRecordId: string, patch: Record<string, unknown>): Promise<Record<string, unknown>> {
+  updateService(serviceRecordId: string, patch: Record<string, unknown>): Promise<ProviderServiceUpdateResult> {
     return this.auth.updateProviderService(serviceRecordId, patch);
   }
 
-  deleteService(serviceRecordId: string): Promise<Record<string, unknown>> {
+  deleteService(serviceRecordId: string): Promise<ProviderServiceDeleteResult> {
     return this.auth.deleteProviderService(serviceRecordId);
   }
 
-  pingService(serviceRecordId: string): Promise<Record<string, unknown>> {
+  pingService(serviceRecordId: string): Promise<ProviderServicePingResult> {
     return this.auth.pingProviderService(serviceRecordId);
   }
 
   getServiceHealthHistory(
     serviceRecordId: string,
     opts: { limitPerTarget?: number } = {}
-  ): Promise<Record<string, unknown>> {
+  ): Promise<ProviderServiceHealthHistory> {
     return this.auth.getProviderServiceHealthHistory(serviceRecordId, opts);
   }
 
-  getEarningsSummary(): Promise<Record<string, unknown>> {
+  getEarningsSummary(): Promise<ProviderEarningsSummary> {
     return this.auth.getProviderEarningsSummary();
   }
 
-  getWithdrawalCapability(): Promise<Record<string, unknown>> {
+  getWithdrawalCapability(): Promise<ProviderWithdrawalCapability> {
     return this.auth.getProviderWithdrawalCapability();
   }
 
   createWithdrawalIntent(
     amountUsdc: number,
     opts: { idempotencyKey?: string; destinationAddress?: string } = {}
-  ): Promise<Record<string, unknown>> {
+  ): Promise<ProviderWithdrawalIntentResult> {
     return this.auth.createProviderWithdrawalIntent(amountUsdc, opts);
   }
 
-  listWithdrawals(opts: { limit?: number } = {}): Promise<Record<string, unknown>> {
+  listWithdrawals(opts: { limit?: number } = {}): Promise<ProviderWithdrawalList> {
     return this.auth.listProviderWithdrawals(opts);
   }
 }

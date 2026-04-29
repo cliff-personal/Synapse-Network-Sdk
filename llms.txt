@@ -34,6 +34,7 @@ README 语言结构：
 - docs/sdk/README.md - English SDK documentation hub
 - docs/sdk/README.zh-CN.md - Simplified Chinese SDK documentation hub
 - docs/sdk/capability_inventory.md - current Python and TypeScript SDK capability truth
+- docs/quality-gates.md - executable PR quality gate thresholds and refactor rules
 - https://staging.synapse-network.ai/docs/sdk/python - public preview Python SDK runbook
 - https://staging.synapse-network.ai/docs/sdk/typescript - public preview TypeScript SDK runbook
 - scripts/ci/pr_checks.sh - local PR quality gate used by GitHub Actions
@@ -50,6 +51,7 @@ README 语言结构：
 - docs/sdk/README.md - 英文 SDK 文档 hub
 - docs/sdk/README.zh-CN.md - 简体中文 SDK 文档 hub
 - docs/sdk/capability_inventory.md - Python 和 TypeScript SDK 当前能力真相
+- docs/quality-gates.md - 可执行 PR 质量门禁阈值和重构规则
 - scripts/ci/pr_checks.sh - GitHub Actions 复用的本地 PR 质量门禁
 
 ## Main Areas
@@ -71,6 +73,7 @@ README 语言结构：
 - Python checks: `bash scripts/ci/python_checks.sh`
 - TypeScript checks: `bash scripts/ci/typescript_checks.sh`
 - Repo hygiene: `bash scripts/ci/repo_hygiene_checks.sh`
+- Security checks: `bash scripts/ci/security_checks.sh`
 
 ## Boundaries
 
@@ -84,6 +87,7 @@ README 语言结构：
 - SDK runtime flow is discovery/search plus price-asserted invoke plus receipt.
 - Agent runtime code should use `SynapseClient` with an `agt_xxx` key. Do not initialize `SynapseAuth` unless the task explicitly asks for owner credential issuance.
 - Provider publishing code should use `auth.provider()` / `SynapseProvider`; Provider is an owner-scoped supply-side role, not a separate root account.
+- Public `SynapseAuth` and `SynapseProvider` methods must return named SDK objects/interfaces instead of raw `dict` / `Record<string, unknown>`.
 - Old Python quote-first helpers are deprecated compatibility shims and must not call removed gateway endpoints.
 
 中文边界：
@@ -96,4 +100,5 @@ README 语言结构：
 - SDK runtime 主链是 discovery/search + price-asserted invoke + receipt。
 - Agent runtime 代码应使用 `SynapseClient` 和 `agt_xxx` key。除非任务明确要求 owner credential issuance，否则不要初始化 `SynapseAuth`。
 - Provider 发布代码应使用 `auth.provider()` / `SynapseProvider`；Provider 是 owner scope 下的供给侧角色，不是第二套根账户体系。
+- 公开 `SynapseAuth` / `SynapseProvider` 方法必须返回命名 SDK 对象/interface，不能返回 raw `dict` / `Record<string, unknown>`。
 - 旧 Python quote-first helper 是废弃兼容层，不能调用已移除的 gateway endpoint。

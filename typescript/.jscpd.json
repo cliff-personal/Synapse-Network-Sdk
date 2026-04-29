@@ -1,0 +1,17 @@
+{
+  "threshold": 3,
+  "minTokens": 50,
+  "reporters": ["console"],
+  "pattern": ["src/**/*.ts", "../python/synapse_client/**/*.py"],
+  "ignore": [
+    "**/coverage/**",
+    "**/dist/**",
+    "**/build/**",
+    "**/.venv/**",
+    "**/node_modules/**",
+    "**/package-lock.json",
+    "**/*.d.ts",
+    "**/test/**",
+    "**/tests/**"
+  ]
+}

@@ -11,6 +11,7 @@
     "SECURITY.md",
     "docs/sdk/README.md",
     "docs/sdk/capability_inventory.md",
+    "docs/quality-gates.md",
     "scripts/ci/pr_checks.sh"
   ],
   "domains": [
@@ -70,7 +71,8 @@
       ],
       "notes": [
         "Credential and finance-adjacent helpers must not log real tokens or secrets.",
-        "High-impact finance helpers may wrap API calls, but should not auto-execute irreversible user actions."
+        "High-impact finance helpers may wrap API calls, but should not auto-execute irreversible user actions.",
+        "Public owner-auth returns must use named SDK models/interfaces, not raw dict or Record."
       ]
     },
     {
@@ -98,7 +100,8 @@
       ],
       "notes": [
         "Provider onboarding success is measured through owner control-plane service records, not public discovery alone.",
-        "Provider is an owner-scoped supply-side role; use auth.provider() / SynapseProvider rather than a separate root identity."
+        "Provider is an owner-scoped supply-side role; use auth.provider() / SynapseProvider rather than a separate root identity.",
+        "Public provider facade returns must use named SDK models/interfaces, not raw dict or Record."
       ]
     },
     {
@@ -179,6 +182,9 @@
         "scripts/ci/python_checks.sh",
         "scripts/ci/typescript_checks.sh",
         "scripts/ci/repo_hygiene_checks.sh",
+        "scripts/ci/security_checks.sh",
+        "scripts/ci/source_quality_checks.py",
+        "docs/quality-gates.md",
         "typescript/package.json"
       ],
       "supporting_files": [
@@ -189,7 +195,8 @@
         "bash scripts/ci/pr_checks.sh"
       ],
       "notes": [
-        "Local scripts and GitHub Actions must share the same entrypoint."
+        "Local scripts and GitHub Actions must share the same entrypoint.",
+        "Source files over 500 lines, high complexity, and duplicate code above threshold must fail PR CI."
       ]
     },
     {

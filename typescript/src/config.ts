@@ -8,10 +8,12 @@ export const GATEWAY_URLS: Record<SynapseEnvironment, string> = {
   prod: "https://api.synapse-network.ai",
 };
 
-export function resolveGatewayUrl(opts: {
-  environment?: SynapseEnvironment;
-  gatewayUrl?: string;
-} = {}): string {
+export function resolveGatewayUrl(
+  opts: {
+    environment?: SynapseEnvironment;
+    gatewayUrl?: string;
+  } = {}
+): string {
   const explicitUrl = opts.gatewayUrl?.trim();
   if (explicitUrl) return explicitUrl.replace(/\/+$/, "");
 
