@@ -1,104 +1,141 @@
 # SynapseNetwork SDK
 
-This is the SDK and developer onboarding repository for SynapseNetwork.
+SynapseNetwork is the settlement layer for AI agents. It allows AI agents to discover APIs, invoke them, and pay with zero-gas crypto micropayments (USDC) without human-in-the-loop.
 
-这是 SynapseNetwork 的 SDK 与开发者接入仓库。
+This repository contains the official SynapseNetwork SDKs for TypeScript and Python.
 
-README language layout:
+## Core Concepts
 
-- English default: `README.md`
-- Simplified Chinese: `README.zh-CN.md`
-- SDK docs English hub: `docs/sdk/README.md`
-- SDK docs Simplified Chinese hub: `docs/sdk/README.zh-CN.md`
-- Do not interleave English and Chinese in the same README body.
+- **Agent Key (`agt_xxx`)**: Runtime credential used by consumer agents to invoke services and pay.
+- **Service ID**: Unique identifier for a provider API.
+- **Staging URL**: `https://api-staging.synapse-network.ai`; staging is the default development environment.
+- **Money Rule**: Never recompute prices with floating-point math. Pass discovered prices and spend limits through exactly; use string amounts when the SDK method accepts strings, for example `"0.05"`.
 
-README 语言结构：
+## Easiest Way: MCP Server
 
-- 英文默认页：`README.md`
-- 简体中文页：`README.zh-CN.md`
-- SDK docs 英文页：`docs/sdk/README.md`
-- SDK docs 简体中文页：`docs/sdk/README.zh-CN.md`
-- 不要在同一个 README 正文中交替混排中英文。
+If you are integrating SynapseNetwork into an agent framework such as Cursor, Claude Desktop, or LangChain, prefer the official MCP server instead of writing direct SDK code.
 
-## Start Here
+- Registry: `@synapse-network/mcp-server`
+- Environment variable: `SYNAPSE_AGENT_KEY=agt_xxx`
 
-优先阅读。
+## SDK Quickstart: Consumer Agent
 
-- AGENTS.md - repository-local agent instructions and validation expectations
-- docs/agent-map/README.md - task-to-file map for AI agents
-- docs/agent-map/index.json - machine-readable routing map
-- llm-instructions.md - minimal prompt rules for AI agents integrating the SDK
-- README.md - English public preview README and shortest integration examples
-- README.zh-CN.md - Simplified Chinese public preview README and shortest integration examples
-- SECURITY.md - vulnerability reporting, credential handling, and staging/prod safety
-- docs/sdk/README.md - English SDK documentation hub
-- docs/sdk/README.zh-CN.md - Simplified Chinese SDK documentation hub
-- docs/sdk/capability_inventory.md - current Python and TypeScript SDK capability truth
-- docs/quality-gates.md - executable PR quality gate thresholds and refactor rules
-- https://staging.synapse-network.ai/docs/sdk/python - public preview Python SDK runbook
-- https://staging.synapse-network.ai/docs/sdk/typescript - public preview TypeScript SDK runbook
-- scripts/ci/pr_checks.sh - local PR quality gate used by GitHub Actions
+Use the SDK directly when application code needs to discover services, invoke them, and read receipts. The runtime workflow is always:
 
-中文入口说明：
+1. Discover or choose a service ID.
+2. Invoke and pay with an agent key.
+3. Read the invocation result and receipt.
 
-- AGENTS.md - 仓库级 Agent 指令和验证要求
-- docs/agent-map/README.md - 面向 AI Agent 的任务到文件映射
-- docs/agent-map/index.json - 机器可读路由映射
-- llm-instructions.md - Agent 集成 SDK 的最小提示规则
-- README.md - 英文 public preview README 和最短接入示例
-- README.zh-CN.md - 简体中文 public preview README 和最短接入示例
-- SECURITY.md - 漏洞报告、凭据处理、staging/prod 安全边界
-- docs/sdk/README.md - 英文 SDK 文档 hub
-- docs/sdk/README.zh-CN.md - 简体中文 SDK 文档 hub
-- docs/sdk/capability_inventory.md - Python 和 TypeScript SDK 当前能力真相
-- docs/quality-gates.md - 可执行 PR 质量门禁阈值和重构规则
-- scripts/ci/pr_checks.sh - GitHub Actions 复用的本地 PR 质量门禁
+### TypeScript
 
-## Main Areas
+```typescript
+import { SynapseClient } from "@synapse-network/sdk";
 
-主要区域。
+const agentKey = process.env.SYNAPSE_AGENT_KEY;
+if (!agentKey) {
+  throw new Error("SYNAPSE_AGENT_KEY is required");
+}
 
-- Python SDK: `python/synapse_client`
-- TypeScript SDK: `typescript/src`
-- Python tests: `python/synapse_client/test`
-- TypeScript tests: `typescript/tests`
-- SDK docs: `docs/sdk`
-- CI scripts: `scripts/ci`
+const client = new SynapseClient({
+  credential: agentKey,
+  environment: "staging",
+});
+
+// Fixed-price API invoke. costUsdc must match the discovered price.
+const invokeRes = await client.invoke(
+  "web3-sentiment-index",
+  { target: "Ethereum" },
+  {
+    costUsdc: 0.05,
+    idempotencyKey: "task_123",
+  }
+);
+
+console.log(invokeRes.result, invokeRes.chargedUsdc);
+
+// Token-metered LLM invoke. Do not pass costUsdc for LLM services.
+const llmRes = await client.invokeLlm(
+  "svc_provider_deepseek_chat",
+  { messages: [{ role: "user", content: "Hello" }] },
+  {
+    maxCostUsdc: "0.10",
+    idempotencyKey: "task_124",
+  }
+);
+
+console.log(llmRes.usage, llmRes.synapse);
+```
+
+### Python
+
+```python
+import os
+
+from synapse_client import SynapseClient
+
+agent_key = os.environ["SYNAPSE_AGENT_KEY"]
+
+client = SynapseClient(
+    api_key=agent_key,
+    environment="staging",
+)
+
+# Fixed-price API invoke. cost_usdc must match the discovered price.
+response = client.invoke(
+    service_id="web3-sentiment-index",
+    payload={"target": "Ethereum"},
+    cost_usdc="0.05",
+    idempotency_key="task_123",
+)
+
+print(response.result, response.charged_usdc)
+
+# Token-metered LLM invoke. Do not pass cost_usdc for LLM services.
+llm_response = client.invoke_llm(
+    service_id="svc_provider_deepseek_chat",
+    payload={"messages": [{"role": "user", "content": "Hello"}]},
+    max_cost_usdc="0.10",
+    idempotency_key="task_124",
+)
+
+print(llm_response.usage, llm_response.synapse)
+```
+
+## Owner and Provider Workflows
+
+- Use `SynapseAuth` only for owner/backend tasks such as wallet auth, issuing agent credentials, balance/deposit helpers, and provider registration.
+- Agent runtime code should use `SynapseClient` with an existing `agt_xxx` key.
+- Provider publishing code should use `auth.provider()` / `SynapseProvider`.
+- Public `SynapseAuth` and `SynapseProvider` methods return named SDK objects/interfaces, not raw `dict` / `Record<string, unknown>`.
+
+## Repository Map for Contributors
+
+- Python SDK: `python/synapse_client/`
+- TypeScript SDK: `typescript/src/`
+- Python tests: `python/synapse_client/test/`
+- TypeScript tests: `typescript/tests/`
+- SDK docs: `docs/sdk/`
+- Pull request checks: `scripts/ci/`
 
 ## Validation
 
-验证命令。
+Run before committing:
 
-- Full PR gate: `bash scripts/ci/pr_checks.sh`
-- Python checks: `bash scripts/ci/python_checks.sh`
-- TypeScript checks: `bash scripts/ci/typescript_checks.sh`
-- Repo hygiene: `bash scripts/ci/repo_hygiene_checks.sh`
-- Security checks: `bash scripts/ci/security_checks.sh`
+```bash
+bash scripts/ci/pr_checks.sh
+```
 
-## Boundaries
+Focused checks:
 
-边界。
+```bash
+bash scripts/ci/python_checks.sh
+bash scripts/ci/typescript_checks.sh
+bash scripts/ci/repo_hygiene_checks.sh
+bash scripts/ci/security_checks.sh
+```
 
-- Product name is SynapseNetwork. Do not use old agent-payment brand labels as the product name.
-- SynapseNetwork is a platform where agents call APIs and make small USDC payments through blockchain-backed settlement.
-- Default public preview environment is staging: `https://api-staging.synapse-network.ai`.
-- Do not reintroduce the retired gateway domain from the old `.network` namespace.
+## Safety Rules
+
 - Do not commit real credentials, provider secrets, private keys, wallet seed phrases, or production tokens.
-- SDK runtime flow is discovery/search plus price-asserted invoke plus receipt.
-- Agent runtime code should use `SynapseClient` with an `agt_xxx` key. Do not initialize `SynapseAuth` unless the task explicitly asks for owner credential issuance.
-- Provider publishing code should use `auth.provider()` / `SynapseProvider`; Provider is an owner-scoped supply-side role, not a separate root account.
-- Public `SynapseAuth` and `SynapseProvider` methods must return named SDK objects/interfaces instead of raw `dict` / `Record<string, unknown>`.
-- Old Python quote-first helpers are deprecated compatibility shims and must not call removed gateway endpoints.
-
-中文边界：
-
-- 产品名是 SynapseNetwork，不要把旧的 agent-payment 命名当作产品名。
-- SynapseNetwork 是 Agent 调用 API 并通过区块链支持的 USDC 结算完成小额付款的平台。
-- 默认 public preview 环境是 staging: `https://api-staging.synapse-network.ai`。
-- 不要恢复旧 `.network` namespace 下的退役 gateway 域名。
-- 不要提交真实凭据、provider secret、私钥、钱包助记词或生产 token。
-- SDK runtime 主链是 discovery/search + price-asserted invoke + receipt。
-- Agent runtime 代码应使用 `SynapseClient` 和 `agt_xxx` key。除非任务明确要求 owner credential issuance，否则不要初始化 `SynapseAuth`。
-- Provider 发布代码应使用 `auth.provider()` / `SynapseProvider`；Provider 是 owner scope 下的供给侧角色，不是第二套根账户体系。
-- 公开 `SynapseAuth` / `SynapseProvider` 方法必须返回命名 SDK 对象/interface，不能返回 raw `dict` / `Record<string, unknown>`。
-- 旧 Python quote-first helper 是废弃兼容层，不能调用已移除的 gateway endpoint。
+- Do not reintroduce retired `.network` gateway domains.
+- Product name is `SynapseNetwork`.
