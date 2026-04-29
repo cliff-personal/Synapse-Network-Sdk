@@ -87,6 +87,7 @@ README 语言结构：
 - SDK runtime flow is discovery/search plus price-asserted invoke plus receipt.
 - Agent runtime code should use `SynapseClient` with an `agt_xxx` key. Do not initialize `SynapseAuth` unless the task explicitly asks for owner credential issuance.
 - Provider publishing code should use `auth.provider()` / `SynapseProvider`; Provider is an owner-scoped supply-side role, not a separate root account.
+- Public `SynapseAuth` and `SynapseProvider` methods must return named SDK objects/interfaces instead of raw `dict` / `Record<string, unknown>`.
 - Old Python quote-first helpers are deprecated compatibility shims and must not call removed gateway endpoints.
 
 中文边界：
@@ -99,4 +100,5 @@ README 语言结构：
 - SDK runtime 主链是 discovery/search + price-asserted invoke + receipt。
 - Agent runtime 代码应使用 `SynapseClient` 和 `agt_xxx` key。除非任务明确要求 owner credential issuance，否则不要初始化 `SynapseAuth`。
 - Provider 发布代码应使用 `auth.provider()` / `SynapseProvider`；Provider 是 owner scope 下的供给侧角色，不是第二套根账户体系。
+- 公开 `SynapseAuth` / `SynapseProvider` 方法必须返回命名 SDK 对象/interface，不能返回 raw `dict` / `Record<string, unknown>`。
 - 旧 Python quote-first helper 是废弃兼容层，不能调用已移除的 gateway endpoint。

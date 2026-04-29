@@ -138,6 +138,28 @@ console.log(receipt.invocationId, receipt.status, receipt.chargedUsdc);
 
 TypeScript does not read environment variables by itself. Read them in your app and pass `environment` or `gatewayUrl` explicitly.
 
+### LLM token-metered calls
+
+LLM services registered with `serviceKind=llm` and `priceModel=token_metered` use `invoke_llm()` / `invokeLlm()`. Do not pass `cost_usdc` / `costUsdc`; pass optional `max_cost_usdc` / `maxCostUsdc` or let Gateway compute the automatic hold. Streaming is rejected in V1 so Gateway can capture final usage safely.
+
+```python
+result = client.invoke_llm(
+    "svc_deepseek_chat",
+    {"messages": [{"role": "user", "content": "hello"}], "max_tokens": 512},
+    max_cost_usdc="0.010000",
+)
+print(result.usage.input_tokens, result.synapse.charged_usdc, result.synapse.released_usdc)
+```
+
+```ts
+const result = await client.invokeLlm(
+  "svc_deepseek_chat",
+  { messages: [{ role: "user", content: "hello" }], max_tokens: 512 },
+  { maxCostUsdc: "0.010000" }
+);
+console.log(result.usage?.inputTokens, result.synapse?.chargedUsdc, result.synapse?.releasedUsdc);
+```
+
 ## Advanced: Programmatic Credential Issuance
 
 Use `SynapseAuth` only when an owner/backend service needs to issue credentials or register provider services programmatically. Ordinary agent runtime code should use `SynapseClient` with an existing `agt_xxx` key.
@@ -273,6 +295,8 @@ Supported today:
 - Provider secret issue/list/delete
 - Provider service register/list/get/status/update/delete/ping/registration guide/health history
 - Provider earnings and withdrawal intent/list/capability helpers
+
+Public owner/provider helpers return named SDK objects such as `UsageLogList`, `ProviderRegistrationGuide`, and `ProviderWithdrawalIntentResult`, not raw maps.
 
 Not yet wrapped:
 

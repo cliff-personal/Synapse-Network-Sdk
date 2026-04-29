@@ -310,6 +310,67 @@ def test_invoke_with_cost_usdc_sends_payload_body(monkeypatch):
     assert captured[0]["costUsdc"] == pytest.approx(0.10)
 
 
+def test_invoke_llm_sends_max_cost_without_cost_usdc(monkeypatch):
+    captured = []
+
+    def fake_post(url, headers, json, timeout):
+        captured.append(json)
+        return DummyResponse(
+            json_data={
+                "invocationId": "inv_llm",
+                "status": "SUCCEEDED",
+                "chargedUsdc": 0.000253,
+                "usage": {"inputTokens": 1200, "outputTokens": 300, "totalTokens": 1500},
+                "synapse": {
+                    "priceModel": "token_metered",
+                    "holdUsdc": "0.001000",
+                    "chargedUsdc": "0.000253",
+                    "releasedUsdc": "0.000747",
+                    "preAuthMode": "explicit",
+                },
+            }
+        )
+
+    monkeypatch.setattr("synapse_client.client.requests.post", fake_post)
+    client = SynapseClient(api_key="agt_test")
+    result = client.invoke_llm(
+        "svc_deepseek_chat",
+        {"messages": [{"role": "user", "content": "hello"}], "max_tokens": 256},
+        max_cost_usdc="0.010000",
+        idempotency_key="ik-llm",
+    )
+
+    assert "costUsdc" not in captured[0]
+    assert captured[0]["maxCostUsdc"] == "0.010000"
+    assert captured[0]["responseMode"] == "sync"
+    assert result.usage is not None
+    assert result.usage.input_tokens == 1200
+    assert result.synapse is not None
+    assert result.synapse.released_usdc == "0.000747"
+
+
+def test_invoke_requires_cost_usdc_for_fixed_price_services(monkeypatch):
+    monkeypatch.setattr(
+        "synapse_client.client.requests.post",
+        lambda *args, **kwargs: pytest.fail("should not call gateway"),
+    )
+    client = SynapseClient(api_key="agt_test")
+
+    with pytest.raises(ValueError, match="cost_usdc is required"):
+        client.invoke("svc_fixed", {"prompt": "hello"})
+
+
+def test_invoke_llm_rejects_stream_true(monkeypatch):
+    monkeypatch.setattr(
+        "synapse_client.client.requests.post",
+        lambda *args, **kwargs: pytest.fail("should not call gateway"),
+    )
+    client = SynapseClient(api_key="agt_test")
+
+    with pytest.raises(InvokeError, match="LLM_STREAMING_NOT_SUPPORTED"):
+        client.invoke_llm("svc_llm", {"stream": True})
+
+
 def test_invoke_with_cost_usdc_raises_price_mismatch_error(monkeypatch):
     monkeypatch.setattr(
         "synapse_client.client.requests.post",

@@ -31,6 +31,7 @@ echo "[ci:python] running Python unit tests with 80% coverage gate"
 "$PYTHON_BIN" -m pytest -q \
   python/synapse_client/test/test_auth_unit.py \
   python/synapse_client/test/test_client_unit.py \
+  python/synapse_client/test/test_provider_facade_unit.py \
   --cov=synapse_client \
   --cov-report=term-missing \
   --cov-report=xml:python/coverage.xml \

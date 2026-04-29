@@ -12,7 +12,7 @@ from ._auth_finance import FinanceManagementMixin
 from ._auth_provider_control import ProviderControlMixin
 from .config import resolve_gateway_url
 from .exceptions import AuthenticationError
-from .models import ChallengeResponse, TokenResponse
+from .models import AuthLogoutResult, ChallengeResponse, OwnerProfile, TokenResponse
 
 SignerFn = Callable[[str], str]
 
@@ -195,7 +195,7 @@ class SynapseAuth(CredentialManagementMixin, FinanceManagementMixin, ProviderCon
     def get_token(self) -> str:
         return self.authenticate()
 
-    def logout(self) -> Dict[str, Any]:
+    def logout(self) -> AuthLogoutResult:
         payload = self._request(
             "POST",
             "/api/v1/auth/logout",
@@ -203,12 +203,13 @@ class SynapseAuth(CredentialManagementMixin, FinanceManagementMixin, ProviderCon
         )
         self._token = None
         self._token_expires_at = 0
-        return payload
+        return AuthLogoutResult.model_validate(payload)
 
-    def get_owner_profile(self) -> Dict[str, Any]:
+    def get_owner_profile(self) -> OwnerProfile:
         """Return the authenticated owner profile."""
-        return self._request(
+        payload = self._request(
             "GET",
             "/api/v1/auth/me",
             headers=self._authorized_headers(),
         )
+        return OwnerProfile.model_validate(payload)

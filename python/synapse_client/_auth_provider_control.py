@@ -6,10 +6,21 @@ from uuid import uuid4
 from .exceptions import AuthenticationError
 from .models import (
     IssueProviderSecretResult,
+    ProviderEarningsSummary,
+    ProviderRegistrationGuide,
     ProviderSecret,
+    ProviderSecretDeleteResult,
     ProviderService,
+    ProviderServiceDeleteResult,
+    ProviderServiceHealthHistory,
+    ProviderServicePingResult,
     ProviderServiceRegistrationResult,
     ProviderServiceStatus,
+    ProviderServiceUpdateResult,
+    ProviderWithdrawalCapability,
+    ProviderWithdrawalIntentResult,
+    ProviderWithdrawalList,
+    ServiceManifestDraft,
 )
 
 
@@ -54,22 +65,30 @@ class ProviderControlMixin:
             return []
         return [ProviderSecret.model_validate(item) for item in secrets if isinstance(item, dict)]
 
-    def delete_provider_secret(self, secret_id: str) -> Dict[str, Any]:
+    def delete_provider_secret(self, secret_id: str) -> ProviderSecretDeleteResult:
         """Delete a provider control-plane secret."""
         secret_id = self._require_value(secret_id, "secret_id")
-        return self._request(
+        payload = self._request(
             "DELETE",
             f"/api/v1/secrets/provider/{secret_id}",
             headers=self._authorized_headers(),
         )
+        return ProviderSecretDeleteResult.model_validate(payload)
 
     def register_provider_service(
         self,
         *,
         service_name: str,
         endpoint_url: str,
-        base_price_usdc: float | str,
+        base_price_usdc: Optional[float | str] = None,
         description_for_model: str,
+        service_kind: str = "api",
+        price_model: Optional[str] = None,
+        input_price_per_1m_tokens_usdc: Optional[float | str] = None,
+        output_price_per_1m_tokens_usdc: Optional[float | str] = None,
+        default_max_output_tokens: Optional[int] = None,
+        hold_buffer_multiplier: Optional[float | str] = None,
+        max_auto_hold_usdc: Optional[float | str] = None,
         service_id: Optional[str] = None,
         provider_display_name: Optional[str] = None,
         payout_address: Optional[str] = None,
@@ -96,6 +115,13 @@ class ProviderControlMixin:
         body = self._provider_service_body(
             service_values=service_values,
             base_price_usdc=base_price_usdc,
+            service_kind=service_kind,
+            price_model=price_model,
+            input_price_per_1m_tokens_usdc=input_price_per_1m_tokens_usdc,
+            output_price_per_1m_tokens_usdc=output_price_per_1m_tokens_usdc,
+            default_max_output_tokens=default_max_output_tokens,
+            hold_buffer_multiplier=hold_buffer_multiplier,
+            max_auto_hold_usdc=max_auto_hold_usdc,
             provider_display_name=provider_display_name,
             payout_address=payout_address,
             chain_id=chain_id,
@@ -144,7 +170,14 @@ class ProviderControlMixin:
         self,
         *,
         service_values: Dict[str, str],
-        base_price_usdc: float | str,
+        base_price_usdc: Optional[float | str],
+        service_kind: str,
+        price_model: Optional[str],
+        input_price_per_1m_tokens_usdc: Optional[float | str],
+        output_price_per_1m_tokens_usdc: Optional[float | str],
+        default_max_output_tokens: Optional[int],
+        hold_buffer_multiplier: Optional[float | str],
+        max_auto_hold_usdc: Optional[float | str],
         provider_display_name: Optional[str],
         payout_address: Optional[str],
         chain_id: int,
@@ -162,17 +195,25 @@ class ProviderControlMixin:
         governance_note: Optional[str],
     ) -> Dict[str, Any]:
         service_id = service_values["service_id"]
+        resolved_price_model = price_model or ("token_metered" if service_kind == "llm" else "fixed")
         return {
             "serviceId": service_id,
             "agentToolName": service_id,
             "serviceName": service_values["name"],
+            "serviceKind": service_kind,
+            "priceModel": resolved_price_model,
             "role": "Provider",
             "status": status,
             "isActive": is_active,
-            "pricing": {
-                "amount": str(base_price_usdc),
-                "currency": "USDC",
-            },
+            "pricing": self._provider_pricing(
+                price_model=resolved_price_model,
+                base_price_usdc=base_price_usdc,
+                input_price_per_1m_tokens_usdc=input_price_per_1m_tokens_usdc,
+                output_price_per_1m_tokens_usdc=output_price_per_1m_tokens_usdc,
+                default_max_output_tokens=default_max_output_tokens,
+                hold_buffer_multiplier=hold_buffer_multiplier,
+                max_auto_hold_usdc=max_auto_hold_usdc,
+            ),
             "summary": service_values["summary"],
             "tags": tags or [],
             "auth": {"type": "gateway_signed"},
@@ -192,6 +233,45 @@ class ProviderControlMixin:
                 "note": governance_note,
             },
         }
+
+    def register_llm_service(self, **options: Any) -> ProviderServiceRegistrationResult:
+        """Register a token-metered LLM Provider service."""
+        options["service_kind"] = "llm"
+        options["price_model"] = "token_metered"
+        return self.register_provider_service(**options)
+
+    @staticmethod
+    def _provider_pricing(
+        *,
+        price_model: str,
+        base_price_usdc: Optional[float | str],
+        input_price_per_1m_tokens_usdc: Optional[float | str],
+        output_price_per_1m_tokens_usdc: Optional[float | str],
+        default_max_output_tokens: Optional[int],
+        hold_buffer_multiplier: Optional[float | str],
+        max_auto_hold_usdc: Optional[float | str],
+    ) -> Dict[str, Any]:
+        if price_model == "token_metered":
+            if input_price_per_1m_tokens_usdc is None:
+                raise ValueError("input_price_per_1m_tokens_usdc is required")
+            if output_price_per_1m_tokens_usdc is None:
+                raise ValueError("output_price_per_1m_tokens_usdc is required")
+            pricing: Dict[str, Any] = {
+                "priceModel": "token_metered",
+                "inputPricePer1MTokensUsdc": str(input_price_per_1m_tokens_usdc),
+                "outputPricePer1MTokensUsdc": str(output_price_per_1m_tokens_usdc),
+                "currency": "USDC",
+            }
+            if default_max_output_tokens is not None:
+                pricing["defaultMaxOutputTokens"] = default_max_output_tokens
+            if hold_buffer_multiplier is not None:
+                pricing["holdBufferMultiplier"] = hold_buffer_multiplier
+            if max_auto_hold_usdc is not None:
+                pricing["maxAutoHoldUsdc"] = str(max_auto_hold_usdc)
+            return pricing
+        if base_price_usdc is None:
+            raise ValueError("base_price_usdc is required")
+        return {"amount": str(base_price_usdc), "currency": "USDC"}
 
     @staticmethod
     def _provider_invoke_config(
@@ -248,76 +328,86 @@ class ProviderControlMixin:
             return []
         return [ProviderService.model_validate(item) for item in services if isinstance(item, dict)]
 
-    def get_registration_guide(self) -> Dict[str, Any]:
+    def get_registration_guide(self) -> ProviderRegistrationGuide:
         """Fetch the provider registration guide from the gateway control plane."""
-        return self._request(
+        payload = self._request(
             "GET",
             "/api/v1/services/registration-guide",
             headers=self._authorized_headers(),
         )
+        return ProviderRegistrationGuide.model_validate(payload)
 
-    def parse_curl_to_service_manifest(self, curl_command: str) -> Dict[str, Any]:
+    def parse_curl_to_service_manifest(self, curl_command: str) -> ServiceManifestDraft:
         """Convert a curl command into a provider service manifest draft."""
         curl_command = self._require_value(curl_command, "curl_command")
-        return self._request(
+        payload = self._request(
             "POST",
             "/api/v1/services/parse-curl",
             headers=self._authorized_headers(),
             json_body={"curlCommand": curl_command},
         )
+        return ServiceManifestDraft.model_validate(payload)
 
-    def update_provider_service(self, service_record_id: str, patch: Dict[str, Any]) -> Dict[str, Any]:
+    def update_provider_service(self, service_record_id: str, patch: Dict[str, Any]) -> ProviderServiceUpdateResult:
         """Patch a provider service registration by gateway record ID."""
         service_record_id = self._require_value(service_record_id, "service_record_id")
-        return self._request(
+        payload = self._request(
             "PUT",
             f"/api/v1/services/{service_record_id}",
             headers=self._authorized_headers(),
             json_body=patch or {},
         )
+        return ProviderServiceUpdateResult.model_validate(payload)
 
-    def delete_provider_service(self, service_record_id: str) -> Dict[str, Any]:
+    def delete_provider_service(self, service_record_id: str) -> ProviderServiceDeleteResult:
         """Delete a provider service registration by gateway record ID."""
         service_record_id = self._require_value(service_record_id, "service_record_id")
-        return self._request(
+        payload = self._request(
             "DELETE",
             f"/api/v1/services/{service_record_id}",
             headers=self._authorized_headers(),
         )
+        return ProviderServiceDeleteResult.model_validate(payload)
 
-    def ping_provider_service(self, service_record_id: str) -> Dict[str, Any]:
+    def ping_provider_service(self, service_record_id: str) -> ProviderServicePingResult:
         """Force a provider service health ping."""
         service_record_id = self._require_value(service_record_id, "service_record_id")
-        return self._request(
+        payload = self._request(
             "POST",
             f"/api/v1/services/{service_record_id}/ping",
             headers=self._authorized_headers(),
         )
+        return ProviderServicePingResult.model_validate(payload)
 
-    def get_provider_service_health_history(self, service_record_id: str, *, limit: int = 100) -> Dict[str, Any]:
+    def get_provider_service_health_history(
+        self, service_record_id: str, *, limit: int = 100
+    ) -> ProviderServiceHealthHistory:
         """Fetch health history for a provider service."""
         service_record_id = self._require_value(service_record_id, "service_record_id")
-        return self._request(
+        payload = self._request(
             "GET",
             self._query_path(f"/api/v1/services/{service_record_id}/health/history", {"limitPerTarget": limit}),
             headers=self._authorized_headers(),
         )
+        return ProviderServiceHealthHistory.model_validate(payload)
 
-    def get_provider_earnings_summary(self) -> Dict[str, Any]:
+    def get_provider_earnings_summary(self) -> ProviderEarningsSummary:
         """Return provider earnings summary for the authenticated owner."""
-        return self._request(
+        payload = self._request(
             "GET",
             "/api/v1/providers/earnings/summary",
             headers=self._authorized_headers(),
         )
+        return ProviderEarningsSummary.model_validate(payload)
 
-    def get_provider_withdrawal_capability(self) -> Dict[str, Any]:
+    def get_provider_withdrawal_capability(self) -> ProviderWithdrawalCapability:
         """Return whether provider withdrawals are currently available."""
-        return self._request(
+        payload = self._request(
             "GET",
             "/api/v1/providers/withdrawals/capability",
             headers=self._authorized_headers(),
         )
+        return ProviderWithdrawalCapability.model_validate(payload)
 
     def create_provider_withdrawal_intent(
         self,
@@ -325,12 +415,12 @@ class ProviderControlMixin:
         *,
         idempotency_key: Optional[str] = None,
         destination_address: Optional[str] = None,
-    ) -> Dict[str, Any]:
+    ) -> ProviderWithdrawalIntentResult:
         """Create a provider withdrawal intent. This does not auto-submit funds on-chain."""
         body: Dict[str, Any] = {"amountUsdc": amount_usdc}
         if destination_address:
             body["destinationAddress"] = destination_address
-        return self._request(
+        payload = self._request(
             "POST",
             "/api/v1/providers/withdrawals/intent",
             headers={
@@ -339,14 +429,16 @@ class ProviderControlMixin:
             },
             json_body=body,
         )
+        return ProviderWithdrawalIntentResult.model_validate(payload)
 
-    def list_provider_withdrawals(self, *, limit: int = 100) -> Dict[str, Any]:
+    def list_provider_withdrawals(self, *, limit: int = 100) -> ProviderWithdrawalList:
         """List provider withdrawal records."""
-        return self._request(
+        payload = self._request(
             "GET",
             self._query_path("/api/v1/providers/withdrawals", {"limit": limit}),
             headers=self._authorized_headers(),
         )
+        return ProviderWithdrawalList.model_validate(payload)
 
     def get_provider_service(self, service_id: str) -> ProviderService:
         resolved_service_id = str(service_id or "").strip()

@@ -9,7 +9,8 @@ Consumer runtime 主链固定为：
 1. owner 钱包登录
 2. 创建 agent credential
 3. discovery/search
-4. `invoke(serviceId, payload, { costUsdc })`
+4. fixed API: `invoke(serviceId, payload, { costUsdc })`
+5. LLM service: `invokeLlm(serviceId, payload, { maxCostUsdc })`
 5. receipt 查询
 
 TypeScript SDK 不暴露 quote public API。当前 gateway 的正式运行时入口是单步 price-asserted invoke。
@@ -173,12 +174,42 @@ const result = await client.invoke(
 console.log(result.invocationId, result.status, result.chargedUsdc);
 ```
 
+## LLM token-metered invoke
+
+Provider-registered LLM services use `serviceKind=llm` and
+`priceModel=token_metered`. The SDK helper intentionally does not send
+`costUsdc`; Gateway either uses the optional `maxCostUsdc` cap or computes an
+automatic pre-authorization hold, then captures only final Provider `usage`.
+
+```ts
+const result = await client.invokeLlm(
+  "svc_deepseek_chat",
+  {
+    model: "deepseek-chat",
+    messages: [{ role: "user", content: "Summarize this document." }],
+    max_tokens: 512,
+    // stream: true is rejected in Synapse V1
+  },
+  {
+    idempotencyKey: "llm-job-001",
+    maxCostUsdc: "0.010000", // optional
+  }
+);
+
+console.log(result.usage?.inputTokens, result.usage?.outputTokens);
+console.log(result.synapse?.chargedUsdc, result.synapse?.releasedUsdc);
+```
+
+Timeouts, disconnects, SSE responses, or missing final `usage` release the
+entire hold and do not charge. V1 never bills from the estimated hold.
+
 ## 当前 Consumer API
 
 1. `discover(opts)`
 2. `search(query, opts)`
 3. `invoke(serviceId, payload, opts)`
-4. `getInvocation(invocationId)`
+4. `invokeLlm(serviceId, payload, opts)`
+5. `getInvocation(invocationId)`
 
 ## Provider 侧接入
 
@@ -194,6 +225,8 @@ TypeScript SDK 当前通过 `auth.provider()` / `SynapseProvider` 支持：
 3. provider 服务注册、列举、读取、更新、删除
 4. provider 服务 ping、状态查询、health history
 5. provider earnings 与 withdrawals helper
+
+Owner/provider helper 返回命名 TypeScript interface；例如 usage logs 返回 `UsageLogList`，registration guide 返回 `ProviderRegistrationGuide`，withdrawal intent 返回 `ProviderWithdrawalIntentResult`。公开 API 不返回 raw `Record<string, unknown>`。
 
 Provider onboarding 成功标准以 owner `/api/v1/services` 列表为准，不以 public discovery 为准。
 

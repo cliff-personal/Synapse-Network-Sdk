@@ -11,6 +11,7 @@ import {
   ServiceRecord,
   DiscoverOptions,
   InvokeOptions,
+  LlmInvokeOptions,
   InvocationResult,
   InvocationStatus,
   TERMINAL_STATUSES,
@@ -122,6 +123,30 @@ export class SynapseClient {
   }
 
   /**
+   * Invoke an LLM service with token-metered billing.
+   *
+   * Do not pass costUsdc for LLM services. Gateway either uses maxCostUsdc as
+   * an explicit cap or computes an automatic pre-authorization hold, then
+   * captures only the final Provider-reported usage.
+   */
+  async invokeLlm(
+    serviceId: string,
+    payload: Record<string, unknown> = {},
+    opts: LlmInvokeOptions = {}
+  ): Promise<InvocationResult> {
+    assertLlmSyncPayload(payload, opts);
+    try {
+      const resp = await this._fetch<Record<string, unknown>>(
+        `${this.gatewayUrl}/api/v1/agent/invoke`,
+        llmInvokeRequest(serviceId, payload, opts)
+      );
+      return this.completeInvocation(resp, opts);
+    } catch (err) {
+      throw invokeError(err);
+    }
+  }
+
+  /**
    * Invoke once, then handle PRICE_MISMATCH by re-discovering and retrying once by default.
    */
   async invokeWithRediscovery(
@@ -219,7 +244,7 @@ export class SynapseClient {
 
   private completeInvocation(
     resp: Record<string, unknown>,
-    opts: InvokeOptions
+    opts: { pollTimeoutMs?: number; pollIntervalMs?: number }
   ): Promise<InvocationResult> | InvocationResult {
     const result = this._parseInvocationResponse(resp);
     if (TERMINAL_STATUSES.has(result.status)) return result;
@@ -259,17 +284,42 @@ function discoveryError(err: unknown): DiscoveryError {
 }
 
 function invokeRequest(serviceId: string, payload: Record<string, unknown>, opts: InvokeOptions) {
+  const body: Record<string, unknown> = {
+    serviceId,
+    idempotencyKey: opts.idempotencyKey ?? uuidv4(),
+    payload: { body: payload },
+    responseMode: opts.responseMode ?? "sync",
+  };
+  body["costUsdc"] = opts.costUsdc;
   return {
     method: "POST",
     extraHeaders: requestHeaders(opts.requestId),
-    body: JSON.stringify({
-      serviceId,
-      idempotencyKey: opts.idempotencyKey ?? uuidv4(),
-      costUsdc: opts.costUsdc,
-      payload: { body: payload },
-      responseMode: opts.responseMode ?? "sync",
-    }),
+    body: JSON.stringify(body),
   };
+}
+
+function llmInvokeRequest(serviceId: string, payload: Record<string, unknown>, opts: LlmInvokeOptions) {
+  const body: Record<string, unknown> = {
+    serviceId,
+    idempotencyKey: opts.idempotencyKey ?? uuidv4(),
+    payload: { body: payload },
+    responseMode: "sync",
+  };
+  if (opts.maxCostUsdc !== undefined) body["maxCostUsdc"] = opts.maxCostUsdc;
+  return {
+    method: "POST",
+    extraHeaders: requestHeaders(opts.requestId),
+    body: JSON.stringify(body),
+  };
+}
+
+function assertLlmSyncPayload(payload: Record<string, unknown>, opts: LlmInvokeOptions): void {
+  if (opts.responseMode && opts.responseMode !== "sync") {
+    throw new InvokeError("LLM_STREAMING_NOT_SUPPORTED: LLM services only support sync responses in Synapse V1.");
+  }
+  if (payload["stream"] === true) {
+    throw new InvokeError("LLM_STREAMING_NOT_SUPPORTED: stream=true is not supported for token-metered LLM billing.");
+  }
 }
 
 function requestHeaders(requestId: string | undefined): Record<string, string> {

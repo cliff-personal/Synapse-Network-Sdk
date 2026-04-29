@@ -1,4 +1,30 @@
-import { SynapseAuth, SynapseClient, SynapseProvider, AuthenticationError, resolveGatewayUrl } from "../../src";
+import {
+  SynapseAuth,
+  SynapseClient,
+  SynapseProvider,
+  AuthenticationError,
+  resolveGatewayUrl,
+  type CredentialDeleteResult,
+  type CredentialQuotaUpdateResult,
+  type CredentialRevokeResult,
+  type CredentialRotateResult,
+  type FinanceAuditLogList,
+  type OwnerProfile,
+  type ProviderEarningsSummary,
+  type ProviderRegistrationGuide,
+  type ProviderSecretDeleteResult,
+  type ProviderServiceDeleteResult,
+  type ProviderServiceHealthHistory,
+  type ProviderServicePingResult,
+  type ProviderServiceUpdateResult,
+  type ProviderWithdrawalCapability,
+  type ProviderWithdrawalIntentResult,
+  type ProviderWithdrawalList,
+  type RiskOverview,
+  type ServiceManifestDraft,
+  type UsageLogList,
+  type VoucherRedeemResult,
+} from "../../src";
 
 type MockResponse = { status?: number; body: unknown };
 
@@ -298,6 +324,42 @@ test("registerProviderService preserves explicit provider manifest options", asy
   expect(body.invoke.response.body.properties.answer.type).toBe("string");
 });
 
+test("registerProviderService builds token-metered LLM service manifest", async () => {
+  const calls = mockFetch([
+    ...authHandshakeResponses(),
+    { body: { status: "created", serviceId: "svc_deepseek_chat", service: { id: "record_llm" } } },
+  ]);
+
+  await expect(
+    authForTests().registerProviderService({
+      serviceId: "svc_deepseek_chat",
+      serviceName: "DeepSeek Chat",
+      endpointUrl: "https://provider.example/llm",
+      descriptionForModel: "OpenAI-compatible DeepSeek Chat endpoint.",
+      serviceKind: "llm",
+      priceModel: "token_metered",
+      inputPricePer1MTokensUsdc: "0.140000",
+      outputPricePer1MTokensUsdc: "0.280000",
+      defaultMaxOutputTokens: 2048,
+      maxAutoHoldUsdc: "0.050000",
+      requestTimeoutMs: 120_000,
+    })
+  ).resolves.toMatchObject({ serviceId: "svc_deepseek_chat" });
+
+  const body = JSON.parse((calls[2].init?.body as string) ?? "{}");
+  expect(body.serviceKind).toBe("llm");
+  expect(body.priceModel).toBe("token_metered");
+  expect(body.pricing).toMatchObject({
+    priceModel: "token_metered",
+    inputPricePer1MTokensUsdc: "0.140000",
+    outputPricePer1MTokensUsdc: "0.280000",
+    defaultMaxOutputTokens: 2048,
+    maxAutoHoldUsdc: "0.050000",
+  });
+  expect(body.pricing.pricePerToken).toBeUndefined();
+  expect(body.invoke.timeoutMs).toBe(120_000);
+});
+
 test("provider service lookup and status derive from listed services", async () => {
   mockFetch([
     ...authHandshakeResponses(),
@@ -353,15 +415,24 @@ test("credential lifecycle and owner observability helpers call current gateway 
   ]);
   const auth = authForTests();
 
-  await auth.revokeCredential("cred_1");
-  await auth.rotateCredential("cred_1");
-  await auth.updateCredentialQuota("cred_1", { creditLimit: 5, rpm: 60 });
-  await auth.deleteCredential("cred_1");
+  const revoked: CredentialRevokeResult = await auth.revokeCredential("cred_1");
+  const rotated: CredentialRotateResult = await auth.rotateCredential("cred_1");
+  const quota: CredentialQuotaUpdateResult = await auth.updateCredentialQuota("cred_1", { creditLimit: 5, rpm: 60 });
+  const deleted: CredentialDeleteResult = await auth.deleteCredential("cred_1");
   await auth.getCredentialAuditLogs({ limit: 25 });
-  await auth.getOwnerProfile();
-  await auth.getUsageLogs({ limit: 10 });
-  await auth.getFinanceAuditLogs({ limit: 7 });
-  await auth.getRiskOverview();
+  const profile: OwnerProfile = await auth.getOwnerProfile();
+  const usage: UsageLogList = await auth.getUsageLogs({ limit: 10 });
+  const financeAudit: FinanceAuditLogList = await auth.getFinanceAuditLogs({ limit: 7 });
+  const risk: RiskOverview = await auth.getRiskOverview();
+
+  expect(revoked.status).toBe("success");
+  expect(rotated.status).toBe("success");
+  expect(quota.status).toBe("success");
+  expect(deleted.status).toBe("success");
+  expect(profile.profile).toEqual({ ownerAddress: "0xabcdef" });
+  expect(usage.logs).toEqual([]);
+  expect(financeAudit.logs).toEqual([]);
+  expect(risk.risk).toBe("low");
 
   expect(calls[2].url).toContain("/api/v1/credentials/agent/cred_1/revoke");
   expect(calls[3].url).toContain("/api/v1/credentials/agent/cred_1/rotate");
@@ -415,18 +486,37 @@ test("provider lifecycle and finance helpers call current gateway routes", async
   ]);
   const auth = authForTests();
 
-  await auth.deleteProviderSecret("psk_1");
-  await auth.getRegistrationGuide();
-  await auth.parseCurlToServiceManifest("curl https://provider.example/health");
-  await auth.updateProviderService("svc_rec_1", { summary: "updated" });
-  await auth.deleteProviderService("svc_rec_1");
-  await auth.pingProviderService("svc_rec_1");
-  await auth.getProviderServiceHealthHistory("svc_rec_1", { limitPerTarget: 12 });
-  await auth.getProviderEarningsSummary();
-  await auth.getProviderWithdrawalCapability();
-  await auth.createProviderWithdrawalIntent(10, { idempotencyKey: "provider-withdraw-fixed" });
-  await auth.listProviderWithdrawals({ limit: 5 });
-  await auth.redeemVoucher("ABC123DEF456", "voucher-fixed-1234");
+  const secretDeleted: ProviderSecretDeleteResult = await auth.deleteProviderSecret("psk_1");
+  const guide: ProviderRegistrationGuide = await auth.getRegistrationGuide();
+  const manifest: ServiceManifestDraft = await auth.parseCurlToServiceManifest("curl https://provider.example/health");
+  const serviceUpdated: ProviderServiceUpdateResult = await auth.updateProviderService("svc_rec_1", {
+    summary: "updated",
+  });
+  const serviceDeleted: ProviderServiceDeleteResult = await auth.deleteProviderService("svc_rec_1");
+  const ping: ProviderServicePingResult = await auth.pingProviderService("svc_rec_1");
+  const health: ProviderServiceHealthHistory = await auth.getProviderServiceHealthHistory("svc_rec_1", {
+    limitPerTarget: 12,
+  });
+  const earnings: ProviderEarningsSummary = await auth.getProviderEarningsSummary();
+  const capability: ProviderWithdrawalCapability = await auth.getProviderWithdrawalCapability();
+  const withdrawalIntent: ProviderWithdrawalIntentResult = await auth.createProviderWithdrawalIntent(10, {
+    idempotencyKey: "provider-withdraw-fixed",
+  });
+  const withdrawals: ProviderWithdrawalList = await auth.listProviderWithdrawals({ limit: 5 });
+  const voucher: VoucherRedeemResult = await auth.redeemVoucher("ABC123DEF456", "voucher-fixed-1234");
+
+  expect(secretDeleted.status).toBe("success");
+  expect(guide.steps).toEqual([]);
+  expect(manifest.data).toEqual({ serviceId: "svc_1" });
+  expect(serviceUpdated.status).toBe("success");
+  expect(serviceDeleted.status).toBe("success");
+  expect(ping.status).toBe("success");
+  expect(health.history).toEqual([]);
+  expect(earnings.total).toBe("12.34");
+  expect(capability.available).toBe(true);
+  expect(withdrawalIntent.intentId).toBe("wd_1");
+  expect(withdrawals.withdrawals).toEqual([]);
+  expect(voucher.status).toBe("redeemed");
 
   expect(calls[2].url).toContain("/api/v1/secrets/provider/psk_1");
   expect(calls[3].url).toContain("/api/v1/services/registration-guide");

@@ -13,6 +13,8 @@ Consumer runtime is:
 
 The old quote-first flow is not a current SDK main path. Python keeps deprecated compatibility methods that raise a clear error instead of calling removed endpoints.
 
+Public `SynapseAuth` and `SynapseProvider` owner/provider helpers return named SDK objects. Python uses `SDKModel` result classes such as `CredentialRevokeResult`, `UsageLogList`, `ProviderRegistrationGuide`, and `ProviderWithdrawalIntentResult`; TypeScript exports matching interfaces. Raw `dict` / `Record<string, unknown>` is allowed for internal HTTP payloads, schemas, patch inputs, and dynamic runtime payload fields, but not as the top-level public Auth/Provider return contract.
+
 ## Python Consumer
 
 Supported:

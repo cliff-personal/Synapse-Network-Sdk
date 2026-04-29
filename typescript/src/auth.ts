@@ -1,24 +1,42 @@
-/**
- * SynapseAuth — Wallet-based authentication + credential management.
- *
- * Requires `ethers` (v6) as a peer dependency for EIP-191 signing.
- * Alternatively pass a custom `signer` function if you bring your own stack.
- */
 import {
   SynapseAuthOptions,
+  AuthLogoutResult,
   ChallengeResponse,
   TokenResponse,
   IssueCredentialOptions,
   IssueCredentialResult,
   AgentCredential,
   BalanceSummary,
+  CredentialAuditLogList,
+  CredentialDeleteResult,
+  CredentialQuotaUpdateResult,
+  CredentialRevokeResult,
+  CredentialRotateResult,
+  CredentialStatusResult,
+  DepositConfirmResult,
   DepositIntentResult,
+  FinanceAuditLogList,
+  OwnerProfile,
+  ProviderEarningsSummary,
+  ProviderRegistrationGuide,
   ProviderSecret,
+  ProviderSecretDeleteResult,
   IssueProviderSecretResult,
   RegisterProviderServiceOptions,
   RegisterProviderServiceResult,
   ProviderServiceRecord,
+  ProviderServiceDeleteResult,
+  ProviderServiceHealthHistory,
+  ProviderServicePingResult,
   ProviderServiceStatus,
+  ProviderServiceUpdateResult,
+  ProviderWithdrawalCapability,
+  ProviderWithdrawalIntentResult,
+  ProviderWithdrawalList,
+  RiskOverview,
+  ServiceManifestDraft,
+  UsageLogList,
+  VoucherRedeemResult,
 } from "./types";
 import { AuthenticationError } from "./errors";
 import { resolveGatewayUrl } from "./config";
@@ -128,9 +146,9 @@ export class SynapseAuth {
   }
 
   /** Clear the gateway session token and local cache. */
-  async logout(): Promise<Record<string, unknown>> {
+  async logout(): Promise<AuthLogoutResult> {
     const token = await this.getToken();
-    const resp = await this._fetch<Record<string, unknown>>(`${this.gatewayUrl}/api/v1/auth/logout`, {
+    const resp = await this._fetch<AuthLogoutResult>(`${this.gatewayUrl}/api/v1/auth/logout`, {
       method: "POST",
       headers: { Authorization: `Bearer ${token}` },
     });
@@ -140,9 +158,9 @@ export class SynapseAuth {
   }
 
   /** Return the authenticated owner profile. */
-  async getOwnerProfile(): Promise<Record<string, unknown>> {
+  async getOwnerProfile(): Promise<OwnerProfile> {
     const token = await this.getToken();
-    return this._fetch<Record<string, unknown>>(`${this.gatewayUrl}/api/v1/auth/me`, {
+    return this._fetch<OwnerProfile>(`${this.gatewayUrl}/api/v1/auth/me`, {
       headers: { Authorization: `Bearer ${token}` },
     });
   }
@@ -163,7 +181,7 @@ export class SynapseAuth {
   }
 
   /** Delete a provider control-plane secret. */
-  async deleteProviderSecret(secretId: string): Promise<Record<string, unknown>> {
+  async deleteProviderSecret(secretId: string): Promise<ProviderSecretDeleteResult> {
     return deleteProviderSecret(this.providerControlContext(), secretId);
   }
 
@@ -178,45 +196,45 @@ export class SynapseAuth {
   }
 
   /** Check whether a credential is still valid and usable. */
-  async checkCredentialStatus(credentialId: string): Promise<Record<string, unknown>> {
+  async checkCredentialStatus(credentialId: string): Promise<CredentialStatusResult> {
     const token = await this.getToken();
     const id = this.requireValue(credentialId, "credentialId");
-    return this._fetch<Record<string, unknown>>(
+    return this._fetch<CredentialStatusResult>(
       `${this.gatewayUrl}/api/v1/credentials/agent/${encodeURIComponent(id)}/status`,
       { headers: { Authorization: `Bearer ${token}` } }
     );
   }
 
   /** Alias for checkCredentialStatus(). */
-  async getCredentialStatus(credentialId: string): Promise<Record<string, unknown>> {
+  async getCredentialStatus(credentialId: string): Promise<CredentialStatusResult> {
     return this.checkCredentialStatus(credentialId);
   }
 
   /** Revoke an agent credential without deleting its audit trail. */
-  async revokeCredential(credentialId: string): Promise<Record<string, unknown>> {
+  async revokeCredential(credentialId: string): Promise<CredentialRevokeResult> {
     const token = await this.getToken();
     const id = this.requireValue(credentialId, "credentialId");
-    return this._fetch<Record<string, unknown>>(
+    return this._fetch<CredentialRevokeResult>(
       `${this.gatewayUrl}/api/v1/credentials/agent/${encodeURIComponent(id)}/revoke`,
       { method: "POST", headers: { Authorization: `Bearer ${token}` } }
     );
   }
 
   /** Rotate an agent credential and return the gateway response containing the new token. */
-  async rotateCredential(credentialId: string): Promise<Record<string, unknown>> {
+  async rotateCredential(credentialId: string): Promise<CredentialRotateResult> {
     const token = await this.getToken();
     const id = this.requireValue(credentialId, "credentialId");
-    return this._fetch<Record<string, unknown>>(
+    return this._fetch<CredentialRotateResult>(
       `${this.gatewayUrl}/api/v1/credentials/agent/${encodeURIComponent(id)}/rotate`,
       { method: "POST", headers: { Authorization: `Bearer ${token}` } }
     );
   }
 
   /** Delete an agent credential. Use revokeCredential for emergency shutoff. */
-  async deleteCredential(credentialId: string): Promise<Record<string, unknown>> {
+  async deleteCredential(credentialId: string): Promise<CredentialDeleteResult> {
     const token = await this.getToken();
     const id = this.requireValue(credentialId, "credentialId");
-    return this._fetch<Record<string, unknown>>(
+    return this._fetch<CredentialDeleteResult>(
       `${this.gatewayUrl}/api/v1/credentials/agent/${encodeURIComponent(id)}`,
       { method: "DELETE", headers: { Authorization: `Bearer ${token}` } }
     );
@@ -233,10 +251,10 @@ export class SynapseAuth {
       expiresAt?: string | number;
       expiration?: number;
     } = {}
-  ): Promise<Record<string, unknown>> {
+  ): Promise<CredentialQuotaUpdateResult> {
     const token = await this.getToken();
     const id = this.requireValue(credentialId, "credentialId");
-    return this._fetch<Record<string, unknown>>(
+    return this._fetch<CredentialQuotaUpdateResult>(
       `${this.gatewayUrl}/api/v1/credentials/agent/${encodeURIComponent(id)}/quota`,
       {
         method: "PATCH",
@@ -247,12 +265,12 @@ export class SynapseAuth {
   }
 
   /** Fetch credential lifecycle audit logs for the authenticated owner. */
-  async getCredentialAuditLogs(opts: { limit?: number } = {}): Promise<Record<string, unknown>> {
+  async getCredentialAuditLogs(opts: { limit?: number } = {}): Promise<CredentialAuditLogList> {
     const token = await this.getToken();
     const url = this.withQuery(`${this.gatewayUrl}/api/v1/credentials/agent/audit-logs`, {
       limit: opts.limit ?? 100,
     });
-    return this._fetch<Record<string, unknown>>(url, { headers: { Authorization: `Bearer ${token}` } });
+    return this._fetch<CredentialAuditLogList>(url, { headers: { Authorization: `Bearer ${token}` } });
   }
 
   /** Get balance summary for this wallet. */
@@ -287,9 +305,9 @@ export class SynapseAuth {
   }
 
   /** Confirm a previously registered deposit intent. */
-  async confirmDeposit(intentId: string, eventKey: string): Promise<{ status: string }> {
+  async confirmDeposit(intentId: string, eventKey: string): Promise<DepositConfirmResult> {
     const token = await this.getToken();
-    return this._fetch<{ status: string }>(`${this.gatewayUrl}/api/v1/balance/deposit/intents/${intentId}/confirm`, {
+    return this._fetch<DepositConfirmResult>(`${this.gatewayUrl}/api/v1/balance/deposit/intents/${intentId}/confirm`, {
       method: "POST",
       headers: { Authorization: `Bearer ${token}` },
       body: JSON.stringify({ eventKey, confirmations: 1 }),
@@ -312,10 +330,10 @@ export class SynapseAuth {
   }
 
   /** Redeem a voucher into the authenticated owner balance. */
-  async redeemVoucher(voucherCode: string, idempotencyKey?: string): Promise<Record<string, unknown>> {
+  async redeemVoucher(voucherCode: string, idempotencyKey?: string): Promise<VoucherRedeemResult> {
     const token = await this.getToken();
     const code = this.requireValue(voucherCode, "voucherCode");
-    return this._fetch<Record<string, unknown>>(`${this.gatewayUrl}/api/v1/balance/vouchers/redeem`, {
+    return this._fetch<VoucherRedeemResult>(`${this.gatewayUrl}/api/v1/balance/vouchers/redeem`, {
       method: "POST",
       headers: {
         Authorization: `Bearer ${token}`,
@@ -326,23 +344,23 @@ export class SynapseAuth {
   }
 
   /** Fetch owner usage logs for observability and billing review. */
-  async getUsageLogs(opts: { limit?: number } = {}): Promise<Record<string, unknown>> {
+  async getUsageLogs(opts: { limit?: number } = {}): Promise<UsageLogList> {
     const token = await this.getToken();
     const url = this.withQuery(`${this.gatewayUrl}/api/v1/usage/logs`, { limit: opts.limit ?? 100 });
-    return this._fetch<Record<string, unknown>>(url, { headers: { Authorization: `Bearer ${token}` } });
+    return this._fetch<UsageLogList>(url, { headers: { Authorization: `Bearer ${token}` } });
   }
 
   /** Fetch finance audit logs. High-impact finance actions remain explicit. */
-  async getFinanceAuditLogs(opts: { limit?: number } = {}): Promise<Record<string, unknown>> {
+  async getFinanceAuditLogs(opts: { limit?: number } = {}): Promise<FinanceAuditLogList> {
     const token = await this.getToken();
     const url = this.withQuery(`${this.gatewayUrl}/api/v1/finance/audit-logs`, { limit: opts.limit ?? 100 });
-    return this._fetch<Record<string, unknown>>(url, { headers: { Authorization: `Bearer ${token}` } });
+    return this._fetch<FinanceAuditLogList>(url, { headers: { Authorization: `Bearer ${token}` } });
   }
 
   /** Return the owner finance risk overview. */
-  async getRiskOverview(): Promise<Record<string, unknown>> {
+  async getRiskOverview(): Promise<RiskOverview> {
     const token = await this.getToken();
-    return this._fetch<Record<string, unknown>>(`${this.gatewayUrl}/api/v1/finance/risk-overview`, {
+    return this._fetch<RiskOverview>(`${this.gatewayUrl}/api/v1/finance/risk-overview`, {
       headers: { Authorization: `Bearer ${token}` },
     });
   }
@@ -358,12 +376,12 @@ export class SynapseAuth {
   }
 
   /** Fetch the provider registration guide from the gateway control plane. */
-  async getRegistrationGuide(): Promise<Record<string, unknown>> {
+  async getRegistrationGuide(): Promise<ProviderRegistrationGuide> {
     return getRegistrationGuide(this.providerControlContext());
   }
 
   /** Convert a curl command into a provider service manifest draft. */
-  async parseCurlToServiceManifest(curlCommand: string): Promise<Record<string, unknown>> {
+  async parseCurlToServiceManifest(curlCommand: string): Promise<ServiceManifestDraft> {
     return parseCurlToServiceManifest(this.providerControlContext(), curlCommand);
   }
 
@@ -371,17 +389,17 @@ export class SynapseAuth {
   async updateProviderService(
     serviceRecordId: string,
     patch: Record<string, unknown>
-  ): Promise<Record<string, unknown>> {
+  ): Promise<ProviderServiceUpdateResult> {
     return updateProviderService(this.providerControlContext(), serviceRecordId, patch);
   }
 
   /** Delete a provider service registration by gateway record ID. */
-  async deleteProviderService(serviceRecordId: string): Promise<Record<string, unknown>> {
+  async deleteProviderService(serviceRecordId: string): Promise<ProviderServiceDeleteResult> {
     return deleteProviderService(this.providerControlContext(), serviceRecordId);
   }
 
   /** Force a provider service health ping. */
-  async pingProviderService(serviceRecordId: string): Promise<Record<string, unknown>> {
+  async pingProviderService(serviceRecordId: string): Promise<ProviderServicePingResult> {
     return pingProviderService(this.providerControlContext(), serviceRecordId);
   }
 
@@ -389,17 +407,17 @@ export class SynapseAuth {
   async getProviderServiceHealthHistory(
     serviceRecordId: string,
     opts: { limitPerTarget?: number } = {}
-  ): Promise<Record<string, unknown>> {
+  ): Promise<ProviderServiceHealthHistory> {
     return getProviderServiceHealthHistory(this.providerControlContext(), serviceRecordId, opts);
   }
 
   /** Return provider earnings summary for the authenticated owner. */
-  async getProviderEarningsSummary(): Promise<Record<string, unknown>> {
+  async getProviderEarningsSummary(): Promise<ProviderEarningsSummary> {
     return getProviderEarningsSummary(this.providerControlContext());
   }
 
   /** Return whether provider withdrawals are currently available. */
-  async getProviderWithdrawalCapability(): Promise<Record<string, unknown>> {
+  async getProviderWithdrawalCapability(): Promise<ProviderWithdrawalCapability> {
     return getProviderWithdrawalCapability(this.providerControlContext());
   }
 
@@ -407,12 +425,12 @@ export class SynapseAuth {
   async createProviderWithdrawalIntent(
     amountUsdc: number,
     opts: { idempotencyKey?: string; destinationAddress?: string } = {}
-  ): Promise<Record<string, unknown>> {
+  ): Promise<ProviderWithdrawalIntentResult> {
     return createProviderWithdrawalIntent(this.providerControlContext(), amountUsdc, opts);
   }
 
   /** List provider withdrawal records. */
-  async listProviderWithdrawals(opts: { limit?: number } = {}): Promise<Record<string, unknown>> {
+  async listProviderWithdrawals(opts: { limit?: number } = {}): Promise<ProviderWithdrawalList> {
     return listProviderWithdrawals(this.providerControlContext(), opts);
   }
 

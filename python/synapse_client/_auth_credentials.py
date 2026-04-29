@@ -3,7 +3,17 @@ from __future__ import annotations
 from typing import Any, Dict
 
 from .exceptions import AuthenticationError
-from .models import AgentCredential, CredentialStatusResult, IssueCredentialResult, UpdateCredentialResult
+from .models import (
+    AgentCredential,
+    CredentialAuditLogList,
+    CredentialDeleteResult,
+    CredentialQuotaUpdateResult,
+    CredentialRevokeResult,
+    CredentialRotateResult,
+    CredentialStatusResult,
+    IssueCredentialResult,
+    UpdateCredentialResult,
+)
 
 
 class CredentialManagementMixin:
@@ -91,34 +101,37 @@ class CredentialManagementMixin:
         )
         return CredentialStatusResult.model_validate(payload)
 
-    def revoke_credential(self, credential_id: str) -> Dict[str, Any]:
+    def revoke_credential(self, credential_id: str) -> CredentialRevokeResult:
         """Revoke an agent credential without deleting its audit trail."""
         credential_id = self._require_value(credential_id, "credential_id")
-        return self._request(
+        payload = self._request(
             "POST",
             f"/api/v1/credentials/agent/{credential_id}/revoke",
             headers=self._authorized_headers(),
         )
+        return CredentialRevokeResult.model_validate(payload)
 
-    def rotate_credential(self, credential_id: str) -> Dict[str, Any]:
+    def rotate_credential(self, credential_id: str) -> CredentialRotateResult:
         """Rotate an agent credential and return the gateway response containing the new token."""
         credential_id = self._require_value(credential_id, "credential_id")
-        return self._request(
+        payload = self._request(
             "POST",
             f"/api/v1/credentials/agent/{credential_id}/rotate",
             headers=self._authorized_headers(),
         )
+        return CredentialRotateResult.model_validate(payload)
 
-    def delete_credential(self, credential_id: str) -> Dict[str, Any]:
+    def delete_credential(self, credential_id: str) -> CredentialDeleteResult:
         """Delete an agent credential. Use revoke_credential for emergency shutoff."""
         credential_id = self._require_value(credential_id, "credential_id")
-        return self._request(
+        payload = self._request(
             "DELETE",
             f"/api/v1/credentials/agent/{credential_id}",
             headers=self._authorized_headers(),
         )
+        return CredentialDeleteResult.model_validate(payload)
 
-    def update_credential_quota(self, credential_id: str, **options: Any) -> Dict[str, Any]:
+    def update_credential_quota(self, credential_id: str, **options: Any) -> CredentialQuotaUpdateResult:
         """Update spend/call/rate quota fields for an agent credential."""
         credential_id = self._require_value(credential_id, "credential_id")
         aliases = {
@@ -135,20 +148,22 @@ class CredentialManagementMixin:
             value = options.get(key)
             if value is not None:
                 body[key] = value
-        return self._request(
+        payload = self._request(
             "PATCH",
             f"/api/v1/credentials/agent/{credential_id}/quota",
             headers=self._authorized_headers(),
             json_body=body,
         )
+        return CredentialQuotaUpdateResult.model_validate(payload)
 
-    def get_credential_audit_logs(self, *, limit: int = 100) -> Dict[str, Any]:
+    def get_credential_audit_logs(self, *, limit: int = 100) -> CredentialAuditLogList:
         """Fetch credential lifecycle audit logs for the authenticated owner."""
-        return self._request(
+        payload = self._request(
             "GET",
             self._query_path("/api/v1/credentials/agent/audit-logs", {"limit": limit}),
             headers=self._authorized_headers(),
         )
+        return CredentialAuditLogList.model_validate(payload)
 
     def check_credential_status(self, credential_id: str) -> CredentialStatusResult:
         """Alias for get_credential_status()."""

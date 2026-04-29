@@ -71,7 +71,8 @@
       ],
       "notes": [
         "Credential and finance-adjacent helpers must not log real tokens or secrets.",
-        "High-impact finance helpers may wrap API calls, but should not auto-execute irreversible user actions."
+        "High-impact finance helpers may wrap API calls, but should not auto-execute irreversible user actions.",
+        "Public owner-auth returns must use named SDK models/interfaces, not raw dict or Record."
       ]
     },
     {
@@ -99,7 +100,8 @@
       ],
       "notes": [
         "Provider onboarding success is measured through owner control-plane service records, not public discovery alone.",
-        "Provider is an owner-scoped supply-side role; use auth.provider() / SynapseProvider rather than a separate root identity."
+        "Provider is an owner-scoped supply-side role; use auth.provider() / SynapseProvider rather than a separate root identity.",
+        "Public provider facade returns must use named SDK models/interfaces, not raw dict or Record."
       ]
     },
     {

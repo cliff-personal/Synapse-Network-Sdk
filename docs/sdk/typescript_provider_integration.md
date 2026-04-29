@@ -36,6 +36,8 @@
 17. `provider.createWithdrawalIntent()`
 18. `provider.listWithdrawals()`
 
+这些公开方法返回命名 TypeScript interface，例如 `ProviderRegistrationGuide`、`ServiceManifestDraft`、`ProviderServiceUpdateResult`、`ProviderWithdrawalIntentResult`，不返回 raw `Record<string, unknown>`。
+
 ---
 
 ## 3. 最小接入代码
@@ -77,6 +79,24 @@ const status = await provider.getServiceStatus(registered.serviceId);
 console.log(status.lifecycleStatus, status.health.overallStatus, status.runtimeAvailable);
 ```
 
+LLM services use the dedicated token-metered helper:
+
+```ts
+const llm = await provider.registerLlmService({
+  serviceName: "DeepSeek Chat",
+  serviceId: "svc_deepseek_chat",
+  endpointUrl: "https://provider.example.com/llm/deepseek-chat",
+  descriptionForModel: "OpenAI-compatible chat completion endpoint.",
+  inputPricePer1MTokensUsdc: "0.140000",
+  outputPricePer1MTokensUsdc: "0.280000",
+  defaultMaxOutputTokens: 2048,
+  maxAutoHoldUsdc: "0.050000",
+  requestTimeoutMs: 120000,
+});
+
+console.log(llm.serviceId);
+```
+
 ---
 
 ## 4. 设计原则
@@ -103,6 +123,11 @@ console.log(status.lifecycleStatus, status.health.overallStatus, status.runtimeA
 2. `endpointUrl`
 3. `basePriceUsdc`
 4. `descriptionForModel`
+
+`provider.registerLlmService()` 使用同样的 owner scope，但把 `serviceKind=llm` 和
+`priceModel=token_metered` 固定写入 manifest。LLM 价格必须使用
+`inputPricePer1MTokensUsdc` / `outputPricePer1MTokensUsdc`，不要使用
+`pricePerToken`。
 
 SDK 自动补：
 

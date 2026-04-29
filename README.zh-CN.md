@@ -138,6 +138,28 @@ console.log(receipt.invocationId, receipt.status, receipt.chargedUsdc);
 
 TypeScript SDK 不会自动读取环境变量。请在你的应用中读取环境变量，然后显式传入 `environment` 或 `gatewayUrl`。
 
+### LLM 按 token 计费调用
+
+使用 `serviceKind=llm` 和 `priceModel=token_metered` 注册的 LLM 服务，需要调用 `invoke_llm()` / `invokeLlm()`。不要传 `cost_usdc` / `costUsdc`；可以传可选的 `max_cost_usdc` / `maxCostUsdc`，也可以交给 Gateway 自动冻结。V1 会拒绝 streaming，确保 Gateway 能拿到 final usage 后再扣费。
+
+```python
+result = client.invoke_llm(
+    "svc_deepseek_chat",
+    {"messages": [{"role": "user", "content": "hello"}], "max_tokens": 512},
+    max_cost_usdc="0.010000",
+)
+print(result.usage.input_tokens, result.synapse.charged_usdc, result.synapse.released_usdc)
+```
+
+```ts
+const result = await client.invokeLlm(
+  "svc_deepseek_chat",
+  { messages: [{ role: "user", content: "hello" }], max_tokens: 512 },
+  { maxCostUsdc: "0.010000" }
+);
+console.log(result.usage?.inputTokens, result.synapse?.chargedUsdc, result.synapse?.releasedUsdc);
+```
+
 ## 高级用法：以代码方式签发凭据
 
 只有当 owner/backend service 需要以代码方式签发凭据或注册 provider service 时，才使用 `SynapseAuth`。普通 Agent 运行时代码应使用已有 `agt_xxx` key 和 `SynapseClient`。
@@ -273,6 +295,8 @@ PYTHONPATH="$PWD" .venv/bin/python examples/consumer_wallet_to_invoke.py \
 - Provider secret issue/list/delete
 - Provider service register/list/get/status/update/delete/ping/registration guide/health history
 - Provider earnings and withdrawal intent/list/capability helpers
+
+公开 owner/provider helper 返回 `UsageLogList`、`ProviderRegistrationGuide`、`ProviderWithdrawalIntentResult` 等命名 SDK 对象，而不是 raw map。
 
 尚未封装：
 

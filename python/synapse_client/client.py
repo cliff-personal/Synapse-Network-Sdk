@@ -1,6 +1,6 @@
 import os
 import time
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional, Union
 from uuid import uuid4
 
 import requests
@@ -333,11 +333,13 @@ class SynapseClient:
         service_id: str,
         payload: Optional[Dict[str, Any]] = None,
         *,
-        cost_usdc: float,
+        cost_usdc: Optional[Union[float, str]] = None,
+        max_cost_usdc: Optional[Union[float, str]] = None,
         idempotency_key: Optional[str] = None,
         response_mode: str = "sync",
         poll_timeout_sec: int = 90,
         request_id: Optional[str] = None,
+        _allow_missing_cost_usdc: bool = False,
     ) -> InvocationResponse:
         """Invoke a service with price assertion.
 
@@ -347,16 +349,21 @@ class SynapseClient:
         """
         if not service_id or not service_id.strip():
             raise ValueError("service_id is required")
+        if cost_usdc is None and not _allow_missing_cost_usdc:
+            raise ValueError("cost_usdc is required for fixed-price API services. Use invoke_llm() for LLM services.")
 
         invocation_key = (idempotency_key or f"invoke-{uuid4().hex}").strip()
         runtime_payload = RuntimePayload(body=payload or {})
         body = {
             "serviceId": service_id.strip(),
             "idempotencyKey": invocation_key,
-            "costUsdc": round(float(cost_usdc), 6),
             "payload": runtime_payload.model_dump(by_alias=True),
             "responseMode": response_mode,
         }
+        if cost_usdc is not None:
+            body["costUsdc"] = round(float(cost_usdc), 6)
+        if max_cost_usdc is not None:
+            body["maxCostUsdc"] = str(max_cost_usdc)
         response = requests.post(
             f"{self.gateway_url}/api/v1/agent/invoke",
             headers=self._headers(request_id=request_id),
@@ -369,6 +376,36 @@ class SynapseClient:
         if invocation.status in TERMINAL_STATUSES:
             return invocation
         return self.wait_for_invocation(invocation.invocation_id, max_wait_sec=poll_timeout_sec)
+
+    def invoke_llm(
+        self,
+        service_id: str,
+        payload: Optional[Dict[str, Any]] = None,
+        *,
+        max_cost_usdc: Optional[Union[float, str]] = None,
+        idempotency_key: Optional[str] = None,
+        poll_timeout_sec: int = 90,
+        request_id: Optional[str] = None,
+    ) -> InvocationResponse:
+        """Invoke a token-metered LLM service.
+
+        ``cost_usdc`` is intentionally not used for LLM services. If
+        ``max_cost_usdc`` is omitted, Gateway performs automatic
+        pre-authorization and only captures final Provider-reported usage.
+        """
+        runtime_payload = payload or {}
+        if runtime_payload.get("stream") is True:
+            raise InvokeError("LLM_STREAMING_NOT_SUPPORTED: stream=True is not supported for token-metered billing.")
+        return self.invoke(
+            service_id,
+            runtime_payload,
+            max_cost_usdc=max_cost_usdc,
+            idempotency_key=idempotency_key,
+            response_mode="sync",
+            poll_timeout_sec=poll_timeout_sec,
+            request_id=request_id,
+            _allow_missing_cost_usdc=True,
+        )
 
     def invoke_with_rediscovery(
         self,
@@ -440,60 +477,4 @@ class SynapseClient:
         return fallback_price
 
 
-class AgentWallet(SynapseClient):
-    """Convenience wrapper — the 3-line DX entry point for agent developers.
-
-    Usage::
-
-        from synapse_client import AgentWallet
-        wallet = AgentWallet.connect(budget=5.0)         # Line 1
-        svc = wallet.search_services("market data").services[0]  # Line 2
-        result = wallet.invoke(svc.service_id, payload={}, cost_usdc=float(svc.price_usdc))  # Line 3
-        print(result.status, result.charged_usdc)
-
-    The ``budget`` parameter enforces a spend ceiling tracked client-side.
-    When cumulative ``charged_usdc`` would exceed it, an ``InsufficientFundsError``
-    is raised before the HTTP call is made.
-    """
-
-    def __init__(self, budget: float = 5.0, **kwargs):
-        super().__init__(**kwargs)
-        self._budget_usdc = float(budget)
-        self._spent_usdc: float = 0.0
-
-    @classmethod
-    def connect(
-        cls,
-        budget: float = 5.0,
-        api_key: Optional[str] = None,
-        gateway_url: Optional[str] = None,
-        environment: Optional[str] = None,
-    ) -> "AgentWallet":
-        """Factory method — create and validate an AgentWallet in one call."""
-        api_key = api_key or os.getenv("SYNAPSE_API_KEY", "")
-        return cls(budget=budget, api_key=api_key, gateway_url=gateway_url, environment=environment)
-
-    @property
-    def budget_usdc(self) -> float:
-        return self._budget_usdc
-
-    @property
-    def spent_usdc(self) -> float:
-        return self._spent_usdc
-
-    @property
-    def remaining_usdc(self) -> float:
-        return round(self._budget_usdc - self._spent_usdc, 6)
-
-    def invoke(
-        self, service_id: str, *, payload: Optional[Dict[str, Any]] = None, cost_usdc: float = 0.0, **kwargs
-    ) -> "InvocationResponse":
-        """Invoke a service and track spend against the budget ceiling."""
-        cost = float(cost_usdc)
-        if self._spent_usdc + cost > self._budget_usdc:
-            raise InsufficientFundsError(
-                f"Budget exceeded: ${self._spent_usdc:.4f} spent + ${cost:.4f} cost > ${self._budget_usdc:.4f} budget"
-            )
-        result = super().invoke(service_id, payload=payload, cost_usdc=cost_usdc, **kwargs)
-        self._spent_usdc = round(self._spent_usdc + float(result.charged_usdc), 6)
-        return result
+from .wallet import AgentWallet  # noqa: E402, F401

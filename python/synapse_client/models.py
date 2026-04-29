@@ -141,6 +141,12 @@ class DepositConfirmResult(SDKModel):
 class ServicePricing(SDKModel):
     amount: str = "0"
     currency: str = "USDC"
+    price_model: Optional[str] = Field(default=None, alias="priceModel")
+    input_price_per_1m_tokens_usdc: Optional[str] = Field(default=None, alias="inputPricePer1MTokensUsdc")
+    output_price_per_1m_tokens_usdc: Optional[str] = Field(default=None, alias="outputPricePer1MTokensUsdc")
+    default_max_output_tokens: Optional[int] = Field(default=None, alias="defaultMaxOutputTokens")
+    hold_buffer_multiplier: Optional[Decimal | float | int | str] = Field(default=None, alias="holdBufferMultiplier")
+    max_auto_hold_usdc: Optional[str] = Field(default=None, alias="maxAutoHoldUsdc")
 
 
 class ServiceHealthSummary(SDKModel):
@@ -170,7 +176,13 @@ class QuoteTemplate(SDKModel):
 class DiscoveredService(SDKModel):
     service_id: str = Field(default="", alias="serviceId")
     service_name: str = Field(default="", alias="serviceName")
+    service_kind: str = Field(default="api", alias="serviceKind")
+    price_model: str = Field(default="fixed", alias="priceModel")
     pricing: ServicePricing = Field(default_factory=ServicePricing)
+    input_price_per_1m_tokens_usdc: Optional[str] = Field(default=None, alias="inputPricePer1MTokensUsdc")
+    output_price_per_1m_tokens_usdc: Optional[str] = Field(default=None, alias="outputPricePer1MTokensUsdc")
+    default_max_output_tokens: Optional[int] = Field(default=None, alias="defaultMaxOutputTokens")
+    max_auto_hold_usdc: Optional[str] = Field(default=None, alias="maxAutoHoldUsdc")
     summary: str = ""
     tags: List[str] = Field(default_factory=list)
     status: str = "unknown"
@@ -192,6 +204,10 @@ class DiscoveredService(SDKModel):
     @property
     def serviceName(self) -> str:
         return self.service_name
+
+    @property
+    def is_llm(self) -> bool:
+        return self.service_kind == "llm" or self.price_model == "token_metered"
 
 
 class ProviderProfile(SDKModel):
@@ -216,10 +232,16 @@ class ProviderService(SDKModel):
     service_id: str = Field(default="", alias="serviceId")
     owner_address: str = Field(default="", alias="ownerAddress")
     service_name: str = Field(default="", alias="serviceName")
+    service_kind: str = Field(default="api", alias="serviceKind")
+    price_model: str = Field(default="fixed", alias="priceModel")
     summary: str = ""
     status: str = "unknown"
     is_active: bool = Field(default=True, alias="isActive")
     pricing: ServicePricing = Field(default_factory=ServicePricing)
+    input_price_per_1m_tokens_usdc: Optional[str] = Field(default=None, alias="inputPricePer1MTokensUsdc")
+    output_price_per_1m_tokens_usdc: Optional[str] = Field(default=None, alias="outputPricePer1MTokensUsdc")
+    default_max_output_tokens: Optional[int] = Field(default=None, alias="defaultMaxOutputTokens")
+    max_auto_hold_usdc: Optional[str] = Field(default=None, alias="maxAutoHoldUsdc")
     tags: List[str] = Field(default_factory=list)
     role: Optional[str] = None
     address: Optional[str] = None
@@ -253,6 +275,32 @@ class ProviderServiceStatus(SDKModel):
     lifecycle_status: str = Field(default="unknown", alias="lifecycleStatus")
     runtime_available: bool = Field(default=False, alias="runtimeAvailable")
     health: ServiceHealthSummary = Field(default_factory=ServiceHealthSummary)
+
+
+from ._control_result_models import (  # noqa: E402, F401
+    AuthLogoutResult,
+    CredentialAuditLogList,
+    CredentialDeleteResult,
+    CredentialQuotaUpdateResult,
+    CredentialRevokeResult,
+    CredentialRotateResult,
+    FinanceAuditLogList,
+    OwnerProfile,
+    ProviderEarningsSummary,
+    ProviderRegistrationGuide,
+    ProviderSecretDeleteResult,
+    ProviderServiceDeleteResult,
+    ProviderServiceHealthHistory,
+    ProviderServicePingResult,
+    ProviderServiceUpdateResult,
+    ProviderWithdrawalCapability,
+    ProviderWithdrawalIntentResult,
+    ProviderWithdrawalList,
+    RiskOverview,
+    ServiceManifestDraft,
+    UsageLogList,
+    VoucherRedeemResult,
+)
 
 
 class DiscoveryResponse(SDKModel):
@@ -312,11 +360,31 @@ class InvocationError(SDKModel):
     action: str = "stop"
 
 
+class LlmUsage(SDKModel):
+    input_tokens: Optional[int] = Field(default=None, alias="inputTokens")
+    output_tokens: Optional[int] = Field(default=None, alias="outputTokens")
+    total_tokens: Optional[int] = Field(default=None, alias="totalTokens")
+    prompt_tokens: Optional[int] = None
+    completion_tokens: Optional[int] = None
+
+
+class SynapseBillingMetadata(SDKModel):
+    price_model: Optional[str] = Field(default=None, alias="priceModel")
+    hold_usdc: Optional[str] = Field(default=None, alias="holdUsdc")
+    charged_usdc: Optional[str] = Field(default=None, alias="chargedUsdc")
+    released_usdc: Optional[str] = Field(default=None, alias="releasedUsdc")
+    provider_revenue_usdc: Optional[str] = Field(default=None, alias="providerRevenueUsdc")
+    platform_fee_usdc: Optional[str] = Field(default=None, alias="platformFeeUsdc")
+    pre_auth_mode: Optional[str] = Field(default=None, alias="preAuthMode")
+
+
 class InvocationResponse(SDKModel):
     invocation_id: str = Field(default="", alias="invocationId")
     status: str = "PENDING"
     charged_usdc: float = Field(default=0.0, alias="chargedUsdc")
     result: Dict[str, Any] = Field(default_factory=dict)
+    usage: Optional[LlmUsage] = None
+    synapse: Optional[SynapseBillingMetadata] = None
     error: Optional[InvocationError] = None
     receipt: Optional[InvocationReceipt] = None
 

@@ -31,7 +31,11 @@ SDK 当前有三个明确的公开入口：
 
 Provider 仍然是 owner scope 下的供给侧角色。`SynapseProvider` 只是让 provider 接入更容易发现，不引入第二套 provider root 身份。
 
-Python 旧的 quote-first 方法 `create_quote()`、`create_invocation()`、`invoke_service()` 已经废弃。它们不会再访问旧 endpoint，而是直接提示改用 discovery/search + `invoke(..., cost_usdc=...)`。
+Owner/provider helper 的返回值必须是命名 SDK 对象。不要新增或记录返回 raw Python `dict` / TypeScript `Record<string, unknown>` 的公开 `SynapseAuth` / `SynapseProvider` 方法；应先新增命名 result model/interface。
+
+Python 旧的 quote-first 方法 `create_quote()`、`create_invocation()`、`invoke_service()` 已经废弃。它们不会再访问旧 endpoint，而是直接提示普通 fixed-price API 改用 discovery/search + `invoke(..., cost_usdc=...)`。
+
+LLM 服务使用 `serviceKind=llm` + `priceModel=token_metered`。Runtime 代码应调用 `invoke_llm()` / `invokeLlm()`，并读取返回里的 `usage` 与 `synapse` 计费元数据。LLM 调用不要传 `cost_usdc` / `costUsdc`；可以传可选的 `max_cost_usdc` / `maxCostUsdc`，也可以交给 Gateway 自动冻结。V1 禁用 streaming。
 
 ## Staging 产品文档
 
@@ -95,7 +99,8 @@ TypeScript：
 
 1. `request_id` / request header，用于串联 gateway 日志。
 2. `idempotency_key` / `idempotencyKey`，用于避免重复扣费或重复执行。
-3. `cost_usdc` / `costUsdc`，来自最新 discovery price。若价格变化，gateway 会拒绝本次调用，调用方应重新 discovery。
+3. 普通 fixed-price API 传 `cost_usdc` / `costUsdc`，来自最新 discovery price。若价格变化，gateway 会拒绝本次调用，调用方应重新 discovery。
+4. 按 token 计费的 LLM 服务调用 `invoke_llm()` / `invokeLlm()`，可选传 `max_cost_usdc` / `maxCostUsdc`；最终按 Provider 返回的 `usage` 精准扣费。
 
 ## 常见故障
 

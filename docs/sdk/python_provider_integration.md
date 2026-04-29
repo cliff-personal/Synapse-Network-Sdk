@@ -36,6 +36,8 @@
 17. `provider.create_withdrawal_intent()`
 18. `provider.list_withdrawals()`
 
+这些公开方法返回命名 `SDKModel` 对象，例如 `ProviderRegistrationGuide`、`ServiceManifestDraft`、`ProviderServiceUpdateResult`、`ProviderWithdrawalIntentResult`，不返回 raw `dict`。
+
 ---
 
 ## 3. 最小接入代码
@@ -87,6 +89,24 @@ status = provider.get_service_status(registered.service_id)
 print(status.lifecycle_status, status.health.overall_status, status.runtime_available)
 ```
 
+LLM 服务使用专用 token-metered helper：
+
+```python
+llm = provider.register_llm_service(
+    service_name="DeepSeek Chat",
+    service_id="svc_deepseek_chat",
+    endpoint_url="https://provider.example.com/llm/deepseek-chat",
+    description_for_model="OpenAI-compatible chat completion endpoint.",
+    input_price_per_1m_tokens_usdc="0.140000",
+    output_price_per_1m_tokens_usdc="0.280000",
+    default_max_output_tokens=2048,
+    max_auto_hold_usdc="0.050000",
+    request_timeout_ms=120000,
+)
+
+print(llm.service_id)
+```
+
 ---
 
 ## 4. SDK 设计原则
@@ -109,6 +129,11 @@ print(status.lifecycle_status, status.health.overall_status, status.runtime_avai
 2. `endpoint_url`
 3. `base_price_usdc`
 4. `description_for_model`
+
+`provider.register_llm_service()` 使用同样的 owner scope，但固定写入
+`serviceKind=llm` 和 `priceModel=token_metered`。LLM 价格必须使用
+`input_price_per_1m_tokens_usdc` / `output_price_per_1m_tokens_usdc`，不要使用
+`pricePerToken`。
 
 SDK 自动补：
 

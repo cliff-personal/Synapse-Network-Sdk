@@ -6,6 +6,17 @@ import {
   IssueCredentialOptions,
   IssueProviderSecretResult,
   ProviderSecret,
+  ProviderEarningsSummary,
+  ProviderRegistrationGuide,
+  ProviderSecretDeleteResult,
+  ProviderServiceDeleteResult,
+  ProviderServiceHealthHistory,
+  ProviderServicePingResult,
+  ProviderServiceUpdateResult,
+  ProviderWithdrawalCapability,
+  ProviderWithdrawalIntentResult,
+  ProviderWithdrawalList,
+  ServiceManifestDraft,
 } from "./types";
 import { AuthenticationError } from "./errors";
 
@@ -62,13 +73,16 @@ export async function listProviderSecrets(ctx: AuthProviderControlContext): Prom
 export async function deleteProviderSecret(
   ctx: AuthProviderControlContext,
   secretId: string
-): Promise<Record<string, unknown>> {
+): Promise<ProviderSecretDeleteResult> {
   const token = await ctx.getToken();
   const id = ctx.requireValue(secretId, "secretId");
-  return ctx.fetchJson<Record<string, unknown>>(`${ctx.gatewayUrl}/api/v1/secrets/provider/${encodeURIComponent(id)}`, {
-    method: "DELETE",
-    headers: { Authorization: `Bearer ${token}` },
-  });
+  return ctx.fetchJson<ProviderSecretDeleteResult>(
+    `${ctx.gatewayUrl}/api/v1/secrets/provider/${encodeURIComponent(id)}`,
+    {
+      method: "DELETE",
+      headers: { Authorization: `Bearer ${token}` },
+    }
+  );
 }
 
 function defaultServiceId(serviceName: string): string {
@@ -108,17 +122,18 @@ function providerServiceValues(opts: RegisterProviderServiceOptions) {
 
 function providerServiceBody(ctx: AuthProviderControlContext, opts: RegisterProviderServiceOptions) {
   const service = providerServiceValues(opts);
+  const serviceKind = opts.serviceKind ?? (opts.priceModel === "token_metered" ? "llm" : "api");
+  const priceModel = opts.priceModel ?? (serviceKind === "llm" ? "token_metered" : "fixed");
   return {
     serviceId: service.serviceId,
     agentToolName: service.serviceId,
     serviceName: service.serviceName,
+    serviceKind,
+    priceModel,
     role: "Provider",
     status: valueOr(opts.status, "active"),
     isActive: valueOr(opts.isActive, true),
-    pricing: {
-      amount: String(opts.basePriceUsdc),
-      currency: "USDC",
-    },
+    pricing: providerPricing(opts, priceModel),
     summary: service.description,
     tags: valueOr(opts.tags, []),
     auth: { type: "gateway_signed" },
@@ -131,6 +146,28 @@ function providerServiceBody(ctx: AuthProviderControlContext, opts: RegisterProv
       riskAcknowledged: true,
       note: valueOr(opts.governanceNote, null),
     },
+  };
+}
+
+function providerPricing(opts: RegisterProviderServiceOptions, priceModel: string): Record<string, unknown> {
+  if (priceModel === "token_metered") {
+    if (opts.inputPricePer1MTokensUsdc == null) throw new Error("inputPricePer1MTokensUsdc is required");
+    if (opts.outputPricePer1MTokensUsdc == null) throw new Error("outputPricePer1MTokensUsdc is required");
+    const pricing: Record<string, unknown> = {
+      priceModel: "token_metered",
+      inputPricePer1MTokensUsdc: String(opts.inputPricePer1MTokensUsdc),
+      outputPricePer1MTokensUsdc: String(opts.outputPricePer1MTokensUsdc),
+      currency: "USDC",
+    };
+    if (opts.defaultMaxOutputTokens != null) pricing["defaultMaxOutputTokens"] = opts.defaultMaxOutputTokens;
+    if (opts.holdBufferMultiplier != null) pricing["holdBufferMultiplier"] = opts.holdBufferMultiplier;
+    if (opts.maxAutoHoldUsdc != null) pricing["maxAutoHoldUsdc"] = String(opts.maxAutoHoldUsdc);
+    return pricing;
+  }
+  if (opts.basePriceUsdc == null) throw new Error("basePriceUsdc is required");
+  return {
+    amount: String(opts.basePriceUsdc),
+    currency: "USDC",
   };
 }
 
@@ -201,9 +238,9 @@ export async function listProviderServices(ctx: AuthProviderControlContext): Pro
   return resp.services ?? [];
 }
 
-export async function getRegistrationGuide(ctx: AuthProviderControlContext): Promise<Record<string, unknown>> {
+export async function getRegistrationGuide(ctx: AuthProviderControlContext): Promise<ProviderRegistrationGuide> {
   const token = await ctx.getToken();
-  return ctx.fetchJson<Record<string, unknown>>(`${ctx.gatewayUrl}/api/v1/services/registration-guide`, {
+  return ctx.fetchJson<ProviderRegistrationGuide>(`${ctx.gatewayUrl}/api/v1/services/registration-guide`, {
     headers: { Authorization: `Bearer ${token}` },
   });
 }
@@ -211,10 +248,10 @@ export async function getRegistrationGuide(ctx: AuthProviderControlContext): Pro
 export async function parseCurlToServiceManifest(
   ctx: AuthProviderControlContext,
   curlCommand: string
-): Promise<Record<string, unknown>> {
+): Promise<ServiceManifestDraft> {
   const token = await ctx.getToken();
   const command = ctx.requireValue(curlCommand, "curlCommand");
-  return ctx.fetchJson<Record<string, unknown>>(`${ctx.gatewayUrl}/api/v1/services/parse-curl`, {
+  return ctx.fetchJson<ServiceManifestDraft>(`${ctx.gatewayUrl}/api/v1/services/parse-curl`, {
     method: "POST",
     headers: { Authorization: `Bearer ${token}` },
     body: JSON.stringify({ curlCommand: command }),
@@ -225,10 +262,10 @@ export async function updateProviderService(
   ctx: AuthProviderControlContext,
   serviceRecordId: string,
   patch: Record<string, unknown>
-): Promise<Record<string, unknown>> {
+): Promise<ProviderServiceUpdateResult> {
   const token = await ctx.getToken();
   const id = ctx.requireValue(serviceRecordId, "serviceRecordId");
-  return ctx.fetchJson<Record<string, unknown>>(`${ctx.gatewayUrl}/api/v1/services/${encodeURIComponent(id)}`, {
+  return ctx.fetchJson<ProviderServiceUpdateResult>(`${ctx.gatewayUrl}/api/v1/services/${encodeURIComponent(id)}`, {
     method: "PUT",
     headers: { Authorization: `Bearer ${token}` },
     body: JSON.stringify(patch ?? {}),
@@ -238,10 +275,10 @@ export async function updateProviderService(
 export async function deleteProviderService(
   ctx: AuthProviderControlContext,
   serviceRecordId: string
-): Promise<Record<string, unknown>> {
+): Promise<ProviderServiceDeleteResult> {
   const token = await ctx.getToken();
   const id = ctx.requireValue(serviceRecordId, "serviceRecordId");
-  return ctx.fetchJson<Record<string, unknown>>(`${ctx.gatewayUrl}/api/v1/services/${encodeURIComponent(id)}`, {
+  return ctx.fetchJson<ProviderServiceDeleteResult>(`${ctx.gatewayUrl}/api/v1/services/${encodeURIComponent(id)}`, {
     method: "DELETE",
     headers: { Authorization: `Bearer ${token}` },
   });
@@ -250,10 +287,10 @@ export async function deleteProviderService(
 export async function pingProviderService(
   ctx: AuthProviderControlContext,
   serviceRecordId: string
-): Promise<Record<string, unknown>> {
+): Promise<ProviderServicePingResult> {
   const token = await ctx.getToken();
   const id = ctx.requireValue(serviceRecordId, "serviceRecordId");
-  return ctx.fetchJson<Record<string, unknown>>(`${ctx.gatewayUrl}/api/v1/services/${encodeURIComponent(id)}/ping`, {
+  return ctx.fetchJson<ProviderServicePingResult>(`${ctx.gatewayUrl}/api/v1/services/${encodeURIComponent(id)}/ping`, {
     method: "POST",
     headers: { Authorization: `Bearer ${token}` },
   });
@@ -263,27 +300,27 @@ export async function getProviderServiceHealthHistory(
   ctx: AuthProviderControlContext,
   serviceRecordId: string,
   opts: { limitPerTarget?: number } = {}
-): Promise<Record<string, unknown>> {
+): Promise<ProviderServiceHealthHistory> {
   const token = await ctx.getToken();
   const id = ctx.requireValue(serviceRecordId, "serviceRecordId");
   const url = ctx.withQuery(`${ctx.gatewayUrl}/api/v1/services/${encodeURIComponent(id)}/health/history`, {
     limitPerTarget: opts.limitPerTarget ?? 100,
   });
-  return ctx.fetchJson<Record<string, unknown>>(url, { headers: { Authorization: `Bearer ${token}` } });
+  return ctx.fetchJson<ProviderServiceHealthHistory>(url, { headers: { Authorization: `Bearer ${token}` } });
 }
 
-export async function getProviderEarningsSummary(ctx: AuthProviderControlContext): Promise<Record<string, unknown>> {
+export async function getProviderEarningsSummary(ctx: AuthProviderControlContext): Promise<ProviderEarningsSummary> {
   const token = await ctx.getToken();
-  return ctx.fetchJson<Record<string, unknown>>(`${ctx.gatewayUrl}/api/v1/providers/earnings/summary`, {
+  return ctx.fetchJson<ProviderEarningsSummary>(`${ctx.gatewayUrl}/api/v1/providers/earnings/summary`, {
     headers: { Authorization: `Bearer ${token}` },
   });
 }
 
 export async function getProviderWithdrawalCapability(
   ctx: AuthProviderControlContext
-): Promise<Record<string, unknown>> {
+): Promise<ProviderWithdrawalCapability> {
   const token = await ctx.getToken();
-  return ctx.fetchJson<Record<string, unknown>>(`${ctx.gatewayUrl}/api/v1/providers/withdrawals/capability`, {
+  return ctx.fetchJson<ProviderWithdrawalCapability>(`${ctx.gatewayUrl}/api/v1/providers/withdrawals/capability`, {
     headers: { Authorization: `Bearer ${token}` },
   });
 }
@@ -292,11 +329,11 @@ export async function createProviderWithdrawalIntent(
   ctx: AuthProviderControlContext,
   amountUsdc: number,
   opts: { idempotencyKey?: string; destinationAddress?: string } = {}
-): Promise<Record<string, unknown>> {
+): Promise<ProviderWithdrawalIntentResult> {
   const token = await ctx.getToken();
   const body: Record<string, unknown> = { amountUsdc };
   if (opts.destinationAddress) body["destinationAddress"] = opts.destinationAddress;
-  return ctx.fetchJson<Record<string, unknown>>(`${ctx.gatewayUrl}/api/v1/providers/withdrawals/intent`, {
+  return ctx.fetchJson<ProviderWithdrawalIntentResult>(`${ctx.gatewayUrl}/api/v1/providers/withdrawals/intent`, {
     method: "POST",
     headers: {
       Authorization: `Bearer ${token}`,
@@ -310,10 +347,10 @@ export async function createProviderWithdrawalIntent(
 export async function listProviderWithdrawals(
   ctx: AuthProviderControlContext,
   opts: { limit?: number } = {}
-): Promise<Record<string, unknown>> {
+): Promise<ProviderWithdrawalList> {
   const token = await ctx.getToken();
   const url = ctx.withQuery(`${ctx.gatewayUrl}/api/v1/providers/withdrawals`, { limit: opts.limit ?? 100 });
-  return ctx.fetchJson<Record<string, unknown>>(url, { headers: { Authorization: `Bearer ${token}` } });
+  return ctx.fetchJson<ProviderWithdrawalList>(url, { headers: { Authorization: `Bearer ${token}` } });
 }
 
 export async function getProviderService(

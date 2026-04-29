@@ -163,6 +163,53 @@ test("invoke() sends correct body to /agent/invoke", async () => {
   expect((body["payload"] as Record<string, unknown>)["body"]).toEqual({ text: "test" });
 });
 
+test("invokeLlm() sends maxCostUsdc without costUsdc and returns usage metadata", async () => {
+  let capturedBody: Record<string, unknown> = {};
+  (globalThis as unknown as Record<string, unknown>).fetch = jest.fn(async (_url: string, init?: RequestInit) => {
+    capturedBody = JSON.parse((init?.body as string) ?? "{}");
+    return {
+      ok: true,
+      status: 200,
+      text: async () =>
+        JSON.stringify({
+          invocationId: "inv_llm",
+          status: "SUCCEEDED",
+          chargedUsdc: 0.000253,
+          usage: { inputTokens: 1200, outputTokens: 300, totalTokens: 1500 },
+          synapse: {
+            priceModel: "token_metered",
+            holdUsdc: "0.001000",
+            chargedUsdc: "0.000253",
+            releasedUsdc: "0.000747",
+            preAuthMode: "explicit",
+          },
+        }),
+    } as Response;
+  });
+
+  const client = new SynapseClient({ credential: "agt_test" });
+  const result = await client.invokeLlm(
+    "svc_deepseek_chat",
+    { messages: [{ role: "user", content: "hello" }], max_tokens: 256 },
+    { maxCostUsdc: "0.010000", idempotencyKey: "ik-llm" }
+  );
+
+  expect(capturedBody["serviceId"]).toBe("svc_deepseek_chat");
+  expect(capturedBody["costUsdc"]).toBeUndefined();
+  expect(capturedBody["maxCostUsdc"]).toBe("0.010000");
+  expect(capturedBody["responseMode"]).toBe("sync");
+  expect(result.usage?.inputTokens).toBe(1200);
+  expect(result.synapse?.releasedUsdc).toBe("0.000747");
+});
+
+test("invokeLlm() rejects stream=true before calling the gateway", async () => {
+  (globalThis as unknown as Record<string, unknown>).fetch = jest.fn();
+  const client = new SynapseClient({ credential: "agt_test" });
+
+  await expect(client.invokeLlm("svc_llm", { stream: true })).rejects.toThrow("LLM_STREAMING_NOT_SUPPORTED");
+  expect(globalThis.fetch as jest.Mock).not.toHaveBeenCalled();
+});
+
 // ── Error mapping ─────────────────────────────────────────────────────────────
 
 test("401 response from invoke throws AuthenticationError", async () => {
