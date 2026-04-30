@@ -5,6 +5,8 @@
  * via jest.spyOn / globalThis.fetch mock.
  */
 
+import fs from "fs";
+import path from "path";
 import { SynapseClient } from "../../src/client";
 import { SynapseAuth } from "../../src/auth";
 import { resolveGatewayUrl } from "../../src/config";
@@ -31,6 +33,10 @@ function makeFetchMock(responses: Array<{ status: number; body: unknown }>): jes
       text: async () => text,
     } as Response;
   });
+}
+
+function contractFixture(name: string): unknown {
+  return JSON.parse(fs.readFileSync(path.resolve(__dirname, "../../../contracts/sdk/fixtures", name), "utf8"));
 }
 
 beforeEach(() => {
@@ -637,4 +643,58 @@ test("invokeWithRediscovery fails clearly when rediscovery cannot provide a pric
   const client = new SynapseClient({ credential: "agt_test" });
   await expect(client.invokeWithRediscovery("svc_1", {}, { costUsdc: 0.05 })).rejects.toThrow(PriceMismatchError);
   expect(invokeCount).toBe(1);
+});
+
+test("contract fixtures cover TypeScript search, llm invoke, receipt, and price mismatch", async () => {
+  const calls: Array<{ url: string; body?: Record<string, unknown> }> = [];
+  (globalThis as unknown as Record<string, unknown>).fetch = jest.fn(async (url: string, init?: RequestInit) => {
+    const body = init?.body ? (JSON.parse(init.body as string) as Record<string, unknown>) : undefined;
+    calls.push({ url, body });
+    if (url.endsWith("/api/v1/agent/discovery/search")) {
+      return {
+        ok: true,
+        status: 200,
+        text: async () => JSON.stringify(contractFixture("discovery_search_response.json")),
+      } as Response;
+    }
+    if (url.endsWith("/api/v1/agent/invoke") && !body?.costUsdc) {
+      return {
+        ok: true,
+        status: 200,
+        text: async () => JSON.stringify(contractFixture("llm_invoke_response.json")),
+      } as Response;
+    }
+    if (url.endsWith("/api/v1/agent/invocations/inv_contract_fixed")) {
+      return {
+        ok: true,
+        status: 200,
+        text: async () => JSON.stringify(contractFixture("receipt_response.json")),
+      } as Response;
+    }
+    return {
+      ok: false,
+      status: 422,
+      text: async () => JSON.stringify(contractFixture("error_price_mismatch.json")),
+    } as Response;
+  });
+
+  const client = new SynapseClient({ credential: "agt_test", gatewayUrl: "https://gateway.example" });
+  const services = await client.search("fixture", { limit: 10 });
+  expect(services[0].serviceId).toBe("svc_contract_weather");
+  expect((services[0].pricing as { amount?: string }).amount).toBe("0.010000");
+
+  const llm = await client.invokeLlm(
+    "svc_deepseek_chat",
+    { messages: [{ role: "user", content: "hello" }] },
+    { maxCostUsdc: "0.010000", idempotencyKey: "idem-llm" }
+  );
+  expect(llm.invocationId).toBe("inv_contract_llm");
+  expect(llm.synapse?.priceModel).toBe("token_metered");
+  expect(calls[1].body?.costUsdc).toBeUndefined();
+  expect(calls[1].body?.maxCostUsdc).toBe("0.010000");
+
+  const receipt = await client.getInvocation("inv_contract_fixed");
+  expect(receipt.status).toBe("SETTLED");
+
+  await expect(client.invoke("svc_contract_weather", {}, { costUsdc: "0.010000" })).rejects.toThrow(PriceMismatchError);
 });

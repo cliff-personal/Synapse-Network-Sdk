@@ -11,11 +11,14 @@
 <p align="center">
   <img src="https://img.shields.io/badge/Python-3.9+-blue.svg" />
   <img src="https://img.shields.io/badge/TypeScript-available-blue.svg" />
+  <img src="https://img.shields.io/badge/Go-preview-blue.svg" />
+  <img src="https://img.shields.io/badge/Java-17+-blue.svg" />
+  <img src="https://img.shields.io/badge/.NET-8.0-blue.svg" />
   <img src="https://img.shields.io/badge/Status-Public%20Preview-orange.svg" />
   <img src="https://img.shields.io/badge/License-MIT-green.svg" />
 </p>
 
-面向 AI Agent 和开发者的 SynapseNetwork Python / TypeScript SDK。
+面向 AI Agent 和开发者的 SynapseNetwork Python / TypeScript / Go / Java / .NET SDK。
 
 SynapseNetwork 让 Agent 可以发现服务、通过 gateway 调用服务，并用可审计 receipt 完成结算验证。最快接入路径是：
 
@@ -97,6 +100,37 @@ SDK 不会自动探测 DNS，也不会在环境之间自动 fallback。这样可
 | 发布和管理 Provider API | `SynapseProvider`，通过 `auth.provider()` 获取 | Owner wallet / JWT |
 
 Provider 是 owner scope 下的供给侧角色，不是第二套根账户体系。普通 Agent runtime 代码保持使用 `SynapseClient`；只有注册或运营 SynapseNetwork 服务时才使用 `SynapseProvider`。
+
+## 官方 SDK 覆盖范围
+
+| 语言 | 包路径 | 当前覆盖 |
+|---|---|---|
+| Python | `python/` | Consumer、owner auth、provider publishing |
+| TypeScript | `typescript/` | Consumer、owner auth、provider publishing |
+| Go | `go/` | Consumer runtime preview |
+| Java/JVM | `java/` | Consumer runtime preview；Kotlin 可直接调用 Java SDK |
+| .NET | `dotnet/` | Consumer runtime preview |
+
+Wave 1 多语言 SDK 先聚焦 Agent runtime：search/discover、fixed-price invoke、token-metered LLM invoke、receipt lookup 和 gateway health。Go、Java、.NET 的 owner auth 与 provider publishing 会在 consumer runtime 稳定后进入下一阶段。
+
+## 各 SDK 示例
+
+所有 runnable examples 默认使用 staging，并读取 `SYNAPSE_AGENT_KEY`。
+
+| SDK | 免费 fixed-price smoke | LLM smoke | 完整本地 E2E |
+|---|---|---|---|
+| Python | `PYTHONPATH=python python3 python/examples/free_service_smoke.py` | `PYTHONPATH=python python3 python/examples/llm_smoke.py` | `PYTHONPATH=python python3 python/examples/e2e.py` |
+| TypeScript | `npm run example:free --prefix typescript` | `npm run example:llm --prefix typescript` | `npm run example:e2e --prefix typescript` |
+| Go | `go -C go run ./examples/free_service_smoke` | `go -C go run ./examples/llm_smoke` | `go -C go run ./examples/e2e` |
+| Java/JVM | `mvn -q -f java/examples/pom.xml exec:java -Dexec.mainClass=ai.synapsenetwork.sdk.examples.FreeServiceSmoke` | `mvn -q -f java/examples/pom.xml exec:java -Dexec.mainClass=ai.synapsenetwork.sdk.examples.LlmSmoke` | `mvn -q -f java/examples/pom.xml exec:java -Dexec.mainClass=ai.synapsenetwork.sdk.examples.E2eSmoke` |
+| .NET | `dotnet run --project dotnet/examples/free-service-smoke/free-service-smoke.csproj` | `dotnet run --project dotnet/examples/llm-smoke/llm-smoke.csproj` | `dotnet run --project dotnet/examples/e2e/e2e.csproj` |
+
+统一跑全部 SDK：
+
+```bash
+export SYNAPSE_AGENT_KEY=agt_xxx
+bash scripts/e2e/sdk_wave1_local.sh --skip-install
+```
 
 ## Agent 快速接入：Python
 

@@ -16,11 +16,15 @@ This directory is the SDK-side source of truth for capabilities, integration gui
 6. [TypeScript Provider Integration Guide](./typescript_provider_integration.md)
 7. [Python Integration Guide](./python_integration.md)
 8. [Python Provider Integration Guide](./python_provider_integration.md)
-9. [Python Staging Development](../ops/SDK_Python_Staging_Development.md)
-10. [TypeScript Consumer E2E Plan](../test/consumer-e2e-plan.md)
-11. [TypeScript Provider Onboarding E2E Plan](../test/typescript-provider-onboarding-e2e-plan.md)
-12. [Python Consumer Cold-Start E2E Plan](../test/python-consumer-cold-start-e2e-plan.md)
-13. [Python Provider Onboarding E2E Plan](../test/python-provider-onboarding-e2e-plan.md)
+9. [Go Integration Guide](./go_integration.md)
+10. [Java/JVM Integration Guide](./java_integration.md)
+11. [.NET Integration Guide](./dotnet_integration.md)
+12. [Wave 1 Local E2E](#wave-1-local-e2e)
+13. [Python Staging Development](../ops/SDK_Python_Staging_Development.md)
+14. [TypeScript Consumer E2E Plan](../test/consumer-e2e-plan.md)
+15. [TypeScript Provider Onboarding E2E Plan](../test/typescript-provider-onboarding-e2e-plan.md)
+16. [Python Consumer Cold-Start E2E Plan](../test/python-consumer-cold-start-e2e-plan.md)
+17. [Python Provider Onboarding E2E Plan](../test/python-provider-onboarding-e2e-plan.md)
 
 ## Current Position
 
@@ -31,6 +35,8 @@ The SDK currently has three explicit public surfaces:
 3. `SynapseProvider`: provider publishing facade from `auth.provider()` for provider secrets, service registration, lifecycle, health, earnings, and withdrawal helpers.
 
 Provider remains an owner-scoped supply-side role. `SynapseProvider` improves discoverability but does not introduce a second provider root identity.
+
+Wave 1 multi-language packages add Go, Java/JVM, and .NET consumer runtime SDKs. These packages intentionally start with `SynapseClient` only: discovery/search, fixed-price invoke, token-metered LLM invoke, receipt lookup, and gateway health. Python and TypeScript remain the reference SDKs for owner auth and provider publishing until those control-plane surfaces are added to the new languages.
 
 Owner/provider helper returns are typed SDK objects. Do not document or add public `SynapseAuth` / `SynapseProvider` methods that return raw Python `dict` or TypeScript `Record<string, unknown>`; add a named result model/interface instead.
 
@@ -44,6 +50,19 @@ Consumer docs should present two invocation modes:
 |---|---|---|
 | Fixed-price API | Python `invoke()` / TypeScript `invoke()` | latest discovery price as `cost_usdc` / `costUsdc` |
 | Token-metered LLM | Python `invoke_llm()` / TypeScript `invokeLlm()` | optional cap as `max_cost_usdc` / `maxCostUsdc`; never send `cost_usdc` / `costUsdc` |
+
+## Wave 1 Local E2E
+
+The real Gateway E2E entrypoint for the new Go, Java/JVM, and .NET SDKs is:
+
+```bash
+export SYNAPSE_AGENT_KEY='agt_xxx_your_real_key'
+bash scripts/e2e/sdk_wave1_local.sh
+```
+
+The script verifies health, discovery, fixed-price invoke, receipt lookup, token-metered LLM invoke, local validation failures, and invalid credential handling for each selected SDK. It may install missing local toolchains; .NET is pinned to SDK 8.0 under `$HOME/.synapse-network-sdk-e2e/dotnet` if needed.
+
+By default the fixed-price path only auto-selects a free fixed-price API service. If staging has no such service, set `SYNAPSE_E2E_FIXED_SERVICE_ID`, `SYNAPSE_E2E_FIXED_COST_USDC`, and `SYNAPSE_E2E_FIXED_PAYLOAD_JSON` explicitly.
 
 ## Staging Docs
 
@@ -151,4 +170,15 @@ PYTHONPATH="$PWD" .venv/bin/python examples/smoke_test.py --query 'quotes'
 ```bash
 cd typescript
 npm run test:unit
+```
+
+Runnable examples exist for every SDK:
+
+```bash
+export SYNAPSE_AGENT_KEY='agt_xxx_your_real_key'
+PYTHONPATH=python python3 python/examples/free_service_smoke.py
+npm run example:free --prefix typescript
+go -C go run ./examples/free_service_smoke
+mvn -q -f java/examples/pom.xml exec:java -Dexec.mainClass=ai.synapsenetwork.sdk.examples.FreeServiceSmoke
+dotnet run --project dotnet/examples/free-service-smoke/free-service-smoke.csproj
 ```

@@ -137,6 +137,42 @@ Provider publishing is available through `auth.provider()` and existing `Synapse
 17. create provider withdrawal intent
 18. list provider withdrawals
 
+## Go Consumer
+
+Supported:
+
+1. gateway URL resolution with explicit `gatewayURL` override and `staging` default
+2. discovery/search
+3. fixed-price invoke with string `CostUSDC`
+4. token-metered LLM invoke with optional string `MaxCostUSDC`
+5. invocation receipt lookup
+6. gateway health check
+7. typed auth, budget, price mismatch, discovery, and invoke errors
+
+## Java/JVM Consumer
+
+Supported:
+
+1. gateway URL resolution with explicit `gatewayUrl` override and `staging` default
+2. discovery/search
+3. fixed-price invoke with string `costUsdc`
+4. token-metered LLM invoke with optional string `maxCostUsdc`
+5. invocation receipt lookup
+6. gateway health check
+7. typed auth, budget, price mismatch, and invoke exceptions
+
+## .NET Consumer
+
+Supported:
+
+1. gateway URL resolution with explicit `GatewayUrl` override and `staging` default
+2. discovery/search
+3. fixed-price invoke with string `CostUsdc`
+4. token-metered LLM invoke with optional string `MaxCostUsdc`
+5. invocation receipt lookup
+6. gateway health check
+7. typed auth, budget, price mismatch, and invoke exceptions
+
 ## Gateway Capabilities Not Yet Wrapped
 
 The SDK does not currently wrap the full gateway management surface. Known uncovered areas:
@@ -147,6 +183,7 @@ The SDK does not currently wrap the full gateway management surface. Known uncov
 4. events
 5. on-chain transaction signing helpers
 6. provider withdrawal completion helper
+7. owner/provider control-plane helpers in Go, Java, and .NET
 
 ## Product Boundary
 

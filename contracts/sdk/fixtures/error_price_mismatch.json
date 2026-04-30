@@ -1,0 +1,8 @@
+{
+  "detail": {
+    "code": "PRICE_MISMATCH",
+    "message": "Live price changed. Rediscover before retrying.",
+    "expectedPriceUsdc": "0.010000",
+    "currentPriceUsdc": "0.012000"
+  }
+}

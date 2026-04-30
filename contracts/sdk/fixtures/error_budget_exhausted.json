@@ -1,0 +1,6 @@
+{
+  "detail": {
+    "code": "CREDENTIAL_CREDIT_LIMIT_EXCEEDED",
+    "message": "Agent credential budget is exhausted."
+  }
+}

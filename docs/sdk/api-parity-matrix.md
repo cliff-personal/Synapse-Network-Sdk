@@ -6,12 +6,13 @@ Current public environment: staging on Arbitrum Sepolia with MockUSDC test asset
 
 ## Agent Runtime
 
-| Capability | Python SDK | TypeScript SDK | Gateway route | Notes |
-|---|---|---|---|---|
-| Discover services | `discover()`, `search()` | `discover()`, `search()` | `GET /api/v1/services/discover`, `POST /api/v1/agent/discovery/search` | Use before paid fixed-price calls to capture current price. |
-| Fixed-price invoke | `invoke(..., cost_usdc="0.05")` | `invoke(..., { costUsdc: "0.05" })` | `POST /api/v1/agent/invoke` | Pass string amount from discovery; do not recompute with floats. |
-| Token-metered LLM invoke | `invoke_llm(..., max_cost_usdc="0.10")` | `invokeLlm(..., { maxCostUsdc: "0.10" })` | `POST /api/v1/agent/invoke` | Do not send `cost_usdc` / `costUsdc`; Gateway bills final provider usage. |
-| Invocation receipt | `get_invocation()` / `get_invocation_receipt()` | `getInvocation()` / `getInvocationReceipt()` | `GET /api/v1/agent/invocations/{id}` | Always read receipts after invoke. |
+| Capability | Python SDK | TypeScript SDK | Go SDK | Java SDK | .NET SDK | Gateway route | Notes |
+|---|---|---|---|---|---|---|---|
+| Discover services | `discover()`, `search()` | `discover()`, `search()` | `Discover()`, `Search()` | `discover()`, `search()` | `DiscoverAsync()`, `SearchAsync()` | `POST /api/v1/agent/discovery/search` | Use before paid fixed-price calls to capture current price. |
+| Fixed-price invoke | `invoke(..., cost_usdc="0.05")` | `invoke(..., { costUsdc: "0.05" })` | `Invoke(..., CostUSDC: "0.05")` | `invoke(..., costUsdc="0.05")` | `InvokeAsync(..., CostUsdc="0.05")` | `POST /api/v1/agent/invoke` | Pass string amount from discovery; do not recompute with floats. |
+| Token-metered LLM invoke | `invoke_llm(..., max_cost_usdc="0.10")` | `invokeLlm(..., { maxCostUsdc: "0.10" })` | `InvokeLLM(..., MaxCostUSDC: "0.10")` | `invokeLlm(..., maxCostUsdc="0.10")` | `InvokeLlmAsync(..., MaxCostUsdc="0.10")` | `POST /api/v1/agent/invoke` | Do not send fixed-price cost; Gateway bills final provider usage. |
+| Invocation receipt | `get_invocation()` / `get_invocation_receipt()` | `getInvocation()` / `getInvocationReceipt()` | `GetInvocation()` | `getInvocation()` | `GetInvocationAsync()` | `GET /api/v1/agent/invocations/{id}` | Always read receipts after invoke. |
+| Gateway health | `check_gateway_health()` | `checkGatewayHealth()` | `CheckGatewayHealth()` | `health()` | `HealthAsync()` | `GET /health` | Does not consume agent budget. |
 
 ## Owner Control Plane
 

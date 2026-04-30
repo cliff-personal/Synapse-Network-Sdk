@@ -10,6 +10,9 @@ npm_config_registry="${NPM_CONFIG_REGISTRY:-https://registry.npmjs.org}" npm ci 
 echo "[ci:typescript] running TypeScript format, lint, and type checks"
 npm run lint --prefix typescript
 
+echo "[ci:typescript] type-checking TypeScript examples"
+npm run typecheck:examples --prefix typescript
+
 echo "[ci:typescript] building TypeScript package"
 npm run build --prefix typescript
 

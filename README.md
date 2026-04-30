@@ -11,11 +11,14 @@
 <p align="center">
   <img src="https://img.shields.io/badge/Python-3.9+-blue.svg" />
   <img src="https://img.shields.io/badge/TypeScript-available-blue.svg" />
+  <img src="https://img.shields.io/badge/Go-preview-blue.svg" />
+  <img src="https://img.shields.io/badge/Java-17+-blue.svg" />
+  <img src="https://img.shields.io/badge/.NET-8.0-blue.svg" />
   <img src="https://img.shields.io/badge/Status-Public%20Preview-orange.svg" />
   <img src="https://img.shields.io/badge/License-MIT-green.svg" />
 </p>
 
-Python and TypeScript SDKs for AI agents and developers building on SynapseNetwork.
+Python, TypeScript, Go, Java, and .NET SDKs for AI agents and developers building on SynapseNetwork.
 
 SynapseNetwork lets an agent discover services, invoke them through a gateway, and settle the call with an auditable receipt. The fastest integration path is:
 
@@ -97,6 +100,37 @@ The SDK never probes DNS and never falls back between environments automatically
 | Publish and manage provider APIs | `SynapseProvider` via `auth.provider()` | Owner wallet / JWT |
 
 Provider is an owner-scoped supply-side role, not a separate root account. Keep ordinary agent runtime code on `SynapseClient`; use `SynapseProvider` only when you are registering or operating services exposed through SynapseNetwork.
+
+## Official SDK Coverage
+
+| Language | Package path | Current coverage |
+|---|---|---|
+| Python | `python/` | Consumer, owner auth, provider publishing |
+| TypeScript | `typescript/` | Consumer, owner auth, provider publishing |
+| Go | `go/` | Consumer runtime preview |
+| Java/JVM | `java/` | Consumer runtime preview; Kotlin can call the Java SDK |
+| .NET | `dotnet/` | Consumer runtime preview |
+
+Wave 1 multi-language SDKs focus on agent runtime: search/discover, fixed-price invoke, token-metered LLM invoke, receipt lookup, and gateway health. Owner auth and provider publishing for Go, Java, and .NET are planned after the consumer runtime surface is stable.
+
+## Examples By SDK
+
+All runnable examples default to staging and read `SYNAPSE_AGENT_KEY`.
+
+| SDK | Free fixed-price smoke | LLM smoke | Full local E2E |
+|---|---|---|---|
+| Python | `PYTHONPATH=python python3 python/examples/free_service_smoke.py` | `PYTHONPATH=python python3 python/examples/llm_smoke.py` | `PYTHONPATH=python python3 python/examples/e2e.py` |
+| TypeScript | `npm run example:free --prefix typescript` | `npm run example:llm --prefix typescript` | `npm run example:e2e --prefix typescript` |
+| Go | `go -C go run ./examples/free_service_smoke` | `go -C go run ./examples/llm_smoke` | `go -C go run ./examples/e2e` |
+| Java/JVM | `mvn -q -f java/examples/pom.xml exec:java -Dexec.mainClass=ai.synapsenetwork.sdk.examples.FreeServiceSmoke` | `mvn -q -f java/examples/pom.xml exec:java -Dexec.mainClass=ai.synapsenetwork.sdk.examples.LlmSmoke` | `mvn -q -f java/examples/pom.xml exec:java -Dexec.mainClass=ai.synapsenetwork.sdk.examples.E2eSmoke` |
+| .NET | `dotnet run --project dotnet/examples/free-service-smoke/free-service-smoke.csproj` | `dotnet run --project dotnet/examples/llm-smoke/llm-smoke.csproj` | `dotnet run --project dotnet/examples/e2e/e2e.csproj` |
+
+To run every SDK through the same real Gateway E2E harness:
+
+```bash
+export SYNAPSE_AGENT_KEY=agt_xxx
+bash scripts/e2e/sdk_wave1_local.sh --skip-install
+```
 
 ## Agent Quickstart: Python
 
@@ -293,6 +327,15 @@ The Python examples are staging-first and live under `python/examples`.
 
 ```bash
 cd python
+```
+
+Run consumer smoke examples:
+
+```bash
+export SYNAPSE_AGENT_KEY=agt_xxx
+PYTHONPATH="$PWD" .venv/bin/python examples/free_service_smoke.py
+PYTHONPATH="$PWD" .venv/bin/python examples/llm_smoke.py
+PYTHONPATH="$PWD" .venv/bin/python examples/e2e.py
 ```
 
 Register a provider service on staging:

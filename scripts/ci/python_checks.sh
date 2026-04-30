@@ -30,6 +30,9 @@ echo "[ci:python] running Python lint"
 echo "[ci:python] running Python type checks"
 "$PYTHON_BIN" -m mypy --config-file python/pyproject.toml python/synapse_client
 
+echo "[ci:python] compiling Python examples"
+"$PYTHON_BIN" -m py_compile python/examples/*.py
+
 echo "[ci:python] running Python unit tests with 80% coverage gate"
 "$PYTHON_BIN" -m pytest -q \
   python/synapse_client/test/test_auth_unit.py \

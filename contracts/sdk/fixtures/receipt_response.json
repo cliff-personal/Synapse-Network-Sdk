@@ -1,0 +1,9 @@
+{
+  "invocationId": "inv_contract_fixed",
+  "status": "SETTLED",
+  "chargedUsdc": "0.010000",
+  "result": {
+    "temperature": 72,
+    "unit": "fahrenheit"
+  }
+}

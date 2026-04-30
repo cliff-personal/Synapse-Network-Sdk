@@ -1,0 +1,19 @@
+{
+  "invocationId": "inv_contract_llm",
+  "status": "SUCCEEDED",
+  "chargedUsdc": "0.004200",
+  "usage": {
+    "inputTokens": 120,
+    "outputTokens": 32,
+    "totalTokens": 152
+  },
+  "synapse": {
+    "priceModel": "token_metered",
+    "holdUsdc": "0.010000",
+    "chargedUsdc": "0.004200",
+    "releasedUsdc": "0.005800"
+  },
+  "result": {
+    "content": "contract llm response"
+  }
+}
