@@ -4,6 +4,9 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 cd "$ROOT_DIR"
 
+export SYNAPSE_ENV=staging
+unset SYNAPSE_GATEWAY
+
 PYTHON_BIN="${PYTHON_BIN:-python}"
 if [[ -z "${VIRTUAL_ENV:-}" ]]; then
   VENV_DIR="${PYTHON_VENV_DIR:-$ROOT_DIR/python/.venv}"

@@ -30,8 +30,8 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument(
         "--api-key",
-        default=os.getenv("SYNAPSE_API_KEY", "").strip(),
-        help="Agent credential. Defaults to SYNAPSE_API_KEY.",
+        default=os.getenv("SYNAPSE_AGENT_KEY", "").strip(),
+        help="Agent runtime credential. Defaults to SYNAPSE_AGENT_KEY.",
     )
     parser.add_argument(
         "--gateway-url",
@@ -41,7 +41,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--environment",
         default=os.getenv("SYNAPSE_ENV", "").strip(),
-        help="Gateway environment preset: local, staging, or prod. Defaults to staging.",
+        help="Gateway environment preset. Defaults to staging.",
     )
     parser.add_argument(
         "--query",
@@ -61,7 +61,6 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument(
         "--cost-usdc",
-        type=float,
         default=None,
         help="Required with --service-id. Price assertion sent to /api/v1/agent/invoke.",
     )
@@ -133,7 +132,7 @@ def format_curl(
     request_id: str,
     body: dict,
 ) -> str:
-    env_api_key = "${SYNAPSE_API_KEY:-REPLACE_ME}"
+    env_api_key = "${SYNAPSE_AGENT_KEY:-REPLACE_ME}"
     return shell_join(
         [
             "curl",
@@ -165,7 +164,7 @@ def print_stage_curl(
         return
 
     print_section("replay with curl")
-    print("export SYNAPSE_API_KEY='agt_xxx_your_real_key'")
+    print("export SYNAPSE_AGENT_KEY='agt_xxx_your_real_key'")
     if discovery_body is not None:
         print("discovery:")
         print(format_curl(
@@ -200,7 +199,7 @@ def print_failure_diagnosis(
         print(f"service_id: {service_id}", file=sys.stderr)
 
     if isinstance(exc, AuthenticationError):
-        print("hint: verify SYNAPSE_API_KEY is valid, not revoked, and accepted by the target gateway.", file=sys.stderr)
+        print("hint: verify SYNAPSE_AGENT_KEY is valid, not revoked, and accepted by the target gateway.", file=sys.stderr)
         return
     if isinstance(exc, InsufficientFundsError):
         print("hint: owner treasury or credential credit limit is exhausted; top up balance or widen budget policy.", file=sys.stderr)
@@ -229,11 +228,11 @@ def build_discovery_body(args: argparse.Namespace) -> dict:
     return body
 
 
-def build_invoke_body(service_id: str, cost_usdc: float, idempotency_key: str, payload: dict) -> dict:
+def build_invoke_body(service_id: str, cost_usdc: str, idempotency_key: str, payload: dict) -> dict:
     return {
         "serviceId": service_id,
         "idempotencyKey": idempotency_key,
-        "costUsdc": round(float(cost_usdc), 6),
+        "costUsdc": cost_usdc,
         "payload": {"body": payload},
         "responseMode": "sync",
     }
@@ -252,12 +251,12 @@ def resolve_service_id(
     service_id: str,
     request_id: str,
     discovery_body: dict | None,
-) -> tuple[str, float, int]:
+) -> tuple[str, str, int]:
     if service_id:
         if args.cost_usdc is None:
             print("--cost-usdc is required when --service-id is provided.", file=sys.stderr)
-            return service_id, 0.0, 2
-        return service_id, float(args.cost_usdc), 0
+            return service_id, "0", 2
+        return service_id, str(args.cost_usdc), 0
 
     print_section("discovery")
     print_json("Discovery request", discovery_body)
@@ -274,12 +273,12 @@ def resolve_service_id(
 
     if not discovery.results:
         print("No discoverable services matched the current query.", file=sys.stderr)
-        return "", 0.0, 1
+        return "", "0", 1
 
     resolved_service_id = discovery.results[0].service_id
-    price_usdc = float(discovery.results[0].pricing.amount)
+    price_usdc = str(discovery.results[0].pricing.amount)
     print(f"Selected service: {resolved_service_id}")
-    print(f"Selected price: {price_usdc:.6f} USDC")
+    print(f"Selected price: {price_usdc} USDC")
     return resolved_service_id, price_usdc, 0
 
 
@@ -313,7 +312,7 @@ def run_price_asserted_invoke(
     *,
     client: SynapseClient,
     service_id: str,
-    cost_usdc: float,
+    cost_usdc: str,
     payload: dict,
     request_id: str,
     idempotency_key: str,
@@ -345,7 +344,7 @@ def run_price_asserted_invoke(
 def main() -> int:
     args = parse_args()
     if not args.api_key:
-        print("SYNAPSE_API_KEY or --api-key is required", file=sys.stderr)
+        print("SYNAPSE_AGENT_KEY or --api-key is required", file=sys.stderr)
         return 2
 
     try:

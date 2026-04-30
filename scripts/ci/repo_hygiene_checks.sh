@@ -28,6 +28,21 @@ if grep -RInE --exclude-dir=.git --exclude-dir=node_modules --exclude-dir=.venv 
   exit 1
 fi
 
+echo "[ci:hygiene] checking public SDK examples use staging agent credentials"
+if grep -RInF --exclude-dir=.git --exclude-dir=__pycache__ --exclude-dir=.pytest_cache \
+  "SYNAPSE_API_KEY" python/examples; then
+  echo "[ci:hygiene] public examples must use SYNAPSE_AGENT_KEY, not SYNAPSE_API_KEY" >&2
+  exit 1
+fi
+
+echo "[ci:hygiene] checking public money examples preserve string amounts"
+if grep -RInE --exclude-dir=.git --exclude-dir=node_modules --exclude-dir=.venv --exclude-dir=dist --exclude-dir=build --exclude-dir=coverage --exclude-dir=.pytest_cache \
+  '(cost_usdc=float|costUsdc: Number|Number\([^)]*(price|cost)|float\([^)]*(price|cost|service\.price_usdc)|round\(float\(cost_usdc)' \
+  README.md README.zh-CN.md docs/sdk llms.txt llm-instructions.md python/examples; then
+  echo "[ci:hygiene] public SDK examples must pass discovered money values as strings" >&2
+  exit 1
+fi
+
 echo "[ci:hygiene] checking deprecated product brand wording"
 OLD_AGENT_PAY="Agent""Pay"
 OLD_SYNAPSE_AGENT_PAY="Synapse Agent""Pay"

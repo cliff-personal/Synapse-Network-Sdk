@@ -12,7 +12,7 @@ Consumer runtime is:
 4. token-metered LLM invoke through `invoke_llm()` / `invokeLlm()` with optional `max_cost_usdc` / `maxCostUsdc`
 5. `GET /api/v1/agent/invocations/{id}`
 
-Agent runtime examples use `SYNAPSE_AGENT_KEY=agt_xxx`. Python keeps `SYNAPSE_API_KEY` only as a legacy fallback.
+Agent runtime examples use `SYNAPSE_AGENT_KEY=agt_xxx`. Python keeps `SYNAPSE_API_KEY` only as a legacy fallback. Public preview examples target staging on Arbitrum Sepolia with MockUSDC test assets.
 
 The old quote-first flow is not a current SDK main path. Python keeps deprecated compatibility methods that raise a clear error instead of calling removed endpoints.
 

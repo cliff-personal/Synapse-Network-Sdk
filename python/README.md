@@ -8,7 +8,7 @@
 2. Python 接入：`docs/sdk/python_integration.md`
 3. Python Provider 接入：`docs/sdk/python_provider_integration.md`
 4. TypeScript 接入：`docs/sdk/typescript_integration.md`
-5. 本地开发：`docs/ops/SDK_Python_Local_Development.md`
+5. Staging 开发与验证：`docs/ops/SDK_Python_Staging_Development.md`
 6. Python 冷启动 E2E：`docs/test/python-consumer-cold-start-e2e-plan.md`
 7. Python Provider Onboarding E2E：`docs/test/python-provider-onboarding-e2e-plan.md`
 8. Python bugfix：`docs/bugfix/python/bugs.md`

@@ -10,7 +10,7 @@ This repository uses `bash scripts/ci/pr_checks.sh` as the single PR quality gat
 
 ## Required Checks
 
-- Repo hygiene: retired gateway domains, deprecated brand wording, README language split, staging defaults, and sensitive tracked filenames.
+- Repo hygiene: retired gateway domains, deprecated brand wording, README language split, staging defaults, public example credential names, string money examples, removed local gateway guidance, and sensitive tracked filenames.
 - Python: Ruff format, Ruff lint, Mypy, unit tests with coverage, source size checks, Radon cyclomatic complexity, and package build.
 - TypeScript: Prettier, ESLint, `tsc --noEmit`, package build, unit tests, coverage, and duplicate-code scanning.
 - Security: Bandit for Python source and `npm audit --omit=dev --audit-level=high` for production npm dependencies.
@@ -27,6 +27,7 @@ This repository uses `bash scripts/ci/pr_checks.sh` as the single PR quality gat
 - TypeScript global lines, branches, functions, and statements coverage must each be at least `80%`.
 - Duplicate code across `python/synapse_client` and `typescript/src` must stay at or below `3%` with a `50` token minimum clone size.
 - Public `SynapseAuth` and `SynapseProvider` methods must return named SDK models/interfaces, never raw Python `dict` or TypeScript `Record<string, unknown>`. Internal HTTP payloads, schemas, and patch inputs may remain map-shaped.
+- Public examples must use `SYNAPSE_AGENT_KEY`, staging, Arbitrum Sepolia, MockUSDC, and string money values until production docs are live.
 
 ## Refactor Rules
 

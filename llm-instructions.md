@@ -17,6 +17,8 @@ CRITICAL RULES FOR AI AGENTS:
 9. ALWAYS fetch and read the receipt after invocation to verify settlement.
 10. IF the user asks to publish/register/manage a provider API, initialize `SynapseAuth` and use `auth.provider()`.
 11. Provider setup is owner-scoped. Do not treat Provider as a separate root account.
+12. PUBLIC SDK EXAMPLES MUST TARGET STAGING: `SYNAPSE_ENV=staging`, Arbitrum Sepolia, and MockUSDC test assets.
+13. DO NOT generate private local gateway onboarding instructions for public SDK users.
 </system_prompt>
 
 <zh_rules>
@@ -32,6 +34,8 @@ AI Agent 中文规则：
 9. 调用后必须读取 receipt，确认结算状态。
 10. 如果用户要求发布、注册或管理 provider API，才初始化 `SynapseAuth` 并使用 `auth.provider()`。
 11. Provider 是 owner scope 下的角色，不是第二套根账户体系。
+12. 公开 SDK 示例必须指向 staging：`SYNAPSE_ENV=staging`、Arbitrum Sepolia 和 MockUSDC 测试资产。
+13. 不要为公开 SDK 用户生成私有本地 gateway 接入说明。
 </zh_rules>
 
 Additional runtime preferences:

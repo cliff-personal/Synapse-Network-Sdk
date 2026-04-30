@@ -6,6 +6,7 @@ import argparse
 import json
 import os
 import sys
+from decimal import Decimal, InvalidOperation
 from uuid import uuid4
 
 from synapse_client import SynapseAuth, SynapseClient, resolve_gateway_url
@@ -71,6 +72,17 @@ def parse_payload(raw: str) -> dict:
     return payload
 
 
+def price_string(service_price: object) -> str:
+    return str(service_price if service_price is not None else "0")
+
+
+def is_zero_usdc(amount: str) -> bool:
+    try:
+        return Decimal(amount) == Decimal("0")
+    except (InvalidOperation, TypeError):
+        return False
+
+
 def main() -> int:
     if Account is None:
         print("eth-account is required. Install dev extras: python -m pip install -e '.[dev]'", file=sys.stderr)
@@ -126,9 +138,9 @@ def main() -> int:
 
         selected = None
         for service in discovery.services:
-            price = float(service.price_usdc or 0)
-            print(f"- {service.service_id} | {service.service_name} | {price:.6f} USDC")
-            if selected is None and (args.allow_paid or price == 0):
+            price = price_string(service.price_usdc)
+            print(f"- {service.service_id} | {service.service_name} | {price} USDC")
+            if selected is None and (args.allow_paid or is_zero_usdc(price)):
                 selected = service
 
         if selected is None:
@@ -138,7 +150,7 @@ def main() -> int:
             )
             return 1
 
-        cost_usdc = float(selected.price_usdc or 0)
+        cost_usdc = price_string(selected.price_usdc)
         idempotency_key = f"{request_id}-invoke"
         invocation = client.invoke(
             selected.service_id,
