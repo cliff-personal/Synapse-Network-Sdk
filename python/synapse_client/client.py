@@ -32,6 +32,16 @@ DEPRECATED_QUOTE_FLOW_MESSAGE = (
 )
 
 
+def _resolve_agent_key(api_key: Optional[str]) -> str:
+    return str(api_key or os.getenv("SYNAPSE_AGENT_KEY", "") or os.getenv("SYNAPSE_API_KEY", "") or "").strip()
+
+
+def _cost_usdc_payload_value(cost_usdc: Union[float, str]) -> Union[float, str]:
+    if isinstance(cost_usdc, str):
+        return cost_usdc
+    return round(float(cost_usdc), 6)
+
+
 class SynapseClient:
     """Official Python client for Synapse agent discovery, invoke, and receipt APIs."""
 
@@ -42,13 +52,13 @@ class SynapseClient:
         environment: Optional[str] = None,
         timeout_sec: int = 30,
     ):
-        # Resolve api_key from arguments or environment variable
-        self.api_key = str(api_key or os.getenv("SYNAPSE_API_KEY", "") or "").strip()
+        # Resolve api_key from arguments or environment variables.
+        self.api_key = _resolve_agent_key(api_key)
         self.gateway_url = resolve_gateway_url(environment=environment, gateway_url=gateway_url)
         self.timeout_sec = timeout_sec
 
         if not self.api_key:
-            raise ValueError("api_key is required. Pass it via init or set SYNAPSE_API_KEY env var.")
+            raise ValueError("api_key is required. Pass it via init or set SYNAPSE_AGENT_KEY env var.")
 
     def _headers(self, request_id: Optional[str] = None) -> Dict[str, str]:
         headers = {
@@ -354,14 +364,14 @@ class SynapseClient:
 
         invocation_key = (idempotency_key or f"invoke-{uuid4().hex}").strip()
         runtime_payload = RuntimePayload(body=payload or {})
-        body = {
+        body: Dict[str, Any] = {
             "serviceId": service_id.strip(),
             "idempotencyKey": invocation_key,
             "payload": runtime_payload.model_dump(by_alias=True),
             "responseMode": response_mode,
         }
         if cost_usdc is not None:
-            body["costUsdc"] = round(float(cost_usdc), 6)
+            body["costUsdc"] = _cost_usdc_payload_value(cost_usdc)
         if max_cost_usdc is not None:
             body["maxCostUsdc"] = str(max_cost_usdc)
         response = requests.post(

@@ -54,7 +54,7 @@ PYTHONPATH="$PWD" .venv/bin/python examples/provider_staging_onboarding.py \
   --price-usdc 0
 ```
 
-注意：staging gateway 必须能访问 provider endpoint，所以 `--endpoint-url` 应使用公网 HTTPS URL，不能使用 `localhost`。
+注意：staging gateway 必须能访问 provider endpoint，所以 `--endpoint-url` 应使用公网 HTTPS URL。
 
 ```python
 from synapse_client import SynapseAuth

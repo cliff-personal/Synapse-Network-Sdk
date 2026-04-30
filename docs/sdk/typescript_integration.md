@@ -11,7 +11,7 @@ Consumer runtime 主链固定为：
 3. discovery/search
 4. fixed API: `invoke(serviceId, payload, { costUsdc })`
 5. LLM service: `invokeLlm(serviceId, payload, { maxCostUsdc })`
-5. receipt 查询
+6. receipt 查询
 
 TypeScript SDK 不暴露 quote public API。当前 gateway 的正式运行时入口是单步 price-asserted invoke。
 
@@ -48,11 +48,18 @@ const client = new SynapseClient({
 
 SDK 库内部不隐式读取环境变量；Node、browser、worker runtime 都由应用层决定如何传入配置。可用环境 preset：
 
-1. `local`: `http://127.0.0.1:8000`
-2. `staging`: `https://api-staging.synapse-network.ai`
-3. `prod`: `https://api.synapse-network.ai`，需等官方 production DNS 和 `/health` 验证后再用于真实资金流
+1. `staging`: `https://api-staging.synapse-network.ai`
+
+生产环境上线后，公开示例和测试再统一切换到 `prod`。
 
 显式 `gatewayUrl` 会覆盖 `environment`。
+
+公开示例统一使用 `SYNAPSE_AGENT_KEY`：
+
+```ts
+const agentKey = process.env.SYNAPSE_AGENT_KEY;
+if (!agentKey) throw new Error("SYNAPSE_AGENT_KEY is required");
+```
 
 ## Agent-first 接入链路
 
@@ -150,7 +157,7 @@ const result = await client.invoke(
   serviceId,
   { prompt: "hello" },
   {
-    costUsdc: Number(service.pricing?.amount ?? 0),
+    costUsdc: String(service.pricing?.amount ?? "0"),
     idempotencyKey: "job-001",
     pollTimeoutMs: 60_000,
   }
@@ -166,7 +173,7 @@ const result = await client.invoke(
   process.env.SYNAPSE_SERVICE_ID!,
   { prompt: "hello" },
   {
-    costUsdc: Number(process.env.SYNAPSE_SERVICE_PRICE_USDC!),
+    costUsdc: process.env.SYNAPSE_SERVICE_PRICE_USDC!,
     idempotencyKey: "job-known-service-001",
   }
 );

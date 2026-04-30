@@ -15,7 +15,7 @@ This directory is the SDK-side source of truth for capabilities, integration gui
 5. [TypeScript Provider Integration Guide](./typescript_provider_integration.md)
 6. [Python Integration Guide](./python_integration.md)
 7. [Python Provider Integration Guide](./python_provider_integration.md)
-8. [Python Local Development](../ops/SDK_Python_Local_Development.md)
+8. [Python Staging Development](../ops/SDK_Python_Local_Development.md)
 9. [TypeScript Consumer E2E Plan](../test/consumer-e2e-plan.md)
 10. [TypeScript Provider Onboarding E2E Plan](../test/typescript-provider-onboarding-e2e-plan.md)
 11. [Python Consumer Cold-Start E2E Plan](../test/python-consumer-cold-start-e2e-plan.md)
@@ -36,6 +36,13 @@ Owner/provider helper returns are typed SDK objects. Do not document or add publ
 Python quote-first methods `create_quote()`, `create_invocation()`, and `invoke_service()` are deprecated. They no longer call old endpoints and instead tell users to use discovery/search + `invoke(..., cost_usdc=...)` for fixed-price APIs.
 
 LLM services use `serviceKind=llm` + `priceModel=token_metered`. Runtime code should call `invoke_llm()` / `invokeLlm()` and read `usage` plus `synapse` billing metadata. Do not pass `cost_usdc` / `costUsdc` for LLM calls; pass optional `max_cost_usdc` / `maxCostUsdc` or let Gateway compute the automatic hold. Streaming is disabled in V1.
+
+Consumer docs should present two invocation modes:
+
+| Mode | SDK method | Cost input |
+|---|---|---|
+| Fixed-price API | Python `invoke()` / TypeScript `invoke()` | latest discovery price as `cost_usdc` / `costUsdc` |
+| Token-metered LLM | Python `invoke_llm()` / TypeScript `invokeLlm()` | optional cap as `max_cost_usdc` / `maxCostUsdc`; never send `cost_usdc` / `costUsdc` |
 
 ## Staging Docs
 
@@ -76,13 +83,13 @@ Provider publishing is a separate owner-authenticated flow:
 
 Default environment is public preview/staging:
 
-- `local`: `http://127.0.0.1:8000`
 - `staging`: `https://api-staging.synapse-network.ai`
-- `prod`: `https://api.synapse-network.ai`, only for real funds after official production DNS and `/health` verification.
+
+Production launch will switch public examples and tests from `staging` to `prod`.
 
 Python:
 
-- `api_key`: explicit parameter first, then `SYNAPSE_API_KEY`.
+- `api_key`: explicit parameter first, then `SYNAPSE_AGENT_KEY`, then legacy `SYNAPSE_API_KEY`.
 - `gateway_url`: explicit parameter first, then `SYNAPSE_GATEWAY`.
 - `environment`: explicit parameter first, then `SYNAPSE_ENV`, then `staging`.
 - `AgentWallet.connect()` no longer uses demo credential fallback; missing real credentials fail.
@@ -106,10 +113,10 @@ Runtime calls should include:
 
 ### `api_key is required`
 
-No `api_key` was passed and `SYNAPSE_API_KEY` is not set. New users should issue an agent credential first, then pass the returned token to `SynapseClient`.
+No `api_key` was passed and `SYNAPSE_AGENT_KEY` is not set. New users should issue an agent credential first, then pass the returned token to `SynapseClient`. `SYNAPSE_API_KEY` remains a legacy fallback for older Python users, but new docs and examples should use `SYNAPSE_AGENT_KEY`.
 
 ```bash
-export SYNAPSE_API_KEY='agt_xxx_your_real_key'
+export SYNAPSE_AGENT_KEY='agt_xxx_your_real_key'
 ```
 
 ### Discovery returns 0 results
@@ -132,7 +139,7 @@ The SDK maps `402` to balance, budget, or credential credit limit errors. Check 
 ```bash
 cd /Users/cliff/workspace/agent/Synapse-Network-Sdk/python
 PYTHONPATH="$PWD" .venv/bin/python -m pytest synapse_client/test/test_client_unit.py -q
-export SYNAPSE_API_KEY='agt_xxx_your_real_key'
+export SYNAPSE_AGENT_KEY='agt_xxx_your_real_key'
 PYTHONPATH="$PWD" .venv/bin/python examples/smoke_test.py --query 'quotes'
 ```
 

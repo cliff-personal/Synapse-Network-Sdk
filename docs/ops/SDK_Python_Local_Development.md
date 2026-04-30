@@ -1,6 +1,6 @@
-# SDK Python Local Development
+# SDK Python Staging Development
 
-`sdk/python/` 是 Synapse 的官方 Python SDK 分发与联调目录。
+`python/` 是 SynapseNetwork 的官方 Python SDK 分发与联调目录。当前所有公开验证都指向 staging；生产环境上线后再统一切换到 prod。
 
 ## 安装
 
@@ -10,66 +10,44 @@
 pip install synapse-client
 ```
 
-本地开发安装：
+开发安装：
 
 ```bash
-cd /home/alex/Documents/cliff/Synapse-Network-Sdk/python
+cd /Users/cliff/workspace/agent/Synapse-Network-Sdk/python
 python3.11 -m venv .venv
 source .venv/bin/activate
 python -m pip install -e ".[dev]"
 ```
 
-## 常用验证
-
-### Live smoke test
+## Staging Smoke Test
 
 ```bash
-cd /home/alex/Documents/cliff/Synapse-Network-Sdk/python
-export SYNAPSE_API_KEY="agt_xxxxx..."
-PYTHONPATH="$PWD" .venv/bin/python examples/smoke_test.py --query "名人名言"
+cd /Users/cliff/workspace/agent/Synapse-Network-Sdk/python
+export SYNAPSE_ENV=staging
+export SYNAPSE_AGENT_KEY="agt_xxxxx..."
+PYTHONPATH="$PWD" .venv/bin/python examples/smoke_test.py --query "quotes"
 ```
 
 如需输出可复现 curl：
 
 ```bash
-cd /home/alex/Documents/cliff/Synapse-Network-Sdk/python
-export SYNAPSE_API_KEY="agt_xxxxx..."
-PYTHONPATH="$PWD" .venv/bin/python examples/smoke_test.py --query "名人名言" --print-curl
+PYTHONPATH="$PWD" .venv/bin/python examples/smoke_test.py --query "quotes" --print-curl
 ```
 
 如已知 `service_id`：
 
 ```bash
-cd /home/alex/Documents/cliff/Synapse-Network-Sdk/python
-export SYNAPSE_API_KEY="agt_xxxxx..."
 PYTHONPATH="$PWD" .venv/bin/python examples/smoke_test.py \
   --service-id svc_quotes_famous_top3 \
-  --cost-usdc 0.001
+  --cost-usdc "0.001"
 ```
-
-## 端到端本地联调
-
-```bash
-bash /home/alex/Documents/cliff/Synapse-Network/scripts/local/restart_gateway.sh
-
-cd /home/alex/Documents/cliff/Synapse-Network-Sdk/python
-export SYNAPSE_API_KEY="agt_xxxxx..."
-export SYNAPSE_GATEWAY="http://127.0.0.1:8000"
-PYTHONPATH="$PWD" .venv/bin/python examples/smoke_test.py \
-  --query "名人名言" \
-  --text "想要放弃的时候，请给我一句关于坚持的名人名言"
-```
-
-成功时脚本会打印 `Invocation succeeded`、`request_id`、`idempotency_key` 和最终 `invocationId`。
 
 ## 环境变量
 
-1. `SYNAPSE_API_KEY`: Agent credential。
-2. `SYNAPSE_GATEWAY`: 默认 gateway 地址。
+1. `SYNAPSE_ENV=staging`
+2. `SYNAPSE_AGENT_KEY`: Agent credential。`SYNAPSE_API_KEY` 仅作为 legacy Python fallback。
 
 ## 相关文档
 
-1. [README.md](./README.md)
-2. [../../sdk/README.md](../../sdk/README.md)
-3. [../../06_Reference/04_Development_Testing_and_Integration_Reference.md](../../06_Reference/04_Development_Testing_and_Integration_Reference.md)
-4. [../../06_Reference/01_API_Contract_Index.md](../../06_Reference/01_API_Contract_Index.md)
+1. [README.md](../../README.md)
+2. [SDK Docs](../sdk/README.md)

@@ -64,7 +64,7 @@ Domain 摘要。
 | `sdk_runtime_client` | discovery, invoke, receipt, usage, runtime errors |
 | `sdk_owner_auth` | wallet auth, credential issue/list/status/quota, owner control plane |
 | `sdk_provider_lifecycle` | provider facade, provider secrets, service registration, service lifecycle, provider health |
-| `sdk_environment_config` | staging/prod/local presets, gateway URL resolution, public preview defaults |
+| `sdk_environment_config` | staging defaults, future prod switch, gateway URL resolution, public preview defaults |
 | `sdk_public_docs` | README, integration guides, capability inventory, examples |
 | `sdk_ci_quality_gates` | GitHub Actions, shell CI scripts, coverage gates |
 | `sdk_examples_and_e2e` | examples, smoke tests, onboarding e2e plans |

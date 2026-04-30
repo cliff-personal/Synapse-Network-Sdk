@@ -1,9 +1,8 @@
 from __future__ import annotations
 
-import os
 from typing import Any, Dict, Optional
 
-from .client import SynapseClient
+from .client import SynapseClient, _resolve_agent_key
 from .exceptions import InsufficientFundsError
 from .models import InvocationResponse
 
@@ -24,7 +23,7 @@ class AgentWallet(SynapseClient):
         gateway_url: Optional[str] = None,
         environment: Optional[str] = None,
     ) -> "AgentWallet":
-        api_key = api_key or os.getenv("SYNAPSE_API_KEY", "")
+        api_key = _resolve_agent_key(api_key)
         return cls(budget=budget, api_key=api_key, gateway_url=gateway_url, environment=environment)
 
     @property

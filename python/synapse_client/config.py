@@ -3,10 +3,9 @@ from __future__ import annotations
 import os
 from typing import Literal, Optional
 
-SynapseEnvironment = Literal["local", "staging", "prod"]
+SynapseEnvironment = Literal["staging", "prod"]
 
 GATEWAY_URLS: dict[SynapseEnvironment, str] = {
-    "local": "http://127.0.0.1:8000",
     "staging": "https://api-staging.synapse-network.ai",
     "prod": "https://api.synapse-network.ai",
 }

@@ -27,10 +27,47 @@ class DummyResponse:
 
 
 def test_client_requires_api_key(monkeypatch):
+    monkeypatch.delenv("SYNAPSE_AGENT_KEY", raising=False)
     monkeypatch.delenv("SYNAPSE_API_KEY", raising=False)
 
     with pytest.raises(ValueError, match="api_key is required"):
         SynapseClient(api_key="")
+
+
+def test_client_reads_synapse_agent_key(monkeypatch):
+    monkeypatch.setenv("SYNAPSE_AGENT_KEY", "agt_agent")
+    monkeypatch.delenv("SYNAPSE_API_KEY", raising=False)
+
+    client = SynapseClient()
+
+    assert client.api_key == "agt_agent"
+
+
+def test_client_prefers_synapse_agent_key_over_legacy_api_key(monkeypatch):
+    monkeypatch.setenv("SYNAPSE_AGENT_KEY", "agt_agent")
+    monkeypatch.setenv("SYNAPSE_API_KEY", "agt_legacy")
+
+    client = SynapseClient()
+
+    assert client.api_key == "agt_agent"
+
+
+def test_client_keeps_legacy_synapse_api_key_fallback(monkeypatch):
+    monkeypatch.delenv("SYNAPSE_AGENT_KEY", raising=False)
+    monkeypatch.setenv("SYNAPSE_API_KEY", "agt_legacy")
+
+    client = SynapseClient()
+
+    assert client.api_key == "agt_legacy"
+
+
+def test_client_explicit_api_key_overrides_env(monkeypatch):
+    monkeypatch.setenv("SYNAPSE_AGENT_KEY", "agt_agent")
+    monkeypatch.setenv("SYNAPSE_API_KEY", "agt_legacy")
+
+    client = SynapseClient(api_key="agt_explicit")
+
+    assert client.api_key == "agt_explicit"
 
 
 def test_client_uses_synapse_gateway_env(monkeypatch):
@@ -51,7 +88,6 @@ def test_resolve_gateway_url_supports_presets_and_explicit_override(monkeypatch)
     monkeypatch.delenv("SYNAPSE_GATEWAY", raising=False)
     monkeypatch.delenv("SYNAPSE_ENV", raising=False)
 
-    assert resolve_gateway_url(environment="local") == "http://127.0.0.1:8000"
     assert resolve_gateway_url(environment="staging") == "https://api-staging.synapse-network.ai"
     assert resolve_gateway_url(environment="prod") == "https://api.synapse-network.ai"
     assert resolve_gateway_url(environment="prod", gateway_url="https://gateway.example/") == "https://gateway.example"
@@ -59,9 +95,9 @@ def test_resolve_gateway_url_supports_presets_and_explicit_override(monkeypatch)
 
 def test_resolve_gateway_url_uses_synapse_env(monkeypatch):
     monkeypatch.delenv("SYNAPSE_GATEWAY", raising=False)
-    monkeypatch.setenv("SYNAPSE_ENV", "local")
+    monkeypatch.setenv("SYNAPSE_ENV", "staging")
 
-    assert resolve_gateway_url() == "http://127.0.0.1:8000"
+    assert resolve_gateway_url() == "https://api-staging.synapse-network.ai"
 
 
 def test_resolve_gateway_url_prefers_explicit_environment_over_synapse_gateway(monkeypatch):
@@ -79,11 +115,29 @@ def test_resolve_gateway_url_rejects_invalid_environment(monkeypatch):
         resolve_gateway_url(environment="preview")
 
 
+def test_resolve_gateway_url_rejects_local_environment(monkeypatch):
+    monkeypatch.delenv("SYNAPSE_GATEWAY", raising=False)
+    monkeypatch.delenv("SYNAPSE_ENV", raising=False)
+
+    with pytest.raises(ValueError, match="unsupported Synapse environment"):
+        resolve_gateway_url(environment="local")
+
+
 def test_agent_wallet_connect_requires_real_credential(monkeypatch):
+    monkeypatch.delenv("SYNAPSE_AGENT_KEY", raising=False)
     monkeypatch.delenv("SYNAPSE_API_KEY", raising=False)
 
     with pytest.raises(ValueError, match="api_key is required"):
         AgentWallet.connect()
+
+
+def test_agent_wallet_connect_reads_synapse_agent_key(monkeypatch):
+    monkeypatch.setenv("SYNAPSE_AGENT_KEY", "agt_agent")
+    monkeypatch.setenv("SYNAPSE_API_KEY", "agt_legacy")
+
+    wallet = AgentWallet.connect()
+
+    assert wallet.api_key == "agt_agent"
 
 
 def test_discover_services_passes_intent_and_parses_response(monkeypatch):
@@ -129,7 +183,7 @@ def test_discover_services_passes_intent_and_parses_response(monkeypatch):
 
     monkeypatch.setattr("synapse_client.client.requests.post", fake_post)
 
-    client = SynapseClient(api_key="agt_test", gateway_url="http://127.0.0.1:8000", timeout_sec=12)
+    client = SynapseClient(api_key="agt_test", gateway_url="https://gateway.example", timeout_sec=12)
     result = client.discover_services(intent="quotes", tags=["quotes"])
 
     assert result.count == 1
@@ -142,7 +196,7 @@ def test_discover_services_passes_intent_and_parses_response(monkeypatch):
     assert str(result.services[0].price_usdc) == "0.05"
     assert calls == [
         {
-            "url": "http://127.0.0.1:8000/api/v1/agent/discovery/search",
+            "url": "https://gateway.example/api/v1/agent/discovery/search",
             "headers": {
                 "Content-Type": "application/json",
                 "X-Credential": "agt_test",
@@ -310,6 +364,20 @@ def test_invoke_with_cost_usdc_sends_payload_body(monkeypatch):
     assert captured[0]["costUsdc"] == pytest.approx(0.10)
 
 
+def test_invoke_with_string_cost_usdc_preserves_exact_amount(monkeypatch):
+    captured = []
+
+    def fake_post(url, headers, json, timeout):
+        captured.append(json)
+        return DummyResponse(json_data={"invocationId": "inv_s", "status": "SUCCEEDED", "chargedUsdc": "0.050000"})
+
+    monkeypatch.setattr("synapse_client.client.requests.post", fake_post)
+    client = SynapseClient(api_key="agt_test")
+    client.invoke("svc_2", {"prompt": "test"}, cost_usdc="0.050000", idempotency_key="ik-string")
+
+    assert captured[0]["costUsdc"] == "0.050000"
+
+
 def test_invoke_llm_sends_max_cost_without_cost_usdc(monkeypatch):
     captured = []
 
@@ -455,7 +523,7 @@ def test_gateway_health_and_empty_discovery_diagnostics(monkeypatch):
         lambda url, timeout: DummyResponse(json_data={"status": "ok", "version": "2.0.0"}),
     )
 
-    client = SynapseClient(api_key="agt_test", gateway_url="http://127.0.0.1:8000")
+    client = SynapseClient(api_key="agt_test", gateway_url="https://gateway.example")
 
     assert client.check_gateway_health()["status"] == "ok"
     diagnostics = client.explain_discovery_empty_result(query="quotes", tags=["text"])

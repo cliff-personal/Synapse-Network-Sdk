@@ -8,8 +8,11 @@ Consumer runtime is:
 
 1. owner auth / credential issue
 2. agent discovery/search
-3. `POST /api/v1/agent/invoke`
-4. `GET /api/v1/agent/invocations/{id}`
+3. fixed-price API invoke through `POST /api/v1/agent/invoke` with latest discovery price as `cost_usdc` / `costUsdc`
+4. token-metered LLM invoke through `invoke_llm()` / `invokeLlm()` with optional `max_cost_usdc` / `maxCostUsdc`
+5. `GET /api/v1/agent/invocations/{id}`
+
+Agent runtime examples use `SYNAPSE_AGENT_KEY=agt_xxx`. Python keeps `SYNAPSE_API_KEY` only as a legacy fallback.
 
 The old quote-first flow is not a current SDK main path. Python keeps deprecated compatibility methods that raise a clear error instead of calling removed endpoints.
 
@@ -34,17 +37,18 @@ Supported:
 13. check credential status alias
 14. ensure credential
 15. discovery/search
-16. invoke
+16. fixed-price invoke
 17. invoke with rediscovery on `PRICE_MISMATCH`
-18. invocation receipt
-19. gateway health check
-20. empty discovery diagnostics
-21. owner profile
-22. usage logs
-23. voucher redeem
-24. finance audit logs
-25. finance risk overview
-26. spending limit through `AgentWallet`
+18. token-metered LLM invoke
+19. invocation receipt
+20. gateway health check
+21. empty discovery diagnostics
+22. owner profile
+23. usage logs
+24. voucher redeem
+25. finance audit logs
+26. finance risk overview
+27. spending limit through `AgentWallet`
 
 Deprecated:
 
@@ -93,17 +97,18 @@ Supported:
 9. credential quota update
 10. credential audit logs
 11. discovery/search
-12. invoke
+12. fixed-price invoke
 13. invoke with rediscovery on `PRICE_MISMATCH`
-14. invocation receipt
-15. gateway health check
-16. empty discovery diagnostics
-17. owner profile
-18. usage logs
-19. voucher redeem
-20. finance audit logs
-21. finance risk overview
-22. spending limit through issued credential settings
+14. token-metered LLM invoke
+15. invocation receipt
+16. gateway health check
+17. empty discovery diagnostics
+18. owner profile
+19. usage logs
+20. voucher redeem
+21. finance audit logs
+22. finance risk overview
+23. spending limit through issued credential settings
 
 Discovery/search sends the current gateway request body: `query`, `tags`, `page`, `pageSize`, and `sort`. `limit/offset` remain SDK convenience inputs and are converted to `page/pageSize`.
 
