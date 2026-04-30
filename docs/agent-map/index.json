@@ -44,6 +44,7 @@
       "notes": [
         "Canonical runtime flow is discovery/search plus one of two invoke modes: fixed-price invoke with costUsdc/cost_usdc, or token-metered LLM invoke with maxCostUsdc/max_cost_usdc.",
         "Public examples should use SYNAPSE_AGENT_KEY for agent runtime credentials; SYNAPSE_API_KEY is only a Python legacy fallback.",
+        "Public preview examples target staging on Arbitrum Sepolia with MockUSDC test assets.",
         "Do not restore old quote-first gateway calls."
       ]
     },
@@ -133,6 +134,7 @@
       ],
       "notes": [
         "Default environment is staging.",
+        "Public docs must describe staging as Arbitrum Sepolia plus MockUSDC until production docs are live.",
         "Do not reintroduce removed non-staging gateway presets or gateway setup docs.",
         "Do not reintroduce the retired gateway domain from the old .network namespace.",
         "Explicit gateway URL always wins over environment preset."
@@ -230,6 +232,7 @@
       ],
       "notes": [
         "Provider staging examples require a public HTTPS endpoint reachable by the staging gateway.",
+        "Public SDK examples should pass discovered money values as strings and should not use float or Number conversions in quickstarts.",
         "Consumer wallet-to-invoke examples default to free services unless --allow-paid is explicit.",
         "E2E flows may require real staging credentials; PR CI should keep e2e out of the default gate unless explicitly configured."
       ]

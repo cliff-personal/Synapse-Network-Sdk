@@ -21,8 +21,8 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument(
         "--api-key",
-        default=os.getenv("SYNAPSE_API_KEY", "").strip(),
-        help="Agent credential. Defaults to SYNAPSE_API_KEY.",
+        default=os.getenv("SYNAPSE_AGENT_KEY", "").strip(),
+        help="Agent runtime credential. Defaults to SYNAPSE_AGENT_KEY.",
     )
     parser.add_argument(
         "--environment",
@@ -52,7 +52,6 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument(
         "--cost-usdc",
-        type=float,
         default=None,
         help="Price assertion. Required only when --service-id skips discovery.",
     )
@@ -85,12 +84,12 @@ def parse_payload(raw: str) -> dict:
     return payload
 
 
-def resolve_service(client: SynapseClient, args: argparse.Namespace, request_id: str) -> tuple[str, float]:
+def resolve_service(client: SynapseClient, args: argparse.Namespace, request_id: str) -> tuple[str, str]:
     service_id = args.service_id.strip()
     if service_id:
         if args.cost_usdc is None:
             raise ValueError("--cost-usdc is required when --service-id skips discovery")
-        return service_id, float(args.cost_usdc)
+        return service_id, str(args.cost_usdc)
 
     discovery = client.search_services(
         query=args.query,
@@ -110,13 +109,13 @@ def resolve_service(client: SynapseClient, args: argparse.Namespace, request_id:
     selected = discovery.services[0]
     if selected.price_usdc is None:
         raise RuntimeError(f"Selected service has no parseable price: {selected.service_id}")
-    return selected.service_id, float(selected.price_usdc)
+    return selected.service_id, str(selected.price_usdc)
 
 
 def main() -> int:
     args = parse_args()
     if not args.api_key:
-        print("SYNAPSE_API_KEY or --api-key is required.", file=sys.stderr)
+        print("SYNAPSE_AGENT_KEY or --api-key is required.", file=sys.stderr)
         return 2
     try:
         payload = parse_payload(args.payload_json)
@@ -137,7 +136,7 @@ def main() -> int:
     try:
         service_id, cost_usdc = resolve_service(client, args, request_id)
         print(f"Selected service id: {service_id}")
-        print(f"Price assertion: {cost_usdc:.6f} USDC")
+        print(f"Price assertion: {cost_usdc} USDC")
 
         invocation = client.invoke(
             service_id,

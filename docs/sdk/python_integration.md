@@ -54,6 +54,8 @@ python -m pip install -e ".[dev]"
 
 1. `staging`: `https://api-staging.synapse-network.ai`
 
+当前 staging 使用 Arbitrum Sepolia 测试网和 MockUSDC 测试资产。MockUSDC 只用于接入验证，不是生产 USDC。
+
 生产环境上线后，公开示例和测试再统一切换到 `prod`。
 
 `AgentWallet.connect()` 不再使用 `demo_key` fallback。没有真实 credential 时会失败。
@@ -70,6 +72,15 @@ Fresh setup 不应从硬编码 credential 开始。`SYNAPSE_AGENT_KEY` 是 owner
 4. agent runtime 用 credential 搜索服务、调用服务、读取 receipt
 
 如果 owner wallet 还没有余额，可以先选择 `price_usdc == 0` 的免费服务做 smoke path；`price_usdc > 0` 的服务需要先有可用余额、credits 或足够的 credential credit limit。
+
+Staging 接入建议先完成：
+
+1. `SYNAPSE_ENV=staging`
+2. `SYNAPSE_AGENT_KEY=agt_xxx`
+3. 免费 fixed-price API invoke
+4. MockUSDC 余额准备后的付费 fixed-price API invoke
+5. token-metered LLM invoke
+6. receipt 查询和结算字段核对
 
 ## Owner 钱包登录
 

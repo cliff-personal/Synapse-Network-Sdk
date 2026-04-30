@@ -26,6 +26,26 @@ SynapseNetwork lets an agent discover services, invoke them through a gateway, a
 > Public Preview default: SDK examples use `staging`, backed by `https://api-staging.synapse-network.ai`.
 > After production launch, replace the public examples and tests with the `prod` environment.
 
+## Staging Public Preview
+
+Today, public developer onboarding runs on staging:
+
+- Gateway: `https://api-staging.synapse-network.ai`
+- App docs: [staging.synapse-network.ai/docs/sdk](https://staging.synapse-network.ai/docs/sdk)
+- Chain: Arbitrum Sepolia testnet
+- Asset: MockUSDC for integration testing, not production USDC
+
+Recommended path:
+
+1. Connect a wallet in the staging Gateway Dashboard.
+2. Get or issue an Agent Key and export it as `SYNAPSE_AGENT_KEY`.
+3. Set `SYNAPSE_ENV=staging`.
+4. Use free services first, or fund staging balance with MockUSDC before paid test calls.
+5. Run one fixed-price API invoke and one token-metered LLM invoke.
+6. Read the invocation receipt and verify settlement metadata.
+
+Developers should pass staging before any future production migration. Production docs and examples stay reserved until production DNS, contracts, gateway health, and docs deployment are verified.
+
 ## Choose Your Integration Path
 
 | Goal | Use |
@@ -272,7 +292,7 @@ Credential handling and vulnerability reporting live in [SECURITY.md](./SECURITY
 The Python examples are staging-first and live under `python/examples`.
 
 ```bash
-cd /Users/cliff/workspace/agent/Synapse-Network-Sdk/python
+cd python
 ```
 
 Register a provider service on staging:

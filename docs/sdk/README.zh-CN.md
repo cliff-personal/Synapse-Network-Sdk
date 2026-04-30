@@ -9,17 +9,18 @@
 ## 文档入口
 
 1. [SDK Capability Inventory](./capability_inventory.md)
-2. [Agent Map](../agent-map/README.md)
-3. [Agent Map JSON](../agent-map/index.json)
-4. [TypeScript Integration Guide](./typescript_integration.md)
-5. [TypeScript Provider Integration Guide](./typescript_provider_integration.md)
-6. [Python Integration Guide](./python_integration.md)
-7. [Python Provider Integration Guide](./python_provider_integration.md)
-8. [Python Staging Development](../ops/SDK_Python_Local_Development.md)
-9. [TypeScript Consumer E2E Plan](../test/consumer-e2e-plan.md)
-10. [TypeScript Provider Onboarding E2E Plan](../test/typescript-provider-onboarding-e2e-plan.md)
-11. [Python Consumer Cold-Start E2E Plan](../test/python-consumer-cold-start-e2e-plan.md)
-12. [Python Provider Onboarding E2E Plan](../test/python-provider-onboarding-e2e-plan.md)
+2. [SDK/API Parity Matrix](./api-parity-matrix.md)
+3. [Agent Map](../agent-map/README.md)
+4. [Agent Map JSON](../agent-map/index.json)
+5. [TypeScript Integration Guide](./typescript_integration.md)
+6. [TypeScript Provider Integration Guide](./typescript_provider_integration.md)
+7. [Python Integration Guide](./python_integration.md)
+8. [Python Provider Integration Guide](./python_provider_integration.md)
+9. [Python Staging Development](../ops/SDK_Python_Staging_Development.md)
+10. [TypeScript Consumer E2E Plan](../test/consumer-e2e-plan.md)
+11. [TypeScript Provider Onboarding E2E Plan](../test/typescript-provider-onboarding-e2e-plan.md)
+12. [Python Consumer Cold-Start E2E Plan](../test/python-consumer-cold-start-e2e-plan.md)
+13. [Python Provider Onboarding E2E Plan](../test/python-provider-onboarding-e2e-plan.md)
 
 ## 当前结论
 
@@ -84,6 +85,8 @@ Provider publishing 是另一条 owner-authenticated flow：
 默认环境是 public preview/staging：
 
 - `staging`: `https://api-staging.synapse-network.ai`，用于 public preview、测试资产和接入试跑。
+- 链：Arbitrum Sepolia 测试网。
+- 资产：MockUSDC，用于接入测试，不是生产 USDC。
 
 生产环境上线后，再把公开示例和测试从 `staging` 统一切到 `prod`。
 

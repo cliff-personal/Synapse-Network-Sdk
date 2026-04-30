@@ -9,17 +9,18 @@ This directory is the SDK-side source of truth for capabilities, integration gui
 ## Docs Index
 
 1. [SDK Capability Inventory](./capability_inventory.md)
-2. [Agent Map](../agent-map/README.md)
-3. [Agent Map JSON](../agent-map/index.json)
-4. [TypeScript Integration Guide](./typescript_integration.md)
-5. [TypeScript Provider Integration Guide](./typescript_provider_integration.md)
-6. [Python Integration Guide](./python_integration.md)
-7. [Python Provider Integration Guide](./python_provider_integration.md)
-8. [Python Staging Development](../ops/SDK_Python_Local_Development.md)
-9. [TypeScript Consumer E2E Plan](../test/consumer-e2e-plan.md)
-10. [TypeScript Provider Onboarding E2E Plan](../test/typescript-provider-onboarding-e2e-plan.md)
-11. [Python Consumer Cold-Start E2E Plan](../test/python-consumer-cold-start-e2e-plan.md)
-12. [Python Provider Onboarding E2E Plan](../test/python-provider-onboarding-e2e-plan.md)
+2. [SDK/API Parity Matrix](./api-parity-matrix.md)
+3. [Agent Map](../agent-map/README.md)
+4. [Agent Map JSON](../agent-map/index.json)
+5. [TypeScript Integration Guide](./typescript_integration.md)
+6. [TypeScript Provider Integration Guide](./typescript_provider_integration.md)
+7. [Python Integration Guide](./python_integration.md)
+8. [Python Provider Integration Guide](./python_provider_integration.md)
+9. [Python Staging Development](../ops/SDK_Python_Staging_Development.md)
+10. [TypeScript Consumer E2E Plan](../test/consumer-e2e-plan.md)
+11. [TypeScript Provider Onboarding E2E Plan](../test/typescript-provider-onboarding-e2e-plan.md)
+12. [Python Consumer Cold-Start E2E Plan](../test/python-consumer-cold-start-e2e-plan.md)
+13. [Python Provider Onboarding E2E Plan](../test/python-provider-onboarding-e2e-plan.md)
 
 ## Current Position
 
@@ -84,6 +85,8 @@ Provider publishing is a separate owner-authenticated flow:
 Default environment is public preview/staging:
 
 - `staging`: `https://api-staging.synapse-network.ai`
+- Chain: Arbitrum Sepolia testnet
+- Asset: MockUSDC for integration testing, not production USDC
 
 Production launch will switch public examples and tests from `staging` to `prod`.
 
@@ -136,14 +139,16 @@ The SDK maps `402` to balance, budget, or credential credit limit errors. Check 
 
 ## Shortest Verification Path
 
+From the repository root:
+
 ```bash
-cd /Users/cliff/workspace/agent/Synapse-Network-Sdk/python
+cd python
 PYTHONPATH="$PWD" .venv/bin/python -m pytest synapse_client/test/test_client_unit.py -q
 export SYNAPSE_AGENT_KEY='agt_xxx_your_real_key'
 PYTHONPATH="$PWD" .venv/bin/python examples/smoke_test.py --query 'quotes'
 ```
 
 ```bash
-cd /Users/cliff/workspace/agent/Synapse-Network-Sdk/typescript
+cd typescript
 npm run test:unit
 ```
