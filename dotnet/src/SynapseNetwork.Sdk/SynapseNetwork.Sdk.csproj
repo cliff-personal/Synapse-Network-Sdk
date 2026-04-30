@@ -1,0 +1,12 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <PackageId>SynapseNetwork.Sdk</PackageId>
+    <Version>0.1.0-preview</Version>
+    <Authors>Synapse Network Team</Authors>
+    <Description>Official .NET SDK for SynapseNetwork agent runtime APIs.</Description>
+  </PropertyGroup>
+</Project>

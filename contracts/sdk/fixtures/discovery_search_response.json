@@ -1,0 +1,23 @@
+{
+  "requestId": "req_contract_discovery",
+  "count": 1,
+  "page": 1,
+  "pageSize": 10,
+  "totalCount": 1,
+  "hasMore": false,
+  "results": [
+    {
+      "serviceId": "svc_contract_weather",
+      "serviceName": "Contract Weather",
+      "status": "active",
+      "serviceKind": "api",
+      "priceModel": "fixed",
+      "pricing": {
+        "amount": "0.010000",
+        "currency": "USDC"
+      },
+      "summary": "Fixture service for SDK contract tests.",
+      "tags": ["fixture", "free"]
+    }
+  ]
+}

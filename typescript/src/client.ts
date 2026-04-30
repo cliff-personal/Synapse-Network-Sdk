@@ -111,6 +111,12 @@ export class SynapseClient {
     payload: Record<string, unknown> = {},
     opts: InvokeOptions
   ): Promise<InvocationResult> {
+    if (!serviceId.trim()) {
+      throw new Error("serviceId is required");
+    }
+    if (opts.costUsdc === undefined || String(opts.costUsdc).trim() === "") {
+      throw new Error("costUsdc is required for fixed-price API services. Use invokeLlm() for LLM services.");
+    }
     try {
       const resp = await this._fetch<Record<string, unknown>>(
         `${this.gatewayUrl}/api/v1/agent/invoke`,

@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+import json
+from pathlib import Path
+
 import pytest
 
 from synapse_client import AgentWallet, SynapseClient, resolve_gateway_url
@@ -24,6 +27,11 @@ class DummyResponse:
 
     def json(self):
         return self._json_data
+
+
+def _contract_fixture(name: str):
+    path = Path(__file__).resolve().parents[3] / "contracts" / "sdk" / "fixtures" / name
+    return json.loads(path.read_text(encoding="utf-8"))
 
 
 def test_client_requires_api_key(monkeypatch):
@@ -529,3 +537,45 @@ def test_gateway_health_and_empty_discovery_diagnostics(monkeypatch):
     diagnostics = client.explain_discovery_empty_result(query="quotes", tags=["text"])
     assert diagnostics["query"] == "quotes"
     assert "suggestions" in diagnostics
+
+
+def test_contract_fixtures_cover_python_search_llm_receipt_and_price_mismatch(monkeypatch):
+    post_calls = []
+
+    def fake_post(url, headers, json, timeout):
+        post_calls.append({"url": url, "headers": headers, "json": json})
+        if url.endswith("/api/v1/agent/discovery/search"):
+            return DummyResponse(json_data=_contract_fixture("discovery_search_response.json"))
+        if url.endswith("/api/v1/agent/invoke") and "costUsdc" not in json:
+            return DummyResponse(json_data=_contract_fixture("llm_invoke_response.json"))
+        return DummyResponse(status_code=422, ok=False, json_data=_contract_fixture("error_price_mismatch.json"))
+
+    def fake_get(url, headers=None, timeout=None):
+        return DummyResponse(json_data=_contract_fixture("receipt_response.json"))
+
+    monkeypatch.setattr("synapse_client.client.requests.post", fake_post)
+    monkeypatch.setattr("synapse_client.client.requests.get", fake_get)
+
+    client = SynapseClient(api_key="agt_test", gateway_url="https://gateway.example")
+    services = client.search("fixture", limit=10)
+    assert services[0].service_id == "svc_contract_weather"
+    assert str(services[0].price_usdc) == "0.010000"
+
+    result = client.invoke_llm(
+        "svc_deepseek_chat",
+        {"messages": [{"role": "user", "content": "hello"}]},
+        max_cost_usdc="0.010000",
+        idempotency_key="idem-llm",
+    )
+    assert result.invocation_id == "inv_contract_llm"
+    assert result.synapse is not None
+    assert result.synapse.price_model == "token_metered"
+    assert "costUsdc" not in post_calls[1]["json"]
+    assert post_calls[1]["json"]["maxCostUsdc"] == "0.010000"
+
+    receipt = client.get_invocation("inv_contract_fixed")
+    assert receipt.status == "SETTLED"
+
+    with pytest.raises(PriceMismatchError) as exc_info:
+        client.invoke("svc_contract_weather", {}, cost_usdc="0.010000")
+    assert exc_info.value.current_price_usdc == pytest.approx(0.012)

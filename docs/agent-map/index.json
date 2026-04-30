@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "repository": "Synapse-Network-Sdk",
-  "updated_at": "2026-04-25",
+  "updated_at": "2026-04-30",
   "purpose": "Task-to-file routing map for AI agents working on the SDK repository.",
   "global_entrypoints": [
     "llms.txt",
@@ -11,6 +11,7 @@
     "SECURITY.md",
     "docs/sdk/README.md",
     "docs/sdk/capability_inventory.md",
+    "contracts/sdk/fixtures/",
     "docs/quality-gates.md",
     "scripts/ci/pr_checks.sh"
   ],
@@ -20,8 +21,9 @@
       "title": "Consumer runtime client",
       "use_when": [
         "discovery, search, invoke, receipt, usage logs, or runtime SDK errors change",
-        "Python SynapseClient or TypeScript SynapseClient behavior changes",
-        "PRICE_MISMATCH rediscovery or typed runtime errors change"
+        "Python, TypeScript, Go, Java, or .NET SynapseClient behavior changes",
+        "PRICE_MISMATCH rediscovery or typed runtime errors change",
+        "shared SDK contract fixtures change"
       ],
       "primary_files": [
         "python/synapse_client/client.py",
@@ -29,22 +31,37 @@
         "python/synapse_client/test/test_client_unit.py",
         "typescript/src/client.ts",
         "typescript/src/errors.ts",
-        "typescript/tests/unit/client.test.ts"
+        "typescript/tests/unit/client.test.ts",
+        "go/synapse/client.go",
+        "go/synapse/client_test.go",
+        "java/src/main/java/ai/synapsenetwork/sdk/SynapseClient.java",
+        "java/src/test/java/ai/synapsenetwork/sdk/SynapseClientTest.java",
+        "dotnet/src/SynapseNetwork.Sdk/SynapseClient.cs",
+        "dotnet/tests/SynapseNetwork.Sdk.Tests/SynapseClientTests.cs",
+        "contracts/sdk/fixtures/"
       ],
       "supporting_files": [
         "docs/sdk/capability_inventory.md",
+        "docs/sdk/api-parity-matrix.md",
         "docs/sdk/python_integration.md",
         "docs/sdk/typescript_integration.md",
+        "docs/sdk/go_integration.md",
+        "docs/sdk/java_integration.md",
+        "docs/sdk/dotnet_integration.md",
         "README.md"
       ],
       "validation_commands": [
         "bash scripts/ci/python_checks.sh",
-        "bash scripts/ci/typescript_checks.sh"
+        "bash scripts/ci/typescript_checks.sh",
+        "bash scripts/ci/go_checks.sh",
+        "bash scripts/ci/java_checks.sh",
+        "bash scripts/ci/dotnet_checks.sh"
       ],
       "notes": [
         "Canonical runtime flow is discovery/search plus one of two invoke modes: fixed-price invoke with costUsdc/cost_usdc, or token-metered LLM invoke with maxCostUsdc/max_cost_usdc.",
         "Public examples should use SYNAPSE_AGENT_KEY for agent runtime credentials; SYNAPSE_API_KEY is only a Python legacy fallback.",
         "Public preview examples target staging on Arbitrum Sepolia with MockUSDC test assets.",
+        "Go, Java, and .NET are Wave 1 Consumer SDKs only; owner auth and provider lifecycle helpers remain Python/TypeScript until Phase 2.",
         "Do not restore old quote-first gateway calls."
       ]
     },
@@ -119,6 +136,12 @@
         "python/synapse_client/test/test_auth_unit.py",
         "typescript/src/config.ts",
         "typescript/tests/unit/client.test.ts",
+        "go/synapse/client.go",
+        "go/synapse/client_test.go",
+        "java/src/main/java/ai/synapsenetwork/sdk/SynapseClient.java",
+        "java/src/test/java/ai/synapsenetwork/sdk/SynapseClientTest.java",
+        "dotnet/src/SynapseNetwork.Sdk/SynapseClient.cs",
+        "dotnet/tests/SynapseNetwork.Sdk.Tests/SynapseClientTests.cs",
         ".env.example",
         "README.md",
         "SECURITY.md"
@@ -130,7 +153,10 @@
       "validation_commands": [
         "bash scripts/ci/repo_hygiene_checks.sh",
         "bash scripts/ci/python_checks.sh",
-        "bash scripts/ci/typescript_checks.sh"
+        "bash scripts/ci/typescript_checks.sh",
+        "bash scripts/ci/go_checks.sh",
+        "bash scripts/ci/java_checks.sh",
+        "bash scripts/ci/dotnet_checks.sh"
       ],
       "notes": [
         "Default environment is staging.",
@@ -150,11 +176,17 @@
       ],
       "primary_files": [
         "README.md",
+        "README.zh-CN.md",
         "llm-instructions.md",
         "docs/sdk/README.md",
+        "docs/sdk/README.zh-CN.md",
         "docs/sdk/capability_inventory.md",
+        "docs/sdk/api-parity-matrix.md",
         "docs/sdk/python_integration.md",
         "docs/sdk/typescript_integration.md",
+        "docs/sdk/go_integration.md",
+        "docs/sdk/java_integration.md",
+        "docs/sdk/dotnet_integration.md",
         "docs/sdk/python_provider_integration.md",
         "docs/sdk/typescript_provider_integration.md"
       ],
@@ -172,7 +204,8 @@
         "Public docs should say Public Preview unless production DNS and health checks are verified.",
         "Use agt_xxx or REPLACE_ME placeholders only.",
         "README and gateway docs must show SYNAPSE_AGENT_KEY -> SynapseClient first, with owner auth -> JWT -> credential issuance under Advanced.",
-        "README and gateway docs must explain fixed-price API invoke versus token-metered LLM invoke before advanced owner/provider flows."
+        "README and gateway docs must explain fixed-price API invoke versus token-metered LLM invoke before advanced owner/provider flows.",
+        "English docs and README files must not contain Han characters; Chinese localization belongs in zh-CN files."
       ]
     },
     {
@@ -182,10 +215,14 @@
         "GitHub Actions, PR checks, coverage thresholds, lint, build, or repo hygiene gates change"
       ],
       "primary_files": [
+        ".github/workflows/ci.yml",
         ".github/workflows/pr-ci.yml",
         "scripts/ci/pr_checks.sh",
         "scripts/ci/python_checks.sh",
         "scripts/ci/typescript_checks.sh",
+        "scripts/ci/go_checks.sh",
+        "scripts/ci/java_checks.sh",
+        "scripts/ci/dotnet_checks.sh",
         "scripts/ci/repo_hygiene_checks.sh",
         "scripts/ci/security_checks.sh",
         "scripts/ci/source_quality_checks.py",
@@ -201,20 +238,37 @@
       ],
       "notes": [
         "Local scripts and GitHub Actions must share the same entrypoint.",
-        "Source files over 500 lines, high complexity, and duplicate code above threshold must fail PR CI."
+        "Source files over 500 lines, high complexity, and duplicate code above threshold must fail PR CI.",
+        "Go, Java, and .NET checks run in CI; dotnet_checks.sh may skip locally when the .NET SDK is not installed."
       ]
     },
     {
       "id": "sdk_examples_and_e2e",
       "title": "Examples and e2e onboarding plans",
       "use_when": [
-        "Python examples, TypeScript examples, smoke tests, or e2e onboarding plans change"
+        "Python examples, TypeScript examples, Go examples, Java examples, .NET examples, smoke tests, or e2e onboarding plans change"
       ],
       "primary_files": [
         "python/examples/smoke_test.py",
+        "python/examples/free_service_smoke.py",
+        "python/examples/llm_smoke.py",
+        "python/examples/e2e.py",
         "python/examples/provider_staging_onboarding.py",
         "python/examples/consumer_call_provider.py",
         "python/examples/consumer_wallet_to_invoke.py",
+        "typescript/examples/free-service-smoke.ts",
+        "typescript/examples/llm-smoke.ts",
+        "typescript/examples/e2e.ts",
+        "go/examples/free_service_smoke/main.go",
+        "go/examples/llm_smoke/main.go",
+        "go/examples/e2e/main.go",
+        "java/examples/src/main/java/ai/synapsenetwork/sdk/examples/FreeServiceSmoke.java",
+        "java/examples/src/main/java/ai/synapsenetwork/sdk/examples/LlmSmoke.java",
+        "java/examples/src/main/java/ai/synapsenetwork/sdk/examples/E2eSmoke.java",
+        "dotnet/examples/free-service-smoke/Program.cs",
+        "dotnet/examples/llm-smoke/Program.cs",
+        "dotnet/examples/e2e/Program.cs",
+        "scripts/e2e/sdk_wave1_local.sh",
         "docs/test/consumer-e2e-plan.md",
         "docs/test/typescript-provider-onboarding-e2e-plan.md",
         "docs/test/python-consumer-cold-start-e2e-plan.md",
@@ -223,12 +277,19 @@
       "supporting_files": [
         "docs/sdk/python_integration.md",
         "docs/sdk/typescript_integration.md",
+        "docs/sdk/go_integration.md",
+        "docs/sdk/java_integration.md",
+        "docs/sdk/dotnet_integration.md",
         "README.md"
       ],
       "validation_commands": [
         "bash scripts/ci/repo_hygiene_checks.sh",
         "bash scripts/ci/python_checks.sh",
-        "bash scripts/ci/typescript_checks.sh"
+        "bash scripts/ci/typescript_checks.sh",
+        "bash scripts/ci/go_checks.sh",
+        "bash scripts/ci/java_checks.sh",
+        "bash scripts/ci/dotnet_checks.sh",
+        "SYNAPSE_AGENT_KEY=agt_xxx bash scripts/e2e/sdk_wave1_local.sh --skip-install"
       ],
       "notes": [
         "Provider staging examples require a public HTTPS endpoint reachable by the staging gateway.",

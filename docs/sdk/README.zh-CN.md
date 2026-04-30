@@ -16,11 +16,15 @@
 6. [TypeScript Provider Integration Guide](./typescript_provider_integration.md)
 7. [Python Integration Guide](./python_integration.md)
 8. [Python Provider Integration Guide](./python_provider_integration.md)
-9. [Python Staging Development](../ops/SDK_Python_Staging_Development.md)
-10. [TypeScript Consumer E2E Plan](../test/consumer-e2e-plan.md)
-11. [TypeScript Provider Onboarding E2E Plan](../test/typescript-provider-onboarding-e2e-plan.md)
-12. [Python Consumer Cold-Start E2E Plan](../test/python-consumer-cold-start-e2e-plan.md)
-13. [Python Provider Onboarding E2E Plan](../test/python-provider-onboarding-e2e-plan.md)
+9. [Go Integration Guide](./go_integration.md)
+10. [Java/JVM Integration Guide](./java_integration.md)
+11. [.NET Integration Guide](./dotnet_integration.md)
+12. [Wave 1 本地 E2E](#wave-1-本地-e2e)
+13. [Python Staging Development](../ops/SDK_Python_Staging_Development.md)
+14. [TypeScript Consumer E2E Plan](../test/consumer-e2e-plan.md)
+15. [TypeScript Provider Onboarding E2E Plan](../test/typescript-provider-onboarding-e2e-plan.md)
+16. [Python Consumer Cold-Start E2E Plan](../test/python-consumer-cold-start-e2e-plan.md)
+17. [Python Provider Onboarding E2E Plan](../test/python-provider-onboarding-e2e-plan.md)
 
 ## 当前结论
 
@@ -31,6 +35,8 @@ SDK 当前有三个明确的公开入口：
 3. `SynapseProvider`：通过 `auth.provider()` 获取的 provider publishing facade，用于 provider secret、service registration、lifecycle、health、earnings 和 withdrawal helper。
 
 Provider 仍然是 owner scope 下的供给侧角色。`SynapseProvider` 只是让 provider 接入更容易发现，不引入第二套 provider root 身份。
+
+Wave 1 多语言包新增 Go、Java/JVM 和 .NET consumer runtime SDK。这些包第一阶段只提供 `SynapseClient`：discovery/search、fixed-price invoke、token-metered LLM invoke、receipt lookup 和 gateway health。Python 与 TypeScript 仍是 owner auth 和 provider publishing 的 reference SDK，等新语言 consumer runtime 稳定后再补控制面能力。
 
 Owner/provider helper 的返回值必须是命名 SDK 对象。不要新增或记录返回 raw Python `dict` / TypeScript `Record<string, unknown>` 的公开 `SynapseAuth` / `SynapseProvider` 方法；应先新增命名 result model/interface。
 
@@ -44,6 +50,19 @@ Consumer 文档应统一呈现两种调用模式：
 |---|---|---|
 | Fixed-price API | Python `invoke()` / TypeScript `invoke()` | 最新 discovery price：`cost_usdc` / `costUsdc` |
 | Token-metered LLM | Python `invoke_llm()` / TypeScript `invokeLlm()` | 可选上限：`max_cost_usdc` / `maxCostUsdc`；不要发送 `cost_usdc` / `costUsdc` |
+
+## Wave 1 本地 E2E
+
+新增 Go、Java/JVM 和 .NET SDK 的真实 Gateway E2E 入口是：
+
+```bash
+export SYNAPSE_AGENT_KEY='agt_xxx_your_real_key'
+bash scripts/e2e/sdk_wave1_local.sh
+```
+
+脚本会对每个选中的 SDK 验证 health、discovery、fixed-price invoke、receipt lookup、token-metered LLM invoke、本地参数校验失败，以及 invalid credential 负向路径。缺少本地工具链时可自动安装；.NET 会按项目 baseline 安装 SDK 8.0 到 `$HOME/.synapse-network-sdk-e2e/dotnet`。
+
+默认 fixed-price 路径只会自动选择免费的 fixed-price API 服务。如果 staging 没有这类服务，需要显式设置 `SYNAPSE_E2E_FIXED_SERVICE_ID`、`SYNAPSE_E2E_FIXED_COST_USDC` 和 `SYNAPSE_E2E_FIXED_PAYLOAD_JSON`。
 
 ## Staging 产品文档
 
@@ -149,4 +168,15 @@ PYTHONPATH="$PWD" .venv/bin/python examples/smoke_test.py --query '名人名言'
 ```bash
 cd /Users/cliff/workspace/agent/Synapse-Network-Sdk/typescript
 npm run test:unit
+```
+
+每个 SDK 都有 runnable examples：
+
+```bash
+export SYNAPSE_AGENT_KEY='agt_xxx_your_real_key'
+PYTHONPATH=python python3 python/examples/free_service_smoke.py
+npm run example:free --prefix typescript
+go -C go run ./examples/free_service_smoke
+mvn -q -f java/examples/pom.xml exec:java -Dexec.mainClass=ai.synapsenetwork.sdk.examples.FreeServiceSmoke
+dotnet run --project dotnet/examples/free-service-smoke/free-service-smoke.csproj
 ```

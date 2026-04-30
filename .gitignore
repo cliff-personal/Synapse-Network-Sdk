@@ -17,6 +17,13 @@ dist/
 coverage/
 *.tsbuildinfo
 
+# .NET
+bin/
+obj/
+
+# Java / Maven
+target/
+
 # IDE
 .idea/
 .vscode/

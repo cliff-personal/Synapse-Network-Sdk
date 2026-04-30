@@ -1,0 +1,12 @@
+{
+  "invocationId": "inv_contract_fixed",
+  "status": "SUCCEEDED",
+  "chargedUsdc": "0.010000",
+  "result": {
+    "temperature": 72,
+    "unit": "fahrenheit"
+  },
+  "receipt": {
+    "invocationId": "inv_contract_fixed"
+  }
+}

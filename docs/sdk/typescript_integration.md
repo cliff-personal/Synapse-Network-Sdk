@@ -218,6 +218,20 @@ console.log(result.usage?.inputTokens, result.usage?.outputTokens);
 console.log(result.synapse?.chargedUsdc, result.synapse?.releasedUsdc);
 ```
 
+## TypeScript Examples
+
+Runnable examples live under `typescript/examples`:
+
+```bash
+cd /Users/cliff/workspace/agent/Synapse-Network-Sdk
+export SYNAPSE_AGENT_KEY=agt_xxx
+npm run example:free --prefix typescript
+npm run example:llm --prefix typescript
+npm run example:e2e --prefix typescript
+```
+
+`npm run typecheck:examples --prefix typescript` compiles the examples without calling the Gateway.
+
 Timeouts, disconnects, SSE responses, or missing final `usage` release the
 entire hold and do not charge. V1 never bills from the estimated hold.
 
