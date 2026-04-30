@@ -1,6 +1,6 @@
 // ── Auth ────────────────────────────────────────────────────────────────────
 
-export type SynapseEnvironment = "local" | "staging" | "prod";
+export type SynapseEnvironment = "staging" | "prod";
 
 export interface SynapseAuthOptions {
   /** Gateway environment preset. Default: staging public preview. */
@@ -421,7 +421,7 @@ export interface InvokeOptions {
    * Pass this value from discover() results to enable price-assertion invoke.
    * Gateway returns 422 PRICE_MISMATCH if the live price has changed.
    */
-  costUsdc: number;
+  costUsdc: number | string;
 }
 
 export interface LlmInvokeOptions {

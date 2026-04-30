@@ -16,6 +16,18 @@ echo "[ci:hygiene] checking public preview staging defaults"
 grep -RIn --exclude-dir=.git --exclude-dir=node_modules --exclude-dir=.venv \
   "https://api-staging.synapse-network.ai" README.md docs python/synapse_client typescript/src typescript/tests >/dev/null
 
+echo "[ci:hygiene] checking removed local gateway guidance"
+if grep -RInE --exclude-dir=.git --exclude-dir=node_modules --exclude-dir=.venv --exclude-dir=dist --exclude-dir=build --exclude-dir=coverage --exclude-dir=.pytest_cache \
+  '(127\.0\.0\.1:8000|localhost:8000|scripts/local|Hardhat)' README.md README.zh-CN.md docs python/synapse_client/test typescript/tests; then
+  echo "[ci:hygiene] local gateway guidance detected; public tests and docs must point to staging" >&2
+  exit 1
+fi
+if grep -RInE --exclude-dir=.git --exclude-dir=node_modules --exclude-dir=.venv --exclude-dir=dist --exclude-dir=build --exclude-dir=coverage --exclude-dir=.pytest_cache \
+  'environment[=:] ?"local"|environment[=:] ?'\''local'\''' README.md README.zh-CN.md docs llms.txt llm-instructions.md; then
+  echo "[ci:hygiene] removed local environment preset detected in public docs" >&2
+  exit 1
+fi
+
 echo "[ci:hygiene] checking deprecated product brand wording"
 OLD_AGENT_PAY="Agent""Pay"
 OLD_SYNAPSE_AGENT_PAY="Synapse Agent""Pay"

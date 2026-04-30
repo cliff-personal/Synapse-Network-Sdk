@@ -76,7 +76,7 @@ def test_authenticate_runs_challenge_sign_verify_and_caches(monkeypatch):
     auth = SynapseAuth(
         wallet_address="0xAbC",
         signer=lambda message: signed_messages.append(message) or "0xsigned",
-        gateway_url="http://127.0.0.1:8000",
+        gateway_url="https://gateway.example",
         timeout_sec=9,
     )
 
@@ -89,14 +89,14 @@ def test_authenticate_runs_challenge_sign_verify_and_caches(monkeypatch):
     assert calls == [
         {
             "method": "GET",
-            "url": "http://127.0.0.1:8000/api/v1/auth/challenge?address=0xabc",
+            "url": "https://gateway.example/api/v1/auth/challenge?address=0xabc",
             "headers": {"Content-Type": "application/json"},
             "json": None,
             "timeout": 9,
         },
         {
             "method": "POST",
-            "url": "http://127.0.0.1:8000/api/v1/auth/verify",
+            "url": "https://gateway.example/api/v1/auth/verify",
             "headers": {"Content-Type": "application/json"},
             "json": {
                 "wallet_address": "0xabc",
@@ -178,7 +178,7 @@ def test_issue_credential_and_balance_use_bearer_token(monkeypatch):
     auth = SynapseAuth(
         wallet_address="0xabc",
         signer=lambda _: "0xsigned",
-        gateway_url="http://127.0.0.1:8000",
+        gateway_url="https://gateway.example",
         timeout_sec=12,
     )
 
@@ -488,7 +488,7 @@ def test_credential_lifecycle_and_owner_observability_helpers(monkeypatch):
 
     monkeypatch.setattr("synapse_client.auth.requests.request", fake_request)
 
-    auth = SynapseAuth(wallet_address="0xabc", signer=lambda _: "0xsigned", gateway_url="http://127.0.0.1:8000")
+    auth = SynapseAuth(wallet_address="0xabc", signer=lambda _: "0xsigned", gateway_url="https://gateway.example")
     revoked = auth.revoke_credential("cred_1")
     rotated = auth.rotate_credential("cred_1")
     quota = auth.update_credential_quota("cred_1", credit_limit=5, rpm=60)
@@ -576,7 +576,7 @@ def test_provider_lifecycle_and_finance_helpers(monkeypatch):
 
     monkeypatch.setattr("synapse_client.auth.requests.request", fake_request)
 
-    auth = SynapseAuth(wallet_address="0xabc", signer=lambda _: "0xsigned", gateway_url="http://127.0.0.1:8000")
+    auth = SynapseAuth(wallet_address="0xabc", signer=lambda _: "0xsigned", gateway_url="https://gateway.example")
     _assert_provider_control_result_types(_call_provider_lifecycle_helpers(auth))
 
     urls = [call["url"] for call in calls[2:]]

@@ -9,7 +9,7 @@ This repository contains the official SynapseNetwork SDKs for TypeScript and Pyt
 - **Agent Key (`agt_xxx`)**: Runtime credential used by consumer agents to invoke services and pay.
 - **Service ID**: Unique identifier for a provider API.
 - **Staging URL**: `https://api-staging.synapse-network.ai`; staging is the default development environment.
-- **Money Rule**: Never recompute prices with floating-point math. Pass discovered prices and spend limits through exactly; use string amounts when the SDK method accepts strings, for example `"0.05"`.
+- **Money Rule**: Never recompute prices with floating-point math. Pass discovered prices and spend limits through exactly; use string amounts, for example `"0.05"`.
 
 ## Easiest Way: MCP Server
 
@@ -25,6 +25,11 @@ Use the SDK directly when application code needs to discover services, invoke th
 1. Discover or choose a service ID.
 2. Invoke and pay with an agent key.
 3. Read the invocation result and receipt.
+
+Use exactly one invocation mode:
+
+- Fixed-price API invoke: normal API services use `invoke()` / `invoke` with latest discovery price as `cost_usdc` / `costUsdc`.
+- Token-metered LLM invoke: LLM services use `invoke_llm()` / `invokeLlm()` with optional `max_cost_usdc` / `maxCostUsdc`; do not pass `cost_usdc` / `costUsdc`.
 
 ### TypeScript
 
@@ -46,7 +51,7 @@ const invokeRes = await client.invoke(
   "web3-sentiment-index",
   { target: "Ethereum" },
   {
-    costUsdc: 0.05,
+    costUsdc: "0.05",
     idempotencyKey: "task_123",
   }
 );

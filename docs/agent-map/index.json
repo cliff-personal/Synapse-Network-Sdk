@@ -42,7 +42,8 @@
         "bash scripts/ci/typescript_checks.sh"
       ],
       "notes": [
-        "Canonical runtime flow is discovery/search plus price-asserted invoke plus receipt.",
+        "Canonical runtime flow is discovery/search plus one of two invoke modes: fixed-price invoke with costUsdc/cost_usdc, or token-metered LLM invoke with maxCostUsdc/max_cost_usdc.",
+        "Public examples should use SYNAPSE_AGENT_KEY for agent runtime credentials; SYNAPSE_API_KEY is only a Python legacy fallback.",
         "Do not restore old quote-first gateway calls."
       ]
     },
@@ -108,7 +109,7 @@
       "id": "sdk_environment_config",
       "title": "Gateway environment configuration",
       "use_when": [
-        "local, staging, prod, gateway URL, environment resolver, or public preview defaults change",
+        "staging, future prod, gateway URL, environment resolver, or public preview defaults change",
         "README or SECURITY guidance for staging/prod changes"
       ],
       "primary_files": [
@@ -132,6 +133,7 @@
       ],
       "notes": [
         "Default environment is staging.",
+        "Do not reintroduce removed non-staging gateway presets or gateway setup docs.",
         "Do not reintroduce the retired gateway domain from the old .network namespace.",
         "Explicit gateway URL always wins over environment preset."
       ]
@@ -167,7 +169,8 @@
       "notes": [
         "Public docs should say Public Preview unless production DNS and health checks are verified.",
         "Use agt_xxx or REPLACE_ME placeholders only.",
-        "README and gateway docs must show Agent Key -> SynapseClient first, with owner auth -> JWT -> credential issuance under Advanced."
+        "README and gateway docs must show SYNAPSE_AGENT_KEY -> SynapseClient first, with owner auth -> JWT -> credential issuance under Advanced.",
+        "README and gateway docs must explain fixed-price API invoke versus token-metered LLM invoke before advanced owner/provider flows."
       ]
     },
     {
@@ -226,7 +229,7 @@
         "bash scripts/ci/typescript_checks.sh"
       ],
       "notes": [
-        "Provider staging examples require a public HTTPS endpoint, not localhost.",
+        "Provider staging examples require a public HTTPS endpoint reachable by the staging gateway.",
         "Consumer wallet-to-invoke examples default to free services unless --allow-paid is explicit.",
         "E2E flows may require real staging credentials; PR CI should keep e2e out of the default gate unless explicitly configured."
       ]

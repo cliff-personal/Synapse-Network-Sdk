@@ -53,7 +53,6 @@ test("resolveGatewayUrl defaults to staging public preview", () => {
 });
 
 test("resolveGatewayUrl supports presets and explicit override", () => {
-  expect(resolveGatewayUrl({ environment: "local" })).toBe("http://127.0.0.1:8000");
   expect(resolveGatewayUrl({ environment: "staging" })).toBe("https://api-staging.synapse-network.ai");
   expect(resolveGatewayUrl({ environment: "prod" })).toBe("https://api.synapse-network.ai");
   expect(resolveGatewayUrl({ environment: "prod", gatewayUrl: "https://gateway.example/" })).toBe(
@@ -63,6 +62,10 @@ test("resolveGatewayUrl supports presets and explicit override", () => {
 
 test("resolveGatewayUrl rejects invalid environment", () => {
   expect(() => resolveGatewayUrl({ environment: "preview" as never })).toThrow("unsupported Synapse environment");
+});
+
+test("resolveGatewayUrl rejects removed local environment preset", () => {
+  expect(() => resolveGatewayUrl({ environment: "local" as never })).toThrow("unsupported Synapse environment");
 });
 
 test("SynapseAuth defaults to staging gateway", async () => {
@@ -112,7 +115,7 @@ test("invoke() calls /agent/invoke and returns InvocationResult", async () => {
 
   const client = new SynapseClient({
     credential: "agt_test",
-    environment: "local",
+    environment: "staging",
   });
 
   const result = await client.invoke("svc_test", { prompt: "hi" }, { costUsdc: 0.05, idempotencyKey: "key-1" });
@@ -161,6 +164,24 @@ test("invoke() sends correct body to /agent/invoke", async () => {
   expect(body["costUsdc"]).toBe(0.1);
   expect(body["idempotencyKey"]).toBe("ik-2");
   expect((body["payload"] as Record<string, unknown>)["body"]).toEqual({ text: "test" });
+});
+
+test("invoke() accepts string costUsdc and preserves exact amount", async () => {
+  let capturedBody: unknown;
+  (globalThis as unknown as Record<string, unknown>).fetch = jest.fn(async (_url: string, init?: RequestInit) => {
+    capturedBody = JSON.parse((init?.body as string) ?? "{}");
+    return {
+      ok: true,
+      status: 200,
+      text: async () => JSON.stringify({ invocationId: "inv_s", status: "SUCCEEDED", chargedUsdc: "0.050000" }),
+    } as Response;
+  });
+
+  const client = new SynapseClient({ credential: "agt_test" });
+  await client.invoke("svc_2", { text: "test" }, { costUsdc: "0.050000", idempotencyKey: "ik-string" });
+
+  const body = capturedBody as Record<string, unknown>;
+  expect(body["costUsdc"]).toBe("0.050000");
 });
 
 test("invokeLlm() sends maxCostUsdc without costUsdc and returns usage metadata", async () => {
@@ -507,7 +528,7 @@ test("gateway health, invocation receipt alias, and empty discovery diagnostics 
       }) as Response
   );
 
-  const client = new SynapseClient({ credential: "agt_test", environment: "local" });
+  const client = new SynapseClient({ credential: "agt_test", environment: "staging" });
   await expect(client.checkGatewayHealth()).resolves.toEqual({ status: "ok" });
   await expect(client.getInvocationReceipt("inv_1")).resolves.toMatchObject({ invocationId: "inv_1" });
   expect(client.explainDiscoveryEmptyResult({ query: "quotes" })).toMatchObject({ query: "quotes" });

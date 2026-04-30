@@ -3,7 +3,6 @@ import type { SynapseEnvironment } from "./types";
 export const DEFAULT_ENVIRONMENT: SynapseEnvironment = "staging";
 
 export const GATEWAY_URLS: Record<SynapseEnvironment, string> = {
-  local: "http://127.0.0.1:8000",
   staging: "https://api-staging.synapse-network.ai",
   prod: "https://api.synapse-network.ai",
 };

@@ -11,7 +11,7 @@ Consumer runtime 主链固定为：
 3. discovery/search
 4. fixed API: `invoke(service_id, payload, cost_usdc=...)`
 5. LLM service: `invoke_llm(service_id, payload, max_cost_usdc=...)`
-5. receipt 查询
+6. receipt 查询
 
 旧的 quote-first 方法 `create_quote()`、`create_invocation()`、`invoke_service()` 已废弃，不再访问旧 endpoint。调用这些方法会直接提示改用 discovery/search + price-asserted invoke。
 
@@ -36,7 +36,8 @@ python -m pip install -e ".[dev]"
 `SynapseClient` 读取顺序：
 
 1. `api_key` 显式参数
-2. `SYNAPSE_API_KEY`
+2. `SYNAPSE_AGENT_KEY`
+3. legacy fallback: `SYNAPSE_API_KEY`
 
 `gateway_url` 读取顺序：
 
@@ -51,15 +52,15 @@ python -m pip install -e ".[dev]"
 
 环境 preset：
 
-1. `local`: `http://127.0.0.1:8000`
-2. `staging`: `https://api-staging.synapse-network.ai`
-3. `prod`: `https://api.synapse-network.ai`，需等官方 production DNS 和 `/health` 验证后再用于真实资金流
+1. `staging`: `https://api-staging.synapse-network.ai`
+
+生产环境上线后，公开示例和测试再统一切换到 `prod`。
 
 `AgentWallet.connect()` 不再使用 `demo_key` fallback。没有真实 credential 时会失败。
 
 ## Agent-first 接入链路
 
-Fresh setup 不应从 `SYNAPSE_API_KEY` 开始。`SYNAPSE_API_KEY` 是 owner wallet 签发 agent credential 之后得到的 runtime token。
+Fresh setup 不应从硬编码 credential 开始。`SYNAPSE_AGENT_KEY` 是 owner wallet 签发 agent credential 之后得到的 runtime token。`SYNAPSE_API_KEY` 只作为 legacy alias 保留。
 
 固定顺序：
 
@@ -121,7 +122,7 @@ service = services[0]
 result = client.invoke(
     service.service_id,
     {"prompt": "hello"},
-    cost_usdc=float(service.price_usdc),
+    cost_usdc=str(service.price_usdc),
     idempotency_key="job-001",
     poll_timeout_sec=60,
 )
@@ -163,7 +164,7 @@ print(result.synapse.charged_usdc, result.synapse.released_usdc)
 示例脚本位于 `python/examples`：
 
 1. `provider_staging_onboarding.py`：使用 `SynapseAuth` + `auth.provider()` 在 staging 注册 provider service。
-2. `consumer_call_provider.py`：使用已有 `SYNAPSE_API_KEY=agt_xxx` 调用 provider service。
+2. `consumer_call_provider.py`：使用已有 `SYNAPSE_AGENT_KEY=agt_xxx` 调用 provider service。
 3. `consumer_wallet_to_invoke.py`：创建新的 staging wallet，签发 credential，再调用免费服务。
 
 示例命令：
@@ -178,7 +179,7 @@ PYTHONPATH="$PWD" .venv/bin/python examples/provider_staging_onboarding.py \
   --description "Returns weather data for a city." \
   --price-usdc 0
 
-export SYNAPSE_API_KEY=agt_xxx
+export SYNAPSE_AGENT_KEY=agt_xxx
 PYTHONPATH="$PWD" .venv/bin/python examples/consumer_call_provider.py \
   --service-id "weather_api" \
   --payload-json '{"prompt":"hello"}'

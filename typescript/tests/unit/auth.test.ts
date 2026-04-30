@@ -51,7 +51,7 @@ function authForTests(): SynapseAuth {
       address: "0xABCDEF",
       signMessage: async (message: string) => `signed:${message}`,
     },
-    { environment: "local" }
+    { environment: "staging" }
   );
 }
 
@@ -74,14 +74,15 @@ test("public barrel exports SDK entrypoints", () => {
   expect(SynapseAuth).toBeDefined();
   expect(SynapseClient).toBeDefined();
   expect(SynapseProvider).toBeDefined();
-  expect(resolveGatewayUrl({ environment: "local" })).toBe("http://127.0.0.1:8000");
+  expect(resolveGatewayUrl({ environment: "staging" })).toBe("https://api-staging.synapse-network.ai");
+  expect(() => resolveGatewayUrl({ environment: "local" as never })).toThrow("unsupported Synapse environment");
 });
 
 test("authenticate signs challenge, verifies wallet, and caches JWT", async () => {
   const signer = jest.fn(async (message: string) => `signature:${message}`);
   const calls = mockFetch(authHandshakeResponses("cached-jwt"));
   const auth = new SynapseAuth({
-    environment: "local",
+    environment: "staging",
     signer,
     walletAddress: "0xABCDEF",
   });
@@ -213,7 +214,7 @@ test("registerProviderService validates input and builds provider service contra
   await expect(
     authForTests().registerProviderService({
       serviceName: "",
-      endpointUrl: "http://provider.local/invoke",
+      endpointUrl: "https://provider.example.com/invoke",
       descriptionForModel: "Summarize text",
       basePriceUsdc: 0.01,
     })
@@ -229,7 +230,7 @@ test("registerProviderService validates input and builds provider service contra
   await expect(
     authForTests().registerProviderService({
       serviceName: "Summarizer",
-      endpointUrl: "http://provider.local/invoke",
+      endpointUrl: "https://provider.example.com/invoke",
       descriptionForModel: "",
       basePriceUsdc: 0.01,
     })
@@ -243,7 +244,7 @@ test("registerProviderService validates input and builds provider service contra
   await expect(
     authForTests().registerProviderService({
       serviceName: "Summarizer Pro",
-      endpointUrl: "http://provider.local/invoke",
+      endpointUrl: "https://provider.example.com/invoke",
       descriptionForModel: "Summarize text",
       basePriceUsdc: 0.05,
       tags: ["text"],

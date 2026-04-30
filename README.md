@@ -24,7 +24,24 @@ SynapseNetwork lets an agent discover services, invoke them through a gateway, a
 3. Search, invoke, and read the receipt.
 
 > Public Preview default: SDK examples use `staging`, backed by `https://api-staging.synapse-network.ai`.
-> The `prod` preset points to `https://api.synapse-network.ai`, but production should only be used after official DNS and `/health` are live.
+> After production launch, replace the public examples and tests with the `prod` environment.
+
+## Choose Your Integration Path
+
+| Goal | Use |
+|---|---|
+| Connect SynapseNetwork to an agent framework such as Cursor, Claude Desktop, or LangChain | Official MCP server: `@synapse-network/mcp-server` with `SYNAPSE_AGENT_KEY=agt_xxx` |
+| Write application code that invokes services directly | This SDK with `SynapseClient` |
+| Issue Agent Keys or publish provider APIs | Advanced owner/provider APIs: `SynapseAuth` and `auth.provider()` |
+
+## Two Invocation Modes
+
+| Mode | Use for | SDK method | Required cost parameter | Billing result |
+|---|---|---|---|---|
+| Fixed-price API invoke | Normal API services discovered from the marketplace | Python `invoke()` / TypeScript `invoke()` | Pass latest discovery price as `cost_usdc` / `costUsdc` | Gateway rejects with `PRICE_MISMATCH` if the live price changed |
+| Token-metered LLM invoke | LLM services registered with `serviceKind=llm` and `priceModel=token_metered` | Python `invoke_llm()` / TypeScript `invokeLlm()` | Do not pass `cost_usdc` / `costUsdc`; optional cap is `max_cost_usdc` / `maxCostUsdc` | Gateway holds a cap, then charges final provider-reported token usage |
+
+Do not recompute money with floating-point math. Pass discovered prices and spend caps through exactly; prefer string amounts such as `"0.05"` when the SDK method accepts strings.
 
 ## Gateway Docs
 
@@ -40,8 +57,6 @@ SynapseNetwork lets an agent discover services, invoke them through a gateway, a
 | Environment | Gateway URL | Intended use |
 |---|---|---|
 | `staging` | `https://api-staging.synapse-network.ai` | Public preview, test assets, integration trials |
-| `local` | `http://127.0.0.1:8000` | Local gateway development |
-| `prod` | `https://api.synapse-network.ai` | Production preset, pending official DNS and health verification |
 
 Resolution rules:
 
@@ -74,7 +89,7 @@ Step 2: let your agent discover and work.
 ```bash
 pip install synapse-client
 export SYNAPSE_ENV=staging
-export SYNAPSE_API_KEY=agt_xxx
+export SYNAPSE_AGENT_KEY=agt_xxx
 ```
 
 ```python
@@ -88,7 +103,7 @@ service = services[0]
 result = client.invoke(
     service.service_id,
     {"prompt": "hello"},
-    cost_usdc=float(service.price_usdc),
+    cost_usdc=str(service.price_usdc),
     idempotency_key="agent-job-001",
 )
 
@@ -113,8 +128,13 @@ npm install @synapse-network/sdk
 ```ts
 import { SynapseClient } from "@synapse-network/sdk";
 
+const agentKey = process.env.SYNAPSE_AGENT_KEY;
+if (!agentKey) {
+  throw new Error("SYNAPSE_AGENT_KEY is required");
+}
+
 const client = new SynapseClient({
-  credential: "agt_xxx",
+  credential: agentKey,
   environment: "staging",
 });
 
@@ -127,7 +147,7 @@ const result = await client.invoke(
   service.serviceId ?? service.id!,
   { prompt: "hello" },
   {
-    costUsdc: Number(service.pricing?.amount ?? 0),
+    costUsdc: String(service.pricing?.amount ?? "0"),
     idempotencyKey: "agent-job-001",
   }
 );
@@ -137,6 +157,8 @@ console.log(receipt.invocationId, receipt.status, receipt.chargedUsdc);
 ```
 
 TypeScript does not read environment variables by itself. Read them in your app and pass `environment` or `gatewayUrl` explicitly.
+
+Python reads `SYNAPSE_AGENT_KEY` by default. `SYNAPSE_API_KEY` remains a legacy compatibility alias, but new examples should use `SYNAPSE_AGENT_KEY`.
 
 ### LLM token-metered calls
 
@@ -267,7 +289,7 @@ PYTHONPATH="$PWD" .venv/bin/python examples/provider_staging_onboarding.py \
 Call a provider service with an existing Agent Key:
 
 ```bash
-export SYNAPSE_API_KEY=agt_xxx
+export SYNAPSE_AGENT_KEY=agt_xxx
 PYTHONPATH="$PWD" .venv/bin/python examples/consumer_call_provider.py \
   --service-id "weather_api" \
   --payload-json '{"prompt":"hello"}'
