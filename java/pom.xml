@@ -14,6 +14,7 @@
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
     <junit.version>5.11.4</junit.version>
     <jackson.version>2.18.3</jackson.version>
+    <web3j.version>4.12.3</web3j.version>
   </properties>
 
   <dependencies>
@@ -23,12 +24,25 @@
       <version>${jackson.version}</version>
     </dependency>
     <dependency>
+      <groupId>org.web3j</groupId>
+      <artifactId>crypto</artifactId>
+      <version>${web3j.version}</version>
+    </dependency>
+    <dependency>
       <groupId>org.junit.jupiter</groupId>
       <artifactId>junit-jupiter</artifactId>
       <version>${junit.version}</version>
       <scope>test</scope>
     </dependency>
   </dependencies>
+
+  <distributionManagement>
+    <repository>
+      <id>github</id>
+      <name>GitHub Packages</name>
+      <url>https://maven.pkg.github.com/cliff-personal/Synapse-Network-Sdk</url>
+    </repository>
+  </distributionManagement>
 
   <build>
     <plugins>

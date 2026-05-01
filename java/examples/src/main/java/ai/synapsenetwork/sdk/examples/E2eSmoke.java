@@ -22,7 +22,7 @@ public final class E2eSmoke {
     ExampleSupport.FixedTarget fixed = ExampleSupport.fixedTarget(client);
     SynapseClient.InvokeOptions fixedOptions = new SynapseClient.InvokeOptions();
     fixedOptions.costUsdc = fixed.costUsdc();
-    fixedOptions.idempotencyKey = "java-e2e-fixed-" + System.currentTimeMillis();
+    fixedOptions.idempotencyKey = ExampleSupport.idempotencyKey("fixed");
     SynapseClient.InvocationResult fixedResult = client.invoke(fixed.serviceId(), fixed.payload(), fixedOptions);
     SynapseClient.InvocationResult fixedReceipt = ExampleSupport.awaitReceipt(client, fixedResult.invocationId());
     ExampleSupport.emit(
@@ -41,7 +41,7 @@ public final class E2eSmoke {
     String maxCost = ExampleSupport.envDefault("SYNAPSE_E2E_LLM_MAX_COST_USDC", "0.010000");
     SynapseClient.LlmInvokeOptions llmOptions = new SynapseClient.LlmInvokeOptions();
     llmOptions.maxCostUsdc = maxCost;
-    llmOptions.idempotencyKey = "java-e2e-llm-" + System.currentTimeMillis();
+    llmOptions.idempotencyKey = ExampleSupport.idempotencyKey("llm");
     SynapseClient.InvocationResult llmResult =
         client.invokeLlm(
             llmServiceId,

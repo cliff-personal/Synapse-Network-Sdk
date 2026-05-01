@@ -28,7 +28,7 @@ def main() -> None:
         service_id,
         fixed_payload,
         cost_usdc=cost_usdc,
-        idempotency_key=f"python-e2e-fixed-{uuid4().hex}",
+        idempotency_key=idempotency_key("python", "fixed"),
     )
     fixed_receipt = await_receipt(client, fixed_result.invocation_id)
     emit(
@@ -49,7 +49,7 @@ def main() -> None:
         llm_service_id,
         json_payload("SYNAPSE_E2E_LLM_PAYLOAD_JSON", DEFAULT_LLM_PAYLOAD),
         max_cost_usdc=max_cost_usdc,
-        idempotency_key=f"python-e2e-llm-{uuid4().hex}",
+        idempotency_key=idempotency_key("python", "llm"),
     )
     llm_receipt = await_receipt(client, llm_result.invocation_id)
     charged_usdc = str(llm_receipt.charged_usdc or llm_result.charged_usdc)
@@ -203,6 +203,12 @@ def env_int(name: str, fallback: int) -> int:
 
 def env_bool(name: str) -> bool:
     return os.getenv(name, "").strip().lower() in {"1", "true", "yes", "y"}
+
+
+def idempotency_key(language: str, scenario: str) -> str:
+    run_id = os.getenv("E2E_RUN_ID", "").strip()
+    prefix = f"{run_id}-{language}-e2e" if run_id else f"{language}-e2e"
+    return f"{prefix}-{scenario}-{uuid4().hex}"
 
 
 def fail(message: str) -> None:

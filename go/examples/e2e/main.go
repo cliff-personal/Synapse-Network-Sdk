@@ -52,7 +52,7 @@ func main() {
 		ctx,
 		fixedServiceID,
 		fixedPayload,
-		synapse.InvokeOptions{CostUSDC: fixedCost, IdempotencyKey: "go-e2e-fixed-" + time.Now().Format("20060102150405")},
+		synapse.InvokeOptions{CostUSDC: fixedCost, IdempotencyKey: idempotencyKey("go", "fixed")},
 	)
 	must(err)
 	fixedReceipt := awaitReceipt(ctx, client, fixedResult.InvocationID)
@@ -77,7 +77,7 @@ func main() {
 		ctx,
 		llmServiceID,
 		llmPayload,
-		synapse.LLMInvokeOptions{MaxCostUSDC: maxCost, IdempotencyKey: "go-e2e-llm-" + time.Now().Format("20060102150405")},
+		synapse.LLMInvokeOptions{MaxCostUSDC: maxCost, IdempotencyKey: idempotencyKey("go", "llm")},
 	)
 	must(err)
 	llmReceipt := awaitReceipt(ctx, client, llmResult.InvocationID)
@@ -265,6 +265,14 @@ func envInt(name string, fallback int) int {
 		return fallback
 	}
 	return value
+}
+
+func idempotencyKey(language, scenario string) string {
+	prefix := language + "-e2e"
+	if runID := strings.TrimSpace(os.Getenv("E2E_RUN_ID")); runID != "" {
+		prefix = runID + "-" + prefix
+	}
+	return prefix + "-" + scenario + "-" + time.Now().Format("20060102150405000000000")
 }
 
 func firstNonEmpty(values ...string) string {

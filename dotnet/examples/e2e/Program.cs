@@ -25,7 +25,7 @@ var fixedResult = await client.InvokeAsync(
     new InvokeOptions
     {
         CostUsdc = fixedTarget.CostUsdc,
-        IdempotencyKey = "dotnet-e2e-fixed-" + DateTimeOffset.UtcNow.ToUnixTimeMilliseconds().ToString(CultureInfo.InvariantCulture),
+        IdempotencyKey = IdempotencyKey("fixed"),
     },
     cancellationToken);
 var fixedReceipt = await AwaitReceipt(client, fixedResult.InvocationId, cancellationToken);
@@ -47,7 +47,7 @@ if (!EnvBool("SYNAPSE_E2E_FREE_ONLY"))
         new LlmInvokeOptions
         {
             MaxCostUsdc = maxCost,
-            IdempotencyKey = "dotnet-e2e-llm-" + DateTimeOffset.UtcNow.ToUnixTimeMilliseconds().ToString(CultureInfo.InvariantCulture),
+            IdempotencyKey = IdempotencyKey("llm"),
         },
         cancellationToken);
     var llmReceipt = await AwaitReceipt(client, llmResult.InvocationId, cancellationToken);
@@ -248,6 +248,13 @@ static bool EnvBool(string name)
 {
     var value = Environment.GetEnvironmentVariable(name)?.Trim();
     return value is "1" or "true" or "TRUE" or "yes" or "YES" or "y" or "Y";
+}
+
+static string IdempotencyKey(string scenario)
+{
+    var runId = Environment.GetEnvironmentVariable("E2E_RUN_ID")?.Trim();
+    var prefix = string.IsNullOrWhiteSpace(runId) ? "dotnet-e2e" : $"{runId}-dotnet-e2e";
+    return $"{prefix}-{scenario}-{DateTimeOffset.UtcNow.ToUnixTimeMilliseconds().ToString(CultureInfo.InvariantCulture)}";
 }
 
 static string FirstNonBlank(params string?[] values)

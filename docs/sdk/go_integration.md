@@ -1,6 +1,6 @@
 # Go SDK Integration Guide
 
-The Go SDK is a Wave 1 consumer runtime SDK. It supports service discovery, fixed-price invoke, token-metered LLM invoke, invocation receipt lookup, and gateway health checks.
+The Go SDK supports the full public Synapse SDK surface: `SynapseClient` agent runtime, `Auth` owner wallet auth, credential and finance helpers, and `Provider` publishing/withdrawal helpers.
 
 ## Install
 
@@ -64,6 +64,33 @@ result, err := client.InvokeLLM(
 
 Do not pass fixed-price `CostUSDC` to LLM services. Use `MaxCostUSDC` as an optional cap or omit it to let the Gateway compute the hold.
 
+## Owner Auth and Provider Control
+
+Use owner auth only in backend or operator tooling. Agent runtime code should keep using `SynapseClient` with `SYNAPSE_AGENT_KEY`.
+
+```go
+auth, err := synapse.NewAuthFromPrivateKey(os.Getenv("SYNAPSE_OWNER_PRIVATE_KEY"), synapse.AuthOptions{
+    Environment: "staging",
+})
+if err != nil {
+    panic(err)
+}
+
+token, err := auth.GetToken(context.Background())
+credential, err := auth.IssueCredential(context.Background(), synapse.CredentialOptions{
+    Name: "agent-runtime",
+    MaxCalls: 100,
+    RPM: 60,
+    ExpiresInSec: 3600,
+})
+balance, err := auth.GetBalance(context.Background())
+guide, err := auth.Provider().GetRegistrationGuide(context.Background())
+
+fmt.Println(token != "", credential.Token, balance.OwnerBalance, len(guide.Steps))
+```
+
+Public owner/provider methods return named Go structs. Do not expose `map[string]any` as a top-level public result; reserve maps for request payloads, schemas, patches, and dynamic nested fields.
+
 ## Verification
 
 ```bash
@@ -71,4 +98,5 @@ bash scripts/ci/go_checks.sh
 SYNAPSE_AGENT_KEY=agt_xxx go -C go run ./examples/free_service_smoke
 SYNAPSE_AGENT_KEY=agt_xxx go -C go run ./examples/llm_smoke
 SYNAPSE_AGENT_KEY=agt_xxx go -C go run ./examples/e2e
+SYNAPSE_OWNER_PRIVATE_KEY=0x... bash scripts/e2e/sdk_parity_e2e.sh --languages go --env staging
 ```

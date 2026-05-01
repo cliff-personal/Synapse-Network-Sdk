@@ -16,7 +16,7 @@ Agent runtime examples use `SYNAPSE_AGENT_KEY=agt_xxx`. Python keeps `SYNAPSE_AP
 
 The old quote-first flow is not a current SDK main path. Python keeps deprecated compatibility methods that raise a clear error instead of calling removed endpoints.
 
-Public `SynapseAuth` and `SynapseProvider` owner/provider helpers return named SDK objects. Python uses `SDKModel` result classes such as `CredentialRevokeResult`, `UsageLogList`, `ProviderRegistrationGuide`, and `ProviderWithdrawalIntentResult`; TypeScript exports matching interfaces. Raw `dict` / `Record<string, unknown>` is allowed for internal HTTP payloads, schemas, patch inputs, and dynamic runtime payload fields, but not as the top-level public Auth/Provider return contract.
+Public `SynapseAuth` and `SynapseProvider` owner/provider helpers return named SDK objects. Python uses `SDKModel` result classes, TypeScript exports interfaces, Go exports structs, Java exports records/classes, and .NET exports records. Raw `dict` / `Record<string, unknown>` / `map[string]any` / `JsonNode` / `JsonElement` is allowed for internal HTTP payloads, schemas, patch inputs, and dynamic runtime payload fields, but not as the top-level public Auth/Provider return contract.
 
 ## Python Consumer
 
@@ -137,7 +137,7 @@ Provider publishing is available through `auth.provider()` and existing `Synapse
 17. create provider withdrawal intent
 18. list provider withdrawals
 
-## Go Consumer
+## Go SDK
 
 Supported:
 
@@ -148,8 +148,12 @@ Supported:
 5. invocation receipt lookup
 6. gateway health check
 7. typed auth, budget, price mismatch, discovery, and invoke errors
+8. owner auth through `NewAuthFromPrivateKey()` and JWT cache
+9. credential issue/list/status/revoke/rotate/delete/quota/audit/ensure helpers
+10. balance, deposit intent/confirm, voucher, usage, finance audit, and risk helpers
+11. provider facade, secrets, registration guide, parse curl, service lifecycle, health, earnings, and withdrawals
 
-## Java/JVM Consumer
+## Java/JVM SDK
 
 Supported:
 
@@ -160,8 +164,12 @@ Supported:
 5. invocation receipt lookup
 6. gateway health check
 7. typed auth, budget, price mismatch, and invoke exceptions
+8. owner auth through `SynapseAuth.fromPrivateKey()` and JWT cache
+9. credential issue/list/status/revoke/rotate/delete/quota/audit/ensure helpers
+10. balance, deposit intent/confirm, voucher, usage, finance audit, and risk helpers
+11. provider facade, secrets, registration guide, parse curl, service lifecycle, health, earnings, and withdrawals
 
-## .NET Consumer
+## .NET SDK
 
 Supported:
 
@@ -172,6 +180,10 @@ Supported:
 5. invocation receipt lookup
 6. gateway health check
 7. typed auth, budget, price mismatch, and invoke exceptions
+8. owner auth through `SynapseAuth.FromPrivateKey()` and JWT cache
+9. credential issue/list/status/revoke/rotate/delete/quota/audit/ensure helpers
+10. balance, deposit intent/confirm, voucher, usage, finance audit, and risk helpers
+11. provider facade, secrets, registration guide, parse curl, service lifecycle, health, earnings, and withdrawals
 
 ## Gateway Capabilities Not Yet Wrapped
 
@@ -183,7 +195,6 @@ The SDK does not currently wrap the full gateway management surface. Known uncov
 4. events
 5. on-chain transaction signing helpers
 6. provider withdrawal completion helper
-7. owner/provider control-plane helpers in Go, Java, and .NET
 
 ## Product Boundary
 

@@ -8,6 +8,7 @@ import {
   envBool,
   envDefault,
   fixedTarget,
+  idempotencyKey,
   jsonPayload,
   localNegative,
 } from "./_shared";
@@ -25,7 +26,7 @@ async function main(): Promise<void> {
   const target = await fixedTarget(synapse);
   const fixedResult = await synapse.invoke(target.serviceId, target.payload, {
     costUsdc: target.costUsdc,
-    idempotencyKey: `typescript-e2e-fixed-${Date.now()}`,
+    idempotencyKey: idempotencyKey("typescript", "fixed"),
   });
   const fixedReceipt = await awaitReceipt(synapse, fixedResult.invocationId);
   emit({
@@ -47,7 +48,7 @@ async function main(): Promise<void> {
     jsonPayload("SYNAPSE_E2E_LLM_PAYLOAD_JSON", DEFAULT_LLM_PAYLOAD),
     {
       maxCostUsdc,
-      idempotencyKey: `typescript-e2e-llm-${Date.now()}`,
+      idempotencyKey: idempotencyKey("typescript", "llm"),
     }
   );
   const llmReceipt = await awaitReceipt(synapse, llmResult.invocationId);

@@ -2,7 +2,7 @@
 
 SynapseNetwork is the settlement layer for AI agents. It allows AI agents to discover APIs, invoke them, and pay with zero-gas crypto micropayments (USDC) without human-in-the-loop.
 
-This repository contains the official SynapseNetwork SDKs for TypeScript and Python.
+This repository contains the official SynapseNetwork SDKs for TypeScript, Python, Go, Java, and .NET.
 
 ## Core Concepts
 
@@ -121,10 +121,11 @@ print(llm_response.usage, llm_response.synapse)
 
 ## Owner and Provider Workflows
 
-- Use `SynapseAuth` only for owner/backend tasks such as wallet auth, issuing agent credentials, balance/deposit helpers, and provider registration.
+- All five SDKs expose the same public capability families: `SynapseClient` agent runtime, `SynapseAuth`/`Auth` owner wallet auth, credential management, balance/deposit helpers, usage/finance reads, and `SynapseProvider`/`Provider` publishing and withdrawal helpers.
+- Use `SynapseAuth` / `Auth` only for owner/backend tasks such as wallet auth, issuing agent credentials, balance/deposit helpers, and provider registration.
 - Agent runtime code should use `SynapseClient` with an existing `agt_xxx` key.
 - Provider publishing code should use `auth.provider()` / `SynapseProvider`.
-- Public `SynapseAuth` and `SynapseProvider` methods return named SDK objects/interfaces, not raw `dict` / `Record<string, unknown>`.
+- Public owner/provider methods return named SDK objects/interfaces/structs/records, not raw `dict`, `Record<string, unknown>`, `map[string]any`, `JsonNode`, `JsonElement`, or `Dictionary` as the top-level result.
 
 ## Repository Map for Contributors
 
@@ -151,6 +152,16 @@ bash scripts/ci/typescript_checks.sh
 bash scripts/ci/repo_hygiene_checks.sh
 bash scripts/ci/security_checks.sh
 ```
+
+Live parity E2E is gated and targets staging by default:
+
+```bash
+export SYNAPSE_OWNER_PRIVATE_KEY=0x...
+export SYNAPSE_AGENT_KEY=agt_xxx
+bash scripts/e2e/sdk_parity_e2e.sh --env staging --skip-install
+```
+
+Private gateway tests may use `--env local` only with explicit `SYNAPSE_GATEWAY_URL`; do not generate public examples that select a local environment preset.
 
 ## Safety Rules
 

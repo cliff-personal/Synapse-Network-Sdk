@@ -39,6 +39,12 @@ export function envBool(name: string): boolean {
   return ["1", "true", "yes", "y"].includes((process.env[name] ?? "").trim().toLowerCase());
 }
 
+export function idempotencyKey(language: string, scenario: string): string {
+  const runId = process.env.E2E_RUN_ID?.trim();
+  const prefix = runId ? `${runId}-${language}-e2e` : `${language}-e2e`;
+  return `${prefix}-${scenario}-${Date.now()}`;
+}
+
 export function envInt(name: string, fallback: number): number {
   const value = Number.parseInt((process.env[name] ?? "").trim(), 10);
   return Number.isFinite(value) && value > 0 ? value : fallback;

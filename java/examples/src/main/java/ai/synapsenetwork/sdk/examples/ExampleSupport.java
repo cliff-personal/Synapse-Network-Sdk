@@ -148,6 +148,12 @@ final class ExampleSupport {
             || "y".equalsIgnoreCase(value.trim()));
   }
 
+  static String idempotencyKey(String scenario) {
+    String runId = System.getenv("E2E_RUN_ID");
+    String prefix = runId == null || runId.isBlank() ? "java-e2e" : runId.trim() + "-java-e2e";
+    return prefix + "-" + scenario + "-" + System.currentTimeMillis();
+  }
+
   static String firstNonBlank(String... values) {
     for (String value : values) {
       if (value != null && !value.isBlank()) {
