@@ -9,4 +9,7 @@
     <Authors>Synapse Network Team</Authors>
     <Description>Official .NET SDK for SynapseNetwork agent runtime APIs.</Description>
   </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Nethereum.Signer" Version="5.0.0" />
+  </ItemGroup>
 </Project>

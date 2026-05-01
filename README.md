@@ -61,8 +61,8 @@ Developers should pass staging before any future production migration. Productio
 
 | Mode | Use for | SDK method | Required cost parameter | Billing result |
 |---|---|---|---|---|
-| Fixed-price API invoke | Normal API services discovered from the marketplace | Python `invoke()` / TypeScript `invoke()` | Pass latest discovery price as `cost_usdc` / `costUsdc` | Gateway rejects with `PRICE_MISMATCH` if the live price changed |
-| Token-metered LLM invoke | LLM services registered with `serviceKind=llm` and `priceModel=token_metered` | Python `invoke_llm()` / TypeScript `invokeLlm()` | Do not pass `cost_usdc` / `costUsdc`; optional cap is `max_cost_usdc` / `maxCostUsdc` | Gateway holds a cap, then charges final provider-reported token usage |
+| Fixed-price API invoke | Normal API services discovered from the marketplace | Python/TypeScript `invoke()`, Go `Invoke()`, Java `invoke()`, .NET `InvokeAsync()` | Pass latest discovery price as `cost_usdc` / `costUsdc` / `CostUSDC` / `CostUsdc` | Gateway rejects with `PRICE_MISMATCH` if the live price changed |
+| Token-metered LLM invoke | LLM services registered with `serviceKind=llm` and `priceModel=token_metered` | Python `invoke_llm()`, TypeScript `invokeLlm()`, Go `InvokeLLM()`, Java `invokeLlm()`, .NET `InvokeLlmAsync()` | Do not pass fixed-price cost; optional cap is `max_cost_usdc` / `maxCostUsdc` / `MaxCostUSDC` / `MaxCostUsdc` | Gateway holds a cap, then charges final provider-reported token usage |
 
 Do not recompute money with floating-point math. Pass discovered prices and spend caps through exactly; prefer string amounts such as `"0.05"` when the SDK method accepts strings.
 
@@ -107,17 +107,17 @@ Provider is an owner-scoped supply-side role, not a separate root account. Keep 
 |---|---|---|
 | Python | `python/` | Consumer, owner auth, provider publishing |
 | TypeScript | `typescript/` | Consumer, owner auth, provider publishing |
-| Go | `go/` | Consumer runtime preview |
-| Java/JVM | `java/` | Consumer runtime preview; Kotlin can call the Java SDK |
-| .NET | `dotnet/` | Consumer runtime preview |
+| Go | `go/` | Consumer, owner auth, provider publishing |
+| Java/JVM | `java/` | Consumer, owner auth, provider publishing; Kotlin can call the Java SDK |
+| .NET | `dotnet/` | Consumer, owner auth, provider publishing |
 
-Wave 1 multi-language SDKs focus on agent runtime: search/discover, fixed-price invoke, token-metered LLM invoke, receipt lookup, and gateway health. Owner auth and provider publishing for Go, Java, and .NET are planned after the consumer runtime surface is stable.
+All five SDKs expose the same public capability families: agent runtime, owner wallet auth, credential management, balance/deposit helpers, usage/finance reads, and provider lifecycle/withdrawal helpers. The exact naming follows each language's conventions, but the Gateway contract and money rules stay consistent.
 
 ## Examples By SDK
 
 All runnable examples default to staging and read `SYNAPSE_AGENT_KEY`.
 
-| SDK | Free fixed-price smoke | LLM smoke | Full local E2E |
+| SDK | Free fixed-price smoke | LLM smoke | Full E2E |
 |---|---|---|---|
 | Python | `PYTHONPATH=python python3 python/examples/free_service_smoke.py` | `PYTHONPATH=python python3 python/examples/llm_smoke.py` | `PYTHONPATH=python python3 python/examples/e2e.py` |
 | TypeScript | `npm run example:free --prefix typescript` | `npm run example:llm --prefix typescript` | `npm run example:e2e --prefix typescript` |
@@ -128,9 +128,12 @@ All runnable examples default to staging and read `SYNAPSE_AGENT_KEY`.
 To run every SDK through the same real Gateway E2E harness:
 
 ```bash
+export SYNAPSE_OWNER_PRIVATE_KEY=0x...
 export SYNAPSE_AGENT_KEY=agt_xxx
-bash scripts/e2e/sdk_wave1_local.sh --skip-install
+bash scripts/e2e/sdk_parity_e2e.sh --env staging --skip-install
 ```
+
+For a private gateway test target, use `--env local` with an explicit `SYNAPSE_GATEWAY_URL`; `local` is not a public SDK environment preset.
 
 ## Agent Quickstart: Python
 

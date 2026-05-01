@@ -12,6 +12,7 @@
     <maven.compiler.release>17</maven.compiler.release>
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
     <jackson.version>2.18.3</jackson.version>
+    <web3j.version>4.12.3</web3j.version>
   </properties>
 
   <dependencies>
@@ -19,6 +20,11 @@
       <groupId>com.fasterxml.jackson.core</groupId>
       <artifactId>jackson-databind</artifactId>
       <version>${jackson.version}</version>
+    </dependency>
+    <dependency>
+      <groupId>org.web3j</groupId>
+      <artifactId>crypto</artifactId>
+      <version>${web3j.version}</version>
     </dependency>
   </dependencies>
 

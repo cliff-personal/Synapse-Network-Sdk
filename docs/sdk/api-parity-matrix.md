@@ -16,22 +16,22 @@ Current public environment: staging on Arbitrum Sepolia with MockUSDC test asset
 
 ## Owner Control Plane
 
-| Capability | Python SDK | TypeScript SDK | Gateway route |
-|---|---|---|---|
-| Wallet auth | `SynapseAuth.from_private_key()`, `get_token()` | `SynapseAuth.fromWallet()`, `getToken()` | `/api/v1/auth/challenge`, `/api/v1/auth/verify` |
-| Agent credentials | `issue_credential()`, `list_credentials()`, `revoke_credential()`, `update_credential_quota()` | `issueCredential()`, `listCredentials()`, `revokeCredential()`, `updateCredentialQuota()` | `/api/v1/credentials/agent/*` |
-| Balance and deposit | `get_balance()`, `register_deposit_intent()`, `confirm_deposit()` | `getBalance()`, `registerDepositIntent()`, `confirmDeposit()` | `/api/v1/balance*` |
-| Usage and limits | `get_usage_logs()`, `set_spending_limit()` | `getUsageLogs()`, `setSpendingLimit()` | `/api/v1/usage/logs`, `/api/v1/balance/spending-limit` |
+| Capability | Python SDK | TypeScript SDK | Go SDK | Java SDK | .NET SDK | Gateway route |
+|---|---|---|---|---|---|---|
+| Wallet auth | `SynapseAuth.from_private_key()`, `get_token()` | `SynapseAuth.fromWallet()`, `getToken()` | `NewAuthFromPrivateKey()`, `GetToken()` | `SynapseAuth.fromPrivateKey()`, `getToken()` | `SynapseAuth.FromPrivateKey()`, `GetTokenAsync()` | `/api/v1/auth/challenge`, `/api/v1/auth/verify` |
+| Agent credentials | `issue_credential()`, `list_credentials()`, `revoke_credential()`, `update_credential_quota()` | `issueCredential()`, `listCredentials()`, `revokeCredential()`, `updateCredentialQuota()` | `IssueCredential()`, `ListCredentials()`, `RevokeCredential()`, `UpdateCredentialQuota()` | `issueCredential()`, `listCredentials()`, `revokeCredential()`, `updateCredentialQuota()` | `IssueCredentialAsync()`, `ListCredentialsAsync()`, `RevokeCredentialAsync()`, `UpdateCredentialQuotaAsync()` | `/api/v1/credentials/agent/*` |
+| Balance and deposit | `get_balance()`, `register_deposit_intent()`, `confirm_deposit()` | `getBalance()`, `registerDepositIntent()`, `confirmDeposit()` | `GetBalance()`, `RegisterDepositIntent()`, `ConfirmDeposit()` | `getBalance()`, `registerDepositIntent()`, `confirmDeposit()` | `GetBalanceAsync()`, `RegisterDepositIntentAsync()`, `ConfirmDepositAsync()` | `/api/v1/balance*` |
+| Usage and limits | `get_usage_logs()`, `set_spending_limit()` | `getUsageLogs()`, `setSpendingLimit()` | `GetUsageLogs()`, `SetSpendingLimit()` | `getUsageLogs()`, `setSpendingLimit()` | `GetUsageLogsAsync()`, `SetSpendingLimitAsync()` | `/api/v1/usage/logs`, `/api/v1/balance/spending-limit` |
 
 ## Provider Publishing
 
-| Capability | Python SDK | TypeScript SDK | Gateway route |
-|---|---|---|---|
-| Provider facade | `auth.provider()` / `SynapseProvider` | `auth.provider()` / `SynapseProvider` | Owner JWT scoped |
-| Registration guide | `get_registration_guide()` | `getRegistrationGuide()` | `GET /api/v1/services/registration-guide` |
-| Service lifecycle | `register_service()`, `list_services()`, `update_service()`, `delete_service()`, `ping_service()` | `registerService()`, `listServices()`, `updateService()`, `deleteService()`, `pingService()` | `/api/v1/services*` |
-| Health and earnings | `get_service_status()`, `get_service_health_history()`, `get_earnings_summary()` | `getServiceStatus()`, `getServiceHealthHistory()`, `getEarningsSummary()` | `/api/v1/services/*`, `/api/v1/providers/earnings/summary` |
-| Provider withdrawals | `get_withdrawal_capability()`, `create_withdrawal_intent()`, `list_withdrawals()` | `getWithdrawalCapability()`, `createWithdrawalIntent()`, `listWithdrawals()` | `/api/v1/providers/withdrawals*` |
+| Capability | Python SDK | TypeScript SDK | Go SDK | Java SDK | .NET SDK | Gateway route |
+|---|---|---|---|---|---|---|
+| Provider facade | `auth.provider()` / `SynapseProvider` | `auth.provider()` / `SynapseProvider` | `auth.Provider()` / `Provider` | `auth.provider()` / `SynapseProvider` | `auth.Provider()` / `SynapseProvider` | Owner JWT scoped |
+| Registration guide | `get_registration_guide()` | `getRegistrationGuide()` | `GetRegistrationGuide()` | `getRegistrationGuide()` | `GetRegistrationGuideAsync()` | `GET /api/v1/services/registration-guide` |
+| Service lifecycle | `register_service()`, `list_services()`, `update_service()`, `delete_service()`, `ping_service()` | `registerService()`, `listServices()`, `updateService()`, `deleteService()`, `pingService()` | `RegisterProviderService()`, `ListProviderServices()`, `UpdateProviderService()`, `DeleteProviderService()`, `PingProviderService()` | `registerProviderService()`, `listProviderServices()`, `updateProviderService()`, `deleteProviderService()`, `pingProviderService()` | `RegisterProviderServiceAsync()`, `ListProviderServicesAsync()`, `UpdateProviderServiceAsync()`, `DeleteProviderServiceAsync()`, `PingProviderServiceAsync()` | `/api/v1/services*` |
+| Health and earnings | `get_service_status()`, `get_service_health_history()`, `get_earnings_summary()` | `getServiceStatus()`, `getServiceHealthHistory()`, `getEarningsSummary()` | `GetProviderServiceStatus()`, `GetProviderServiceHealthHistory()`, `GetProviderEarningsSummary()` | `getProviderServiceStatus()`, `getProviderServiceHealthHistory()`, `getProviderEarningsSummary()` | `GetProviderServiceStatusAsync()`, `GetProviderServiceHealthHistoryAsync()`, `GetProviderEarningsSummaryAsync()` | `/api/v1/services/*`, `/api/v1/providers/earnings/summary` |
+| Provider withdrawals | `get_withdrawal_capability()`, `create_withdrawal_intent()`, `list_withdrawals()` | `getWithdrawalCapability()`, `createWithdrawalIntent()`, `listWithdrawals()` | `GetProviderWithdrawalCapability()`, `CreateProviderWithdrawalIntent()`, `ListProviderWithdrawals()` | `getProviderWithdrawalCapability()`, `createProviderWithdrawalIntent()`, `listProviderWithdrawals()` | `GetProviderWithdrawalCapabilityAsync()`, `CreateProviderWithdrawalIntentAsync()`, `ListProviderWithdrawalsAsync()` | `/api/v1/providers/withdrawals*` |
 
 ## Documentation Rules
 

@@ -8,6 +8,9 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 PYTHON_SOURCE = ROOT / "python" / "synapse_client"
 TYPESCRIPT_SOURCE = ROOT / "typescript" / "src"
+GO_SOURCE = ROOT / "go" / "synapse"
+JAVA_SOURCE = ROOT / "java" / "src" / "main" / "java" / "ai" / "synapsenetwork" / "sdk"
+DOTNET_SOURCE = ROOT / "dotnet" / "src" / "SynapseNetwork.Sdk"
 
 MAX_SOURCE_LINES = 500
 MAX_TEST_LINES = 700
@@ -32,6 +35,18 @@ TYPESCRIPT_TYPED_RETURN_FILES = {
     TYPESCRIPT_SOURCE / "auth.ts",
     TYPESCRIPT_SOURCE / "auth_provider_control.ts",
     TYPESCRIPT_SOURCE / "provider.ts",
+}
+GO_TYPED_RETURN_FILES = {
+    GO_SOURCE / "auth.go",
+    GO_SOURCE / "provider_control.go",
+}
+JAVA_TYPED_RETURN_FILES = {
+    JAVA_SOURCE / "SynapseAuth.java",
+    JAVA_SOURCE / "SynapseProvider.java",
+}
+DOTNET_TYPED_RETURN_FILES = {
+    DOTNET_SOURCE / "SynapseAuth.cs",
+    DOTNET_SOURCE / "SynapseProvider.cs",
 }
 
 
@@ -93,6 +108,9 @@ def check_python_function_lengths() -> list[str]:
 def check_public_sdk_return_models() -> list[str]:
     failures = check_python_public_return_models()
     failures.extend(check_typescript_public_return_models())
+    failures.extend(check_go_public_return_models())
+    failures.extend(check_java_public_return_models())
+    failures.extend(check_dotnet_public_return_models())
     return failures
 
 
@@ -139,6 +157,70 @@ def check_typescript_public_return_models() -> list[str]:
                     f"{relative(path)}:{lineno} {name} returns raw Record; use a named SDK result type"
                 )
     return sorted(set(failures))
+
+
+def check_go_public_return_models() -> list[str]:
+    failures: list[str] = []
+    forbidden = (
+        "map[string]any",
+        "map[string]interface{}",
+        "[]map[string]any",
+        "[]map[string]interface{}",
+    )
+    pattern = re.compile(r"^func\s+\([^)]+\)\s+([A-Z]\w*)\s*\([^)]*\)\s*([^{\n]+)", re.MULTILINE)
+    for path in sorted(GO_TYPED_RETURN_FILES):
+        text = path.read_text(encoding="utf-8")
+        for match in pattern.finditer(text):
+            returns = match.group(2)
+            if any(item in returns for item in forbidden):
+                lineno = text.count("\n", 0, match.start()) + 1
+                failures.append(
+                    f"{relative(path)}:{lineno} {match.group(1)} returns raw map; use a named SDK result struct"
+                )
+    return failures
+
+
+def check_java_public_return_models() -> list[str]:
+    failures: list[str] = []
+    pattern = re.compile(
+        r"^\s*public\s+(?!static\s+final\s+class\b)(?!record\b)(?:static\s+)?"
+        r"(JsonNode|Map\s*<[^>]+>|List\s*<\s*Map\s*<[^>]+>\s*>)\s+([A-Za-z]\w*)\s*\(",
+        re.MULTILINE,
+    )
+    for path in sorted(JAVA_TYPED_RETURN_FILES):
+        text = path.read_text(encoding="utf-8")
+        for match in pattern.finditer(text):
+            lineno = text.count("\n", 0, match.start()) + 1
+            failures.append(
+                f"{relative(path)}:{lineno} {match.group(2)} returns raw {match.group(1)}; use a named SDK result class"
+            )
+    return failures
+
+
+def check_dotnet_public_return_models() -> list[str]:
+    failures: list[str] = []
+    forbidden_return = (
+        r"JsonElement",
+        r"Dictionary\s*<[^>]+>",
+        r"IReadOnlyDictionary\s*<[^>]+>",
+        r"Task\s*<\s*JsonElement\s*>",
+        r"Task\s*<\s*Dictionary\s*<[^>]+>\s*>",
+        r"Task\s*<\s*IReadOnlyDictionary\s*<[^>]+>\s*>",
+    )
+    pattern = re.compile(
+        r"^\s*public\s+(?!sealed\s+record\b)(?:async\s+)?("
+        + "|".join(forbidden_return)
+        + r")\s+([A-Z]\w*)\s*\(",
+        re.MULTILINE,
+    )
+    for path in sorted(DOTNET_TYPED_RETURN_FILES):
+        text = path.read_text(encoding="utf-8")
+        for match in pattern.finditer(text):
+            lineno = text.count("\n", 0, match.start()) + 1
+            failures.append(
+                f"{relative(path)}:{lineno} {match.group(2)} returns raw {match.group(1)}; use a named SDK result record"
+            )
+    return failures
 
 
 def effective_lines_for_node(path: Path, node: ast.AST) -> int:

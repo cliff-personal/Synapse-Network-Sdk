@@ -19,7 +19,7 @@
 9. [Go Integration Guide](./go_integration.md)
 10. [Java/JVM Integration Guide](./java_integration.md)
 11. [.NET Integration Guide](./dotnet_integration.md)
-12. [Wave 1 本地 E2E](#wave-1-本地-e2e)
+12. [SDK Parity E2E](#sdk-parity-e2e)
 13. [Python Staging Development](../ops/SDK_Python_Staging_Development.md)
 14. [TypeScript Consumer E2E Plan](../test/consumer-e2e-plan.md)
 15. [TypeScript Provider Onboarding E2E Plan](../test/typescript-provider-onboarding-e2e-plan.md)
@@ -36,9 +36,9 @@ SDK 当前有三个明确的公开入口：
 
 Provider 仍然是 owner scope 下的供给侧角色。`SynapseProvider` 只是让 provider 接入更容易发现，不引入第二套 provider root 身份。
 
-Wave 1 多语言包新增 Go、Java/JVM 和 .NET consumer runtime SDK。这些包第一阶段只提供 `SynapseClient`：discovery/search、fixed-price invoke、token-metered LLM invoke、receipt lookup 和 gateway health。Python 与 TypeScript 仍是 owner auth 和 provider publishing 的 reference SDK，等新语言 consumer runtime 稳定后再补控制面能力。
+Go、Java/JVM 和 .NET 现在与 Python、TypeScript 覆盖同一组公开能力：`SynapseClient` agent runtime、`SynapseAuth` owner wallet auth、credential 管理、balance/deposit helper、usage/finance 读取，以及 `SynapseProvider` provider publishing/withdrawal helper。
 
-Owner/provider helper 的返回值必须是命名 SDK 对象。不要新增或记录返回 raw Python `dict` / TypeScript `Record<string, unknown>` 的公开 `SynapseAuth` / `SynapseProvider` 方法；应先新增命名 result model/interface。
+Owner/provider helper 的返回值必须是命名 SDK 对象。不要新增或记录返回 raw Python `dict`、TypeScript `Record<string, unknown>`、Go `map[string]any`、Java `JsonNode`/`Map` 或 .NET `JsonElement`/`Dictionary` 作为顶层结果的公开 `SynapseAuth` / `SynapseProvider` 方法；应先新增命名 result model/interface/struct/record。
 
 Python 旧的 quote-first 方法 `create_quote()`、`create_invocation()`、`invoke_service()` 已经废弃。它们不会再访问旧 endpoint，而是直接提示普通 fixed-price API 改用 discovery/search + `invoke(..., cost_usdc=...)`。
 
@@ -48,19 +48,30 @@ Consumer 文档应统一呈现两种调用模式：
 
 | 模式 | SDK 方法 | 费用输入 |
 |---|---|---|
-| Fixed-price API | Python `invoke()` / TypeScript `invoke()` | 最新 discovery price：`cost_usdc` / `costUsdc` |
-| Token-metered LLM | Python `invoke_llm()` / TypeScript `invokeLlm()` | 可选上限：`max_cost_usdc` / `maxCostUsdc`；不要发送 `cost_usdc` / `costUsdc` |
+| Fixed-price API | Python/TypeScript `invoke()`、Go `Invoke()`、Java `invoke()`、.NET `InvokeAsync()` | 最新 discovery price，使用字符串金额 |
+| Token-metered LLM | Python `invoke_llm()`、TypeScript `invokeLlm()`、Go `InvokeLLM()`、Java `invokeLlm()`、.NET `InvokeLlmAsync()` | 可选上限，使用字符串金额；不要发送 fixed-price cost |
 
-## Wave 1 本地 E2E
+## SDK Parity E2E
 
-新增 Go、Java/JVM 和 .NET SDK 的真实 Gateway E2E 入口是：
+五种 SDK 共用的真实 Gateway E2E 入口是：
 
 ```bash
+export SYNAPSE_OWNER_PRIVATE_KEY='0x...'
 export SYNAPSE_AGENT_KEY='agt_xxx_your_real_key'
-bash scripts/e2e/sdk_wave1_local.sh
+bash scripts/e2e/sdk_parity_e2e.sh --env staging
 ```
 
-脚本会对每个选中的 SDK 验证 health、discovery、fixed-price invoke、receipt lookup、token-metered LLM invoke、本地参数校验失败，以及 invalid credential 负向路径。缺少本地工具链时可自动安装；.NET 会按项目 baseline 安装 SDK 8.0 到 `$HOME/.synapse-network-sdk-e2e/dotnet`。
+脚本会先通过每个选中的 SDK 验证 owner login、credential issue、balance、usage logs 和 provider registration guide，再运行共享 runtime E2E：health、discovery、fixed-price invoke、receipt lookup、token-metered LLM invoke、参数校验失败，以及 invalid credential 负向路径。
+
+私有 gateway 测试目标使用：
+
+```bash
+export SYNAPSE_OWNER_PRIVATE_KEY='0x...'
+export SYNAPSE_GATEWAY_URL='https://your-private-gateway.example.com'
+bash scripts/e2e/sdk_parity_e2e.sh --env local
+```
+
+这不会恢复公开的 local environment preset；local 只是测试自动化里的显式 URL override。缺少本地工具链时可自动安装；.NET 会按项目 baseline 安装 SDK 8.0 到 `$HOME/.synapse-network-sdk-e2e/dotnet`。
 
 默认 fixed-price 路径只会自动选择免费的 fixed-price API 服务。如果 staging 没有这类服务，需要显式设置 `SYNAPSE_E2E_FIXED_SERVICE_ID`、`SYNAPSE_E2E_FIXED_COST_USDC` 和 `SYNAPSE_E2E_FIXED_PAYLOAD_JSON`。
 

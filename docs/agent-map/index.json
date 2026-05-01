@@ -61,7 +61,7 @@
         "Canonical runtime flow is discovery/search plus one of two invoke modes: fixed-price invoke with costUsdc/cost_usdc, or token-metered LLM invoke with maxCostUsdc/max_cost_usdc.",
         "Public examples should use SYNAPSE_AGENT_KEY for agent runtime credentials; SYNAPSE_API_KEY is only a Python legacy fallback.",
         "Public preview examples target staging on Arbitrum Sepolia with MockUSDC test assets.",
-        "Go, Java, and .NET are Wave 1 Consumer SDKs only; owner auth and provider lifecycle helpers remain Python/TypeScript until Phase 2.",
+        "Go, Java, and .NET now expose owner auth, credential, finance, provider lifecycle, and withdrawal helpers alongside the existing runtime client.",
         "Do not restore old quote-first gateway calls."
       ]
     },
@@ -268,6 +268,7 @@
         "dotnet/examples/free-service-smoke/Program.cs",
         "dotnet/examples/llm-smoke/Program.cs",
         "dotnet/examples/e2e/Program.cs",
+        "scripts/e2e/sdk_parity_e2e.sh",
         "scripts/e2e/sdk_wave1_local.sh",
         "docs/test/consumer-e2e-plan.md",
         "docs/test/typescript-provider-onboarding-e2e-plan.md",
@@ -289,7 +290,7 @@
         "bash scripts/ci/go_checks.sh",
         "bash scripts/ci/java_checks.sh",
         "bash scripts/ci/dotnet_checks.sh",
-        "SYNAPSE_AGENT_KEY=agt_xxx bash scripts/e2e/sdk_wave1_local.sh --skip-install"
+        "SYNAPSE_OWNER_PRIVATE_KEY=0x... SYNAPSE_AGENT_KEY=agt_xxx bash scripts/e2e/sdk_parity_e2e.sh --env staging --skip-install"
       ],
       "notes": [
         "Provider staging examples require a public HTTPS endpoint reachable by the staging gateway.",

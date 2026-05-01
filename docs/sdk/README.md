@@ -19,7 +19,7 @@ This directory is the SDK-side source of truth for capabilities, integration gui
 9. [Go Integration Guide](./go_integration.md)
 10. [Java/JVM Integration Guide](./java_integration.md)
 11. [.NET Integration Guide](./dotnet_integration.md)
-12. [Wave 1 Local E2E](#wave-1-local-e2e)
+12. [SDK Parity E2E](#sdk-parity-e2e)
 13. [Python Staging Development](../ops/SDK_Python_Staging_Development.md)
 14. [TypeScript Consumer E2E Plan](../test/consumer-e2e-plan.md)
 15. [TypeScript Provider Onboarding E2E Plan](../test/typescript-provider-onboarding-e2e-plan.md)
@@ -36,9 +36,9 @@ The SDK currently has three explicit public surfaces:
 
 Provider remains an owner-scoped supply-side role. `SynapseProvider` improves discoverability but does not introduce a second provider root identity.
 
-Wave 1 multi-language packages add Go, Java/JVM, and .NET consumer runtime SDKs. These packages intentionally start with `SynapseClient` only: discovery/search, fixed-price invoke, token-metered LLM invoke, receipt lookup, and gateway health. Python and TypeScript remain the reference SDKs for owner auth and provider publishing until those control-plane surfaces are added to the new languages.
+Go, Java/JVM, and .NET now expose the same public capability families as Python and TypeScript: `SynapseClient` agent runtime, `SynapseAuth` owner wallet auth, credential management, balance/deposit helpers, usage/finance reads, and `SynapseProvider` provider publishing/withdrawal helpers.
 
-Owner/provider helper returns are typed SDK objects. Do not document or add public `SynapseAuth` / `SynapseProvider` methods that return raw Python `dict` or TypeScript `Record<string, unknown>`; add a named result model/interface instead.
+Owner/provider helper returns are typed SDK objects. Do not document or add public `SynapseAuth` / `SynapseProvider` methods that return raw Python `dict`, TypeScript `Record<string, unknown>`, Go `map[string]any`, Java `JsonNode`/`Map`, or .NET `JsonElement`/`Dictionary` as the top-level result; add a named result model/interface/struct/record instead.
 
 Python quote-first methods `create_quote()`, `create_invocation()`, and `invoke_service()` are deprecated. They no longer call old endpoints and instead tell users to use discovery/search + `invoke(..., cost_usdc=...)` for fixed-price APIs.
 
@@ -48,19 +48,30 @@ Consumer docs should present two invocation modes:
 
 | Mode | SDK method | Cost input |
 |---|---|---|
-| Fixed-price API | Python `invoke()` / TypeScript `invoke()` | latest discovery price as `cost_usdc` / `costUsdc` |
-| Token-metered LLM | Python `invoke_llm()` / TypeScript `invokeLlm()` | optional cap as `max_cost_usdc` / `maxCostUsdc`; never send `cost_usdc` / `costUsdc` |
+| Fixed-price API | Python/TypeScript `invoke()`, Go `Invoke()`, Java `invoke()`, .NET `InvokeAsync()` | latest discovery price as string money |
+| Token-metered LLM | Python `invoke_llm()`, TypeScript `invokeLlm()`, Go `InvokeLLM()`, Java `invokeLlm()`, .NET `InvokeLlmAsync()` | optional cap as string money; never send fixed-price cost |
 
-## Wave 1 Local E2E
+## SDK Parity E2E
 
-The real Gateway E2E entrypoint for the new Go, Java/JVM, and .NET SDKs is:
+The real Gateway E2E entrypoint for all five SDKs is:
 
 ```bash
+export SYNAPSE_OWNER_PRIVATE_KEY='0x...'
 export SYNAPSE_AGENT_KEY='agt_xxx_your_real_key'
-bash scripts/e2e/sdk_wave1_local.sh
+bash scripts/e2e/sdk_parity_e2e.sh --env staging
 ```
 
-The script verifies health, discovery, fixed-price invoke, receipt lookup, token-metered LLM invoke, local validation failures, and invalid credential handling for each selected SDK. It may install missing local toolchains; .NET is pinned to SDK 8.0 under `$HOME/.synapse-network-sdk-e2e/dotnet` if needed.
+The script first verifies owner login, credential issue, balance, usage logs, and provider registration guide through each selected SDK's `SynapseAuth` / `SynapseProvider` surface. It then runs the shared runtime E2E for health, discovery, fixed-price invoke, receipt lookup, token-metered LLM invoke, validation failures, and invalid credential handling.
+
+For a private test gateway, use:
+
+```bash
+export SYNAPSE_OWNER_PRIVATE_KEY='0x...'
+export SYNAPSE_GATEWAY_URL='https://your-private-gateway.example.com'
+bash scripts/e2e/sdk_parity_e2e.sh --env local
+```
+
+This does not reintroduce a public local environment preset. The local target is only an explicit URL override for test automation. The script may install missing local toolchains; .NET is pinned to SDK 8.0 under `$HOME/.synapse-network-sdk-e2e/dotnet` if needed.
 
 By default the fixed-price path only auto-selects a free fixed-price API service. If staging has no such service, set `SYNAPSE_E2E_FIXED_SERVICE_ID`, `SYNAPSE_E2E_FIXED_COST_USDC`, and `SYNAPSE_E2E_FIXED_PAYLOAD_JSON` explicitly.
 
