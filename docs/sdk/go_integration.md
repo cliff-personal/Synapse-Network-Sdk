@@ -7,7 +7,7 @@ The Go SDK supports the full public Synapse SDK surface: `SynapseClient` agent r
 The preview module lives in this monorepo:
 
 ```bash
-go get github.com/cliff-personal/Synapse-Network-Sdk/go
+go get github.com/SynapseNetworkAI/Synapse-Network-Sdk/go
 ```
 
 ## Fixed-Price API Invoke
@@ -20,7 +20,7 @@ import (
     "fmt"
     "os"
 
-    synapse "github.com/cliff-personal/Synapse-Network-Sdk/go/synapse"
+    synapse "github.com/SynapseNetworkAI/Synapse-Network-Sdk/go/synapse"
 )
 
 func main() {

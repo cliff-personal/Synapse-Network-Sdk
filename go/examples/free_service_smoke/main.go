@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"os"
 
-	synapse "github.com/cliff-personal/Synapse-Network-Sdk/go/synapse"
+	synapse "github.com/SynapseNetworkAI/Synapse-Network-Sdk/go/synapse"
 )
 
 func main() {
