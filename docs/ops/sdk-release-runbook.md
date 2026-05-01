@@ -20,7 +20,7 @@ This runbook covers SynapseNetwork SDK package publishing. SDKs are **published*
 | --- | --- | --- | --- |
 | Python | `synapse-client` | PyPI | Optional TestPyPI dry-run before public release. |
 | TypeScript | `@synapse-network/sdk` | npm | Use npm dist-tags such as `preview`, `next`, or `latest`. |
-| Go | `github.com/cliff-personal/Synapse-Network-Sdk/go` | Go module via GitHub | Because the module is in `/go`, tags must use `go/vX.Y.Z`. |
+| Go | `github.com/SynapseNetworkAI/Synapse-Network-Sdk/go` | Go module via GitHub | Because the module is in `/go`, tags must use `go/vX.Y.Z`. |
 | Java | `ai.synapsenetwork:synapse-network-sdk` | Maven Central | If Central is not ready, publish preview artifacts to GitHub Packages Maven. |
 | .NET | `SynapseNetwork.Sdk` | NuGet.org | Use NuGet package versions and never overwrite an existing version. |
 | All | GitHub Release | GitHub | One release page per train with links to all language packages. |
@@ -107,7 +107,7 @@ Registry credentials must stay in GitHub Actions secrets. Do not store them in S
 The Go module lives in a subdirectory:
 
 ```text
-go/go.mod -> module github.com/cliff-personal/Synapse-Network-Sdk/go
+go/go.mod -> module github.com/SynapseNetworkAI/Synapse-Network-Sdk/go
 ```
 
 Therefore Go package publishing uses subdirectory tags:

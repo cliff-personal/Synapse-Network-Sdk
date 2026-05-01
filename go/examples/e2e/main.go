@@ -10,7 +10,7 @@ import (
 	"strings"
 	"time"
 
-	synapse "github.com/cliff-personal/Synapse-Network-Sdk/go/synapse"
+	synapse "github.com/SynapseNetworkAI/Synapse-Network-Sdk/go/synapse"
 )
 
 const (
