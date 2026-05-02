@@ -28,8 +28,9 @@ Do not generate private local gateway setup instructions for public SDK users.
 
 If you are integrating SynapseNetwork into an agent framework such as Cursor, Claude Desktop, or LangChain, prefer the official MCP server instead of writing direct SDK code.
 
-- Registry: `@synapse-network/mcp-server`
+- Registry: `@synapse-network-ai/mcp-server`
 - Environment variable: `SYNAPSE_AGENT_KEY=agt_xxx`
+- npm organization: `synapse-network-ai`; use the `@synapse-network-ai/*` scope for official npm packages.
 
 ## SDK Quickstart: Consumer Agent
 
@@ -47,7 +48,7 @@ Use exactly one invocation mode:
 ### TypeScript
 
 ```typescript
-import { SynapseClient } from "@synapse-network/sdk";
+import { SynapseClient } from "@synapse-network-ai/sdk";
 
 const agentKey = process.env.SYNAPSE_AGENT_KEY;
 if (!agentKey) {

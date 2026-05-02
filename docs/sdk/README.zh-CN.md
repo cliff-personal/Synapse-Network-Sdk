@@ -73,7 +73,7 @@ bash scripts/e2e/sdk_parity_e2e.sh --env local
 
 这不会恢复公开的 local environment preset；local 只是测试自动化里的显式 URL override。缺少本地工具链时可自动安装；.NET 会按项目 baseline 安装 SDK 8.0 到 `$HOME/.synapse-network-sdk-e2e/dotnet`。
 
-默认 fixed-price 路径只会自动选择免费的 fixed-price API 服务。如果 staging 没有这类服务，需要显式设置 `SYNAPSE_E2E_FIXED_SERVICE_ID`、`SYNAPSE_E2E_FIXED_COST_USDC` 和 `SYNAPSE_E2E_FIXED_PAYLOAD_JSON`。
+默认 fixed-price 路径会先选择 Synapse 第一方 smoke 服务 `svc_synapse_echo`，找不到时再 fallback 到免费的 fixed-price API 服务。如果 staging 两者都没有，需要显式设置 `SYNAPSE_E2E_FIXED_SERVICE_ID`、`SYNAPSE_E2E_FIXED_COST_USDC` 和 `SYNAPSE_E2E_FIXED_PAYLOAD_JSON`。
 
 ## Staging 产品文档
 
@@ -139,7 +139,7 @@ TypeScript：
 
 1. `request_id` / request header，用于串联 gateway 日志。
 2. `idempotency_key` / `idempotencyKey`，用于避免重复扣费或重复执行。
-3. 普通 fixed-price API 传 `cost_usdc` / `costUsdc`，来自最新 discovery price。若价格变化，gateway 会拒绝本次调用，调用方应重新 discovery。
+3. 普通 fixed-price API 传 `cost_usdc` / `costUsdc`，来自最新 discovery price。Smoke examples 默认调用免费的第一方 `svc_synapse_echo`，它会原样返回 JSON object payload。若价格变化，gateway 会拒绝本次调用，调用方应重新 discovery。
 4. 按 token 计费的 LLM 服务调用 `invoke_llm()` / `invokeLlm()`，可选传 `max_cost_usdc` / `maxCostUsdc`；最终按 Provider 返回的 `usage` 精准扣费。
 
 ## 常见故障

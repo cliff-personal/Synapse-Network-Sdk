@@ -1,9 +1,12 @@
 {
-  "name": "@synapse-network/sdk",
+  "name": "@synapse-network-ai/sdk",
   "version": "0.1.0",
   "description": "Official TypeScript SDK for the Synapse Network API Gateway",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
+  "publishConfig": {
+    "access": "public"
+  },
   "scripts": {
     "build": "tsc",
     "test": "jest --testPathPattern='tests/unit' --runInBand --forceExit",

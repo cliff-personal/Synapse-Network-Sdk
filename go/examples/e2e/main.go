@@ -14,7 +14,8 @@ import (
 )
 
 const (
-	defaultFixedPayload = `{"prompt":"hello"}`
+	synapseEchoServiceID = "svc_synapse_echo"
+	defaultFixedPayload  = `{"message":"hello from Synapse SDK smoke","metadata":{"scenario":"fixed-price"}}`
 	defaultLLMPayload   = `{"messages":[{"role":"user","content":"hello"}]}`
 )
 
@@ -138,19 +139,32 @@ func fixedService(ctx context.Context, client *synapse.Client) (string, string, 
 		return serviceID, cost, payload
 	}
 
-	services, err := client.Search(ctx, "free", synapse.SearchOptions{Limit: 25})
+	services, err := client.Search(ctx, synapseEchoServiceID, synapse.SearchOptions{Limit: 10})
 	must(err)
 	for _, service := range services {
 		amount := moneyString(service.Pricing["amount"])
-		if strings.TrimSpace(service.ServiceID) != "" &&
-			strings.EqualFold(service.ServiceKind, "api") &&
-			strings.EqualFold(service.PriceModel, "fixed") &&
-			decimalEqual(amount, "0") {
+		if service.ServiceID == synapseEchoServiceID && isFreeFixedAPIService(service, amount) {
+			return service.ServiceID, amount, payload
+		}
+	}
+
+	services, err = client.Search(ctx, "free", synapse.SearchOptions{Limit: 25})
+	must(err)
+	for _, service := range services {
+		amount := moneyString(service.Pricing["amount"])
+		if isFreeFixedAPIService(service, amount) {
 			return service.ServiceID, amount, payload
 		}
 	}
 	fail("no free fixed-price API service found; set SYNAPSE_E2E_FIXED_SERVICE_ID, SYNAPSE_E2E_FIXED_COST_USDC, and SYNAPSE_E2E_FIXED_PAYLOAD_JSON")
 	return "", "", nil
+}
+
+func isFreeFixedAPIService(service synapse.ServiceRecord, amount string) bool {
+	return strings.TrimSpace(service.ServiceID) != "" &&
+		strings.EqualFold(service.ServiceKind, "api") &&
+		strings.EqualFold(service.PriceModel, "fixed") &&
+		decimalEqual(amount, "0")
 }
 
 func awaitReceipt(ctx context.Context, client *synapse.Client, invocationID string) *synapse.InvocationResult {

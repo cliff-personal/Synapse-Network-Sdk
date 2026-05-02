@@ -74,7 +74,7 @@ TypeScript pattern:
 TypeScript 模式：
 
 ```ts
-import { SynapseClient } from "@synapse-network/sdk";
+import { SynapseClient } from "@synapse-network-ai/sdk";
 
 const agentKey = process.env.SYNAPSE_AGENT_KEY;
 if (!agentKey) throw new Error("SYNAPSE_AGENT_KEY is required");
@@ -130,7 +130,7 @@ service = provider.register_service(
 ```
 
 ```ts
-import { SynapseAuth } from "@synapse-network/sdk";
+import { SynapseAuth } from "@synapse-network-ai/sdk";
 
 const auth = SynapseAuth.fromWallet(wallet, { environment: "staging" });
 const provider = auth.provider();

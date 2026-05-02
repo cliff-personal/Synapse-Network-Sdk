@@ -174,7 +174,7 @@ print(result.synapse.charged_usdc, result.synapse.released_usdc)
 
 示例脚本位于 `python/examples`：
 
-1. `free_service_smoke.py`：搜索免费 fixed-price API service、invoke、读取 receipt。
+1. `free_service_smoke.py`：优先调用第一方 `svc_synapse_echo`，找不到时搜索免费 fixed-price API service、invoke、读取 receipt。
 2. `llm_smoke.py`：调用 token-metered LLM，不发送 fixed-price cost。
 3. `e2e.py`：完整真实 Gateway 验证并输出 JSON lines。
 4. `provider_staging_onboarding.py`：使用 `SynapseAuth` + `auth.provider()` 在 staging 注册 provider service。

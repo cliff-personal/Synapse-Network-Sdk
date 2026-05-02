@@ -26,7 +26,7 @@ Required:
 
 Optional:
   SYNAPSE_GATEWAY_URL          Explicit Gateway URL; defaults to SDK staging
-  SYNAPSE_E2E_FIXED_SERVICE_ID Fixed-price API service override
+  SYNAPSE_E2E_FIXED_SERVICE_ID Fixed-price API service override; defaults to svc_synapse_echo when present
   SYNAPSE_E2E_FIXED_COST_USDC  Required with SYNAPSE_E2E_FIXED_SERVICE_ID
   SYNAPSE_E2E_FIXED_PAYLOAD_JSON
   SYNAPSE_E2E_LLM_SERVICE_ID   Default: svc_deepseek_chat

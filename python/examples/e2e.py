@@ -10,7 +10,11 @@ from uuid import uuid4
 
 from synapse_client import AuthenticationError, InvokeError, SynapseClient
 
-DEFAULT_FIXED_PAYLOAD = {"prompt": "hello"}
+SYNAPSE_ECHO_SERVICE_ID = "svc_synapse_echo"
+DEFAULT_FIXED_PAYLOAD = {
+    "message": "hello from Synapse SDK smoke",
+    "metadata": {"scenario": "fixed-price"},
+}
 DEFAULT_LLM_PAYLOAD = {"messages": [{"role": "user", "content": "hello"}]}
 
 
@@ -105,6 +109,17 @@ def fixed_target(client: SynapseClient) -> tuple[str, str, dict[str, Any]]:
         if not configured_cost:
             fail("SYNAPSE_E2E_FIXED_COST_USDC is required when SYNAPSE_E2E_FIXED_SERVICE_ID is set")
         return configured_service_id, configured_cost, payload
+
+    services = client.search(SYNAPSE_ECHO_SERVICE_ID, limit=10)
+    for service in services:
+        amount = str(service.pricing.amount)
+        if (
+            service.service_id == SYNAPSE_ECHO_SERVICE_ID
+            and service.service_kind.lower() == "api"
+            and service.price_model.lower() == "fixed"
+            and Decimal(amount) == Decimal("0")
+        ):
+            return service.service_id, amount, payload
 
     services = client.search("free", limit=25)
     for service in services:

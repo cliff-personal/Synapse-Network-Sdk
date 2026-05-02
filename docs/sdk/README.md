@@ -73,7 +73,7 @@ bash scripts/e2e/sdk_parity_e2e.sh --env local
 
 This does not reintroduce a public local environment preset. The local target is only an explicit URL override for test automation. The script may install missing local toolchains; .NET is pinned to SDK 8.0 under `$HOME/.synapse-network-sdk-e2e/dotnet` if needed.
 
-By default the fixed-price path only auto-selects a free fixed-price API service. If staging has no such service, set `SYNAPSE_E2E_FIXED_SERVICE_ID`, `SYNAPSE_E2E_FIXED_COST_USDC`, and `SYNAPSE_E2E_FIXED_PAYLOAD_JSON` explicitly.
+By default the fixed-price path first selects the Synapse first-party smoke service `svc_synapse_echo`, then falls back to any free fixed-price API service. If staging has neither, set `SYNAPSE_E2E_FIXED_SERVICE_ID`, `SYNAPSE_E2E_FIXED_COST_USDC`, and `SYNAPSE_E2E_FIXED_PAYLOAD_JSON` explicitly.
 
 ## Staging Docs
 
@@ -139,7 +139,7 @@ Runtime calls should include:
 
 1. `request_id` / request header for gateway log correlation.
 2. `idempotency_key` / `idempotencyKey` to avoid duplicate charges or duplicate execution.
-3. For fixed-price APIs, pass `cost_usdc` / `costUsdc` from latest discovery price. If price changes, the gateway rejects the call and the caller should rediscover.
+3. For fixed-price APIs, pass `cost_usdc` / `costUsdc` from latest discovery price. Smoke examples default to `svc_synapse_echo`, a free first-party echo service that returns the JSON object payload unchanged. If price changes, the gateway rejects the call and the caller should rediscover.
 4. For token-metered LLM services, call `invoke_llm()` / `invokeLlm()` with optional `max_cost_usdc` / `maxCostUsdc`; final Provider `usage` drives the actual charge.
 
 ## Common Failures

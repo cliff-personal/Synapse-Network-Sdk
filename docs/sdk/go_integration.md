@@ -32,7 +32,7 @@ func main() {
         panic(err)
     }
 
-    services, err := client.Search(context.Background(), "free", synapse.SearchOptions{Limit: 10})
+    services, err := client.Search(context.Background(), "svc_synapse_echo", synapse.SearchOptions{Limit: 10})
     if err != nil {
         panic(err)
     }
@@ -41,7 +41,10 @@ func main() {
     result, err := client.Invoke(
         context.Background(),
         service.ServiceID,
-        map[string]any{"prompt": "hello"},
+        map[string]any{
+            "message": "hello from Synapse SDK smoke",
+            "metadata": map[string]any{"scenario": "quickstart"},
+        },
         synapse.InvokeOptions{CostUSDC: fmt.Sprint(service.Pricing["amount"])},
     )
     if err != nil {
