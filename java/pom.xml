@@ -40,7 +40,7 @@
     <repository>
       <id>github</id>
       <name>GitHub Packages</name>
-      <url>https://maven.pkg.github.com/cliff-personal/Synapse-Network-Sdk</url>
+      <url>https://maven.pkg.github.com/SynapseNetworkAI/Synapse-Network-Sdk</url>
     </repository>
   </distributionManagement>
 
