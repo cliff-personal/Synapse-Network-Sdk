@@ -20,6 +20,8 @@
 
 Python, TypeScript, Go, Java, and .NET SDKs for AI agents and developers building on SynapseNetwork.
 
+<!-- @synapse-context:quickstart -->
+
 SynapseNetwork lets an agent discover services, invoke them through a gateway, and settle the call with an auditable receipt. The fastest integration path is:
 
 1. Get an Agent Key (`agt_xxx`) from the Synapse Gateway Dashboard.
