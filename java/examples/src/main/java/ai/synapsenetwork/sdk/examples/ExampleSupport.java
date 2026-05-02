@@ -10,6 +10,13 @@ import java.util.List;
 import java.util.Map;
 
 final class ExampleSupport {
+  static final String SYNAPSE_ECHO_SERVICE_ID = "svc_synapse_echo";
+  static final Map<String, Object> DEFAULT_FIXED_PAYLOAD =
+      Map.of(
+          "message",
+          "hello from Synapse SDK smoke",
+          "metadata",
+          Map.of("scenario", "fixed-price"));
   private static final ObjectMapper MAPPER = new ObjectMapper();
 
   private ExampleSupport() {}
@@ -30,7 +37,7 @@ final class ExampleSupport {
   }
 
   static FixedTarget fixedTarget(SynapseClient client) {
-    Map<String, Object> configuredPayload = payload("SYNAPSE_E2E_FIXED_PAYLOAD_JSON", Map.of("prompt", "hello"));
+    Map<String, Object> configuredPayload = payload("SYNAPSE_E2E_FIXED_PAYLOAD_JSON", DEFAULT_FIXED_PAYLOAD);
     String configuredServiceId = System.getenv("SYNAPSE_E2E_FIXED_SERVICE_ID");
     if (configuredServiceId != null && !configuredServiceId.isBlank()) {
       String cost = System.getenv("SYNAPSE_E2E_FIXED_COST_USDC");
@@ -41,8 +48,17 @@ final class ExampleSupport {
     }
 
     SynapseClient.SearchOptions options = new SynapseClient.SearchOptions();
+    options.limit = 10;
+    List<SynapseClient.ServiceRecord> services = client.search(SYNAPSE_ECHO_SERVICE_ID, options);
+    for (SynapseClient.ServiceRecord service : services) {
+      String amount = pricingAmount(service);
+      if (SYNAPSE_ECHO_SERVICE_ID.equals(service.serviceId()) && isFreeFixedApiService(service)) {
+        return new FixedTarget(service.serviceId(), amount, configuredPayload);
+      }
+    }
+
     options.limit = 25;
-    List<SynapseClient.ServiceRecord> services = client.search("free", options);
+    services = client.search("free", options);
     for (SynapseClient.ServiceRecord service : services) {
       String amount = pricingAmount(service);
       if (isFreeFixedApiService(service)) {

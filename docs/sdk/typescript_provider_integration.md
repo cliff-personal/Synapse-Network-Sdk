@@ -44,7 +44,7 @@
 
 ```ts
 import { Wallet } from "ethers";
-import { SynapseAuth } from "@synapse-network/sdk";
+import { SynapseAuth } from "@synapse-network-ai/sdk";
 
 const wallet = new Wallet(process.env.PROVIDER_PRIVATE_KEY!);
 

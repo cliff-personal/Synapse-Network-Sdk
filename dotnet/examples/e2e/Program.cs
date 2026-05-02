@@ -2,7 +2,8 @@ using System.Globalization;
 using System.Text.Json;
 using SynapseNetwork.Sdk;
 
-const string DefaultFixedPayload = "{\"prompt\":\"hello\"}";
+const string SynapseEchoServiceId = "svc_synapse_echo";
+const string DefaultFixedPayload = "{\"message\":\"hello from Synapse SDK smoke\",\"metadata\":{\"scenario\":\"fixed-price\"}}";
 const string DefaultLlmPayload = "{\"messages\":[{\"role\":\"user\",\"content\":\"hello\"}]}";
 
 var credential = RequireEnv("SYNAPSE_AGENT_KEY");
@@ -110,20 +111,36 @@ static async Task<FixedServiceTarget> FixedTarget(SynapseClient client, Cancella
         return new FixedServiceTarget(configuredServiceId.Trim(), cost.Trim(), payload);
     }
 
+    var echoServices = await client.SearchAsync(SynapseEchoServiceId, new SearchOptions { Limit = 10 }, cancellationToken);
+    foreach (var service in echoServices)
+    {
+        var amount = PricingAmount(service);
+        if (string.Equals(service.ServiceId, SynapseEchoServiceId, StringComparison.Ordinal)
+            && IsFreeFixedApiService(service, amount))
+        {
+            return new FixedServiceTarget(service.ServiceId, amount, payload);
+        }
+    }
+
     var services = await client.SearchAsync("free", new SearchOptions { Limit = 25 }, cancellationToken);
     foreach (var service in services)
     {
         var amount = PricingAmount(service);
-        if (!string.IsNullOrWhiteSpace(service.ServiceId)
-            && string.Equals(service.ServiceKind, "api", StringComparison.OrdinalIgnoreCase)
-            && string.Equals(service.PriceModel, "fixed", StringComparison.OrdinalIgnoreCase)
-            && DecimalEquals(amount, "0"))
+        if (IsFreeFixedApiService(service, amount))
         {
             return new FixedServiceTarget(service.ServiceId, amount, payload);
         }
     }
     Fail("no free fixed-price API service found; set SYNAPSE_E2E_FIXED_SERVICE_ID, SYNAPSE_E2E_FIXED_COST_USDC, and SYNAPSE_E2E_FIXED_PAYLOAD_JSON");
     throw new InvalidOperationException("unreachable");
+}
+
+static bool IsFreeFixedApiService(ServiceRecord service, string amount)
+{
+    return !string.IsNullOrWhiteSpace(service.ServiceId)
+        && string.Equals(service.ServiceKind, "api", StringComparison.OrdinalIgnoreCase)
+        && string.Equals(service.PriceModel, "fixed", StringComparison.OrdinalIgnoreCase)
+        && DecimalEquals(amount, "0");
 }
 
 static async Task<InvocationResult> AwaitReceipt(SynapseClient client, string? invocationId, CancellationToken cancellationToken)

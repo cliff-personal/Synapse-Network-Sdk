@@ -21,13 +21,17 @@ var client = new SynapseClient(new SynapseClientOptions
     Environment = "staging",
 });
 
-var services = await client.SearchAsync("free", new SearchOptions { Limit = 10 });
+var services = await client.SearchAsync("svc_synapse_echo", new SearchOptions { Limit = 10 });
 var service = services[0];
 var price = service.Pricing?.GetProperty("amount").GetString() ?? "0";
 
 var result = await client.InvokeAsync(
     service.ServiceId ?? service.Id!,
-    new Dictionary<string, object?> { ["prompt"] = "hello" },
+    new Dictionary<string, object?>
+    {
+        ["message"] = "hello from Synapse SDK smoke",
+        ["metadata"] = new Dictionary<string, object?> { ["scenario"] = "quickstart" },
+    },
     new InvokeOptions { CostUsdc = price });
 
 Console.WriteLine($"{result.InvocationId} {result.Status} {result.ChargedUsdc}");

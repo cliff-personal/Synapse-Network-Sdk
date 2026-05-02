@@ -21,7 +21,7 @@ export SYNAPSE_AGENT_KEY=agt_xxx
 
 | Goal | Use |
 |---|---|
-| Connect an agent framework such as Cursor, Claude Desktop, or LangChain | `@synapse-network/mcp-server` |
+| Connect an agent framework such as Cursor, Claude Desktop, or LangChain | `@synapse-network-ai/mcp-server` |
 | Write application code that invokes services directly | `SynapseClient` |
 | Issue agent credentials or manage provider services | `SynapseAuth` and `auth.provider()` |
 

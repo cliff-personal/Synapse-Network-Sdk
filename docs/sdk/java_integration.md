@@ -23,13 +23,16 @@ import java.util.Map;
 SynapseClient client = new SynapseClient(
     SynapseClient.options(System.getenv("SYNAPSE_AGENT_KEY")).environment("staging"));
 
-var services = client.search("free", new SynapseClient.SearchOptions());
+var services = client.search("svc_synapse_echo", new SynapseClient.SearchOptions());
 var service = services.get(0);
 
 SynapseClient.InvokeOptions options = new SynapseClient.InvokeOptions();
 options.costUsdc = service.pricing().path("amount").asText("0");
 
-var result = client.invoke(service.serviceId(), Map.of("prompt", "hello"), options);
+var result = client.invoke(
+    service.serviceId(),
+    Map.of("message", "hello from Synapse SDK smoke", "metadata", Map.of("scenario", "quickstart")),
+    options);
 System.out.println(result.invocationId() + " " + result.status() + " " + result.chargedUsdc());
 ```
 

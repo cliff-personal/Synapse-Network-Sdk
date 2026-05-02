@@ -1,7 +1,11 @@
 import { AuthenticationError, InvokeError, SynapseClient } from "../src";
 import type { ServiceRecord } from "../src";
 
-export const DEFAULT_FIXED_PAYLOAD: Record<string, unknown> = { prompt: "hello" };
+export const SYNAPSE_ECHO_SERVICE_ID = "svc_synapse_echo";
+export const DEFAULT_FIXED_PAYLOAD: Record<string, unknown> = {
+  message: "hello from Synapse SDK smoke",
+  metadata: { scenario: "fixed-price" },
+};
 export const DEFAULT_LLM_PAYLOAD: Record<string, unknown> = {
   messages: [{ role: "user", content: "hello" }],
 };
@@ -71,6 +75,18 @@ export async function fixedTarget(
       throw new Error("SYNAPSE_E2E_FIXED_COST_USDC is required when SYNAPSE_E2E_FIXED_SERVICE_ID is set");
     }
     return { serviceId: configuredServiceId, costUsdc: configuredCost, payload };
+  }
+
+  const echoServices = await synapse.search(SYNAPSE_ECHO_SERVICE_ID, { limit: 10 });
+  const echoService = echoServices.find(
+    (service) => (service.serviceId ?? service.id) === SYNAPSE_ECHO_SERVICE_ID && isFreeFixedApiService(service)
+  );
+  if (echoService) {
+    return {
+      serviceId: echoService.serviceId ?? echoService.id ?? "",
+      costUsdc: pricingAmount(echoService),
+      payload,
+    };
   }
 
   const services = await synapse.search("free", { limit: 25 });

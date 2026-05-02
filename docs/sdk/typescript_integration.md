@@ -89,7 +89,7 @@ Staging 接入建议先完成：
 
 ```ts
 import { Wallet } from "ethers";
-import { SynapseAuth } from "@synapse-network/sdk";
+import { SynapseAuth } from "@synapse-network-ai/sdk";
 
 const wallet = new Wallet(process.env.OWNER_PRIVATE_KEY!);
 const auth = SynapseAuth.fromWallet(wallet, {
@@ -147,7 +147,7 @@ SDK 继续兼容 `limit/offset` 入参，并映射为：
 示例：
 
 ```ts
-import { SynapseClient } from "@synapse-network/sdk";
+import { SynapseClient } from "@synapse-network-ai/sdk";
 
 const client = new SynapseClient({
   credential: issued.token,
@@ -221,6 +221,7 @@ console.log(result.synapse?.chargedUsdc, result.synapse?.releasedUsdc);
 ## TypeScript Examples
 
 Runnable examples live under `typescript/examples`:
+`example:free` first calls `svc_synapse_echo`, then falls back to another free fixed-price API service if echo is unavailable.
 
 ```bash
 cd /Users/cliff/workspace/agent/Synapse-Network-Sdk

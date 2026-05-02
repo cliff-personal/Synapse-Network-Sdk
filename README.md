@@ -45,7 +45,7 @@ Recommended path:
 1. Connect a wallet in the staging Gateway Dashboard.
 2. Get or issue an Agent Key and export it as `SYNAPSE_AGENT_KEY`.
 3. Set `SYNAPSE_ENV=staging`.
-4. Use free services first, or fund staging balance with MockUSDC before paid test calls.
+4. Use the free first-party `svc_synapse_echo` smoke service first, or fund staging balance with MockUSDC before paid test calls.
 5. Run one fixed-price API invoke and one token-metered LLM invoke.
 6. Read the invocation receipt and verify settlement metadata.
 
@@ -55,7 +55,7 @@ Developers should pass staging before any future production migration. Productio
 
 | Goal | Use |
 |---|---|
-| Connect SynapseNetwork to an agent framework such as Cursor, Claude Desktop, or LangChain | Official MCP server: `@synapse-network/mcp-server` with `SYNAPSE_AGENT_KEY=agt_xxx` |
+| Connect SynapseNetwork to an agent framework such as Cursor, Claude Desktop, or LangChain | Official MCP server: `@synapse-network-ai/mcp-server` with `SYNAPSE_AGENT_KEY=agt_xxx` |
 | Write application code that invokes services directly | This SDK with `SynapseClient` |
 | Issue Agent Keys or publish provider APIs | Advanced owner/provider APIs: `SynapseAuth` and `auth.provider()` |
 
@@ -118,6 +118,7 @@ All five SDKs expose the same public capability families: agent runtime, owner w
 ## Examples By SDK
 
 All runnable examples default to staging and read `SYNAPSE_AGENT_KEY`.
+The fixed-price smoke examples first call `svc_synapse_echo`, then fall back to another free fixed-price service if echo is unavailable.
 
 | SDK | Free fixed-price smoke | LLM smoke | Full E2E |
 |---|---|---|---|
@@ -156,12 +157,12 @@ from synapse_client import SynapseClient
 
 client = SynapseClient()
 
-services = client.search("free", limit=10)
+services = client.search("svc_synapse_echo", limit=10)
 service = services[0]
 
 result = client.invoke(
     service.service_id,
-    {"prompt": "hello"},
+    {"message": "hello from Synapse SDK smoke", "metadata": {"scenario": "quickstart"}},
     cost_usdc=str(service.price_usdc),
     idempotency_key="agent-job-001",
 )
@@ -180,12 +181,14 @@ Step 1: get your Agent Key from the Synapse Gateway Dashboard.
 
 Step 2: pass the key to the SDK.
 
+The npm organization is `synapse-network-ai`; use the `@synapse-network-ai/*` scope for official packages.
+
 ```bash
-npm install @synapse-network/sdk
+npm install @synapse-network-ai/sdk
 ```
 
 ```ts
-import { SynapseClient } from "@synapse-network/sdk";
+import { SynapseClient } from "@synapse-network-ai/sdk";
 
 const agentKey = process.env.SYNAPSE_AGENT_KEY;
 if (!agentKey) {
@@ -197,14 +200,14 @@ const client = new SynapseClient({
   environment: "staging",
 });
 
-const services = await client.search("free", {
+const services = await client.search("svc_synapse_echo", {
   limit: 10,
 });
 const service = services[0];
 
 const result = await client.invoke(
   service.serviceId ?? service.id!,
-  { prompt: "hello" },
+  { message: "hello from Synapse SDK smoke", metadata: { scenario: "quickstart" } },
   {
     costUsdc: String(service.pricing?.amount ?? "0"),
     idempotencyKey: "agent-job-001",
@@ -267,7 +270,7 @@ TypeScript:
 
 ```ts
 import { Wallet } from "ethers";
-import { SynapseAuth } from "@synapse-network/sdk";
+import { SynapseAuth } from "@synapse-network-ai/sdk";
 
 const wallet = new Wallet(process.env.OWNER_PRIVATE_KEY!);
 const auth = SynapseAuth.fromWallet(wallet, { environment: "staging" });
@@ -306,7 +309,7 @@ TypeScript:
 
 ```ts
 import { Wallet } from "ethers";
-import { SynapseAuth } from "@synapse-network/sdk";
+import { SynapseAuth } from "@synapse-network-ai/sdk";
 
 const auth = SynapseAuth.fromWallet(new Wallet(process.env.OWNER_PRIVATE_KEY!), {
   environment: "staging",

@@ -48,7 +48,7 @@ export E2E_RUN_ID
 export E2E_OUT_DIR="$OUT_DIR"
 export SYNAPSE_GATEWAY_URL="${SYNAPSE_GATEWAY_URL:-http://127.0.0.1:8000}"
 export SYNAPSE_OWNER_PRIVATE_KEY="${SYNAPSE_OWNER_PRIVATE_KEY:-$PRIVATE_KEY}"
-export SYNAPSE_E2E_FIXED_SERVICE_ID="${SYNAPSE_E2E_FIXED_SERVICE_ID:-svc_oss_security_healthcheck}"
+export SYNAPSE_E2E_FIXED_SERVICE_ID="${SYNAPSE_E2E_FIXED_SERVICE_ID:-svc_synapse_echo}"
 export SYNAPSE_E2E_FIXED_COST_USDC="${SYNAPSE_E2E_FIXED_COST_USDC:-0.000000}"
 export SYNAPSE_E2E_LLM_SERVICE_ID="${SYNAPSE_E2E_LLM_SERVICE_ID:-svc_deepseek_chat}"
 export SYNAPSE_E2E_LLM_MAX_COST_USDC="${SYNAPSE_E2E_LLM_MAX_COST_USDC:-0.010000}"
@@ -77,7 +77,7 @@ fi
 export POSTGRES_READONLY_DSN
 
 if [[ -z "${SYNAPSE_E2E_FIXED_PAYLOAD_JSON:-}" ]]; then
-  export SYNAPSE_E2E_FIXED_PAYLOAD_JSON='{"packageList":["requests==2.31.0"]}'
+  export SYNAPSE_E2E_FIXED_PAYLOAD_JSON='{"message":"hello from Synapse SDK smoke","metadata":{"scenario":"fixed-price"}}'
 fi
 if [[ -z "${SYNAPSE_E2E_LLM_PAYLOAD_JSON:-}" ]]; then
   export SYNAPSE_E2E_LLM_PAYLOAD_JSON='{"messages":[{"role":"user","content":"hello from sdk local e2e"}]}'
